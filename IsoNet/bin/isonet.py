@@ -623,14 +623,16 @@ class ISONET:
 
         if crop_size is None:
             crop_size = cube_size + 16
-
+        n_subtomo_per_tomo = 100
         import starfile
         import mrcfile
+        import pandas as pd
         import numpy as np
         df = starfile.read(star)
         os.makedirs(subtomo_folder, exist_ok=True)
         from IsoNet.preprocessing.cubes import extract_subvolume, create_cube_seeds
         from IsoNet.preprocessing.img_processing import normalize
+        particle_list = []
         for index, row in df.iterrows():
             tomo_index = row["rlnIndex"]
             tomo_folder = f"TS_{tomo_index:05d}"
@@ -640,8 +642,9 @@ class ISONET:
                 tomo = mrc.data
             mask = np.ones_like(tomo)
             tomo = normalize(tomo,percentile=False)
-            seeds=create_cube_seeds(tomo, 100, cube_size, mask)
+            seeds=create_cube_seeds(tomo, n_subtomo_per_tomo, cube_size, mask)
             extract_subvolume(tomo, seeds, cube_size, even_folder)
+            
             if "rlnTomogram2Name" in list(df.columns):
                 odd_folder = os.path.join(subtomo_folder, tomo_folder, 'subtomo1')
                 os.makedirs(odd_folder, exist_ok=True)
@@ -649,27 +652,30 @@ class ISONET:
                     tomo = mrc.data
                 tomo = normalize(tomo,percentile=False)
                 extract_subvolume(tomo, seeds, cube_size, odd_folder)
+
+            wedge_path = os.path.join(subtomo_folder, tomo_folder, 'wedge.mrc')
             if "rlnTiltFile" in list(df.columns):
-                wedge_path = os.path.join(subtomo_folder, tomo_folder, 'wedge.mrc')
                 print(wedge_path)
                 self.reconstruct_psf(size=128, tilt_file=row["rlnTiltFile"], output=wedge_path)
+            else:
+                self.reconstruct_psf(size=128, output=wedge_path)
 
+            for i in range(n_subtomo_per_tomo):
+                im_name1 = '{}/subvolume{}_{:0>6d}.mrc'.format(even_folder, '', i)
+                if "rlnTomogram2Name" in list(df.columns):
+                    im_name2 = '{}/subvolume{}_{:0>6d}.mrc'.format(odd_folder, '', i)
+                    particle_list.append([im_name1,im_name2,wedge_path])
+                    label = ["rlnParticleName","rlnParticle2Name","rlnWedgeName"]                    
+                    #particle_list.append([row["rlnTomogramName"],row["rlnTomogram2Name"],im_name1,im_name2,wedge_path])
+                    #label = ["rlnTomogramName","rlnTomogram2Name","rlnParticleName","rlnParticle2Name","rlnWedgeName"]
+                else:
+                    particle_list.append([im_name1,wedge_path])
+                    label = ["rlnParticleName","rlnWedgeName"]
+                    #particle_list.append([row["rlnTomogram1Name"],im_name1,wedge_path])
+                    #label = ["rlnTomogramName","rlnParticleName","rlnWedgeName"]
 
-
-            # with mrcfile.open(i1, 'r') as mrc:
-            #     halfmap1 = normalize(mrc.data,percentile=False)
-            #     voxel_size = mrc.voxel_size.x
-            #     if voxel_size == 0:
-            #         voxel_size = 1
-            # logging.info("voxel_size {}".format(voxel_size))
-
-            # # loading i2
-            # if i2 is not None:
-            #     output_base2 = i2.split('/')[-1]
-            #     output_base2 = output_base2.split('.')[:-1]
-            #     output_base2 = "".join(output_base2)
-            #     with mrcfile.open(i2, 'r') as mrc:
-            #         halfmap2 = normalize(mrc.data,percentile=False)
+        df = pd.DataFrame(particle_list, columns = label)
+        starfile.write(df,"subtomos.star")        
         
 
 
