@@ -15,33 +15,22 @@ class ISONET:
     """
 
 
-    def refine_old(self, 
-                   i1: str,
-                   i2: str=None,
-                   aniso_file: str = None, 
-                   mask: str=None, 
-
-                   independent: bool=False,
-
+    def refine(self, 
+                   i: str,
                    gpuID: str=None,
 
-                   alpha: float=1,
-                   beta: float=0.5,
                    limit_res: str=None,
 
                    ncpus: int=16, 
                    output_dir: str="isonet_maps",
                    pretrained_model: str=None,
 
-                   reference: str=None,
-                   ref_resolution: float=10,
-
                    epochs: int=50,
                    n_subvolume: int=1000, 
                    cube_size: int=64,
                    predict_crop_size: int=80,
                    batch_size: int=None, 
-                   acc_batches: int=2,
+                   acc_batches: int=1,
                    learning_rate: float=3e-4
                    ):
 
@@ -108,91 +97,15 @@ class ISONET:
 
         mkfolder(output_dir,remove=False)
 
-        # loading i1
-        output_base1 = i1.split('/')[-1]
-        output_base1 = output_base1.split('.')[:-1]
-        output_base1 = "".join(output_base1)
-
-        with mrcfile.open(i1, 'r') as mrc:
-            halfmap1 = normalize(mrc.data,percentile=False)
-            voxel_size = mrc.voxel_size.x
-            if voxel_size == 0:
-                voxel_size = 1
-        logging.info("voxel_size {}".format(voxel_size))
-
-        # loading i2
-        if i2 is not None:
-            output_base2 = i2.split('/')[-1]
-            output_base2 = output_base2.split('.')[:-1]
-            output_base2 = "".join(output_base2)
-            with mrcfile.open(i2, 'r') as mrc:
-                halfmap2 = normalize(mrc.data,percentile=False)
-
-        # loading mask
-        if mask is None:
-            mask_vol = np.ones(halfmap1.shape, dtype = np.float32)
-            logging.info("No mask is provided. Maybe without mask is better")
-        else:
-            with mrcfile.open(mask, 'r') as mrc:
-                mask_vol = mrc.data
-
-        # loading fsc3d
-        if aniso_file is None:
-            logging.warning("No fsc3d is provided. Only denosing")
-            if (i2 is None) or independent:
-                logging.warning("For denoising, please provide half2 and set independent to False")
-            fsc3d = np.ones(halfmap1.shape, dtype = np.float32)
-        else:
-            with mrcfile.open(aniso_file, 'r') as mrc:
-                fsc3d = mrc.data
-
-        if limit_res is not None:
-            limit_res = float(limit_res)
-        
-        if reference is not None:
-            # TODO change the FSC3D 
-            logging.info(f"Incoorporating low resolution information of the reference {reference}\n\
-                         until the --ref_resolution {ref_resolution}")
-            with mrcfile.open(reference,'r') as mrc:
-                ref_map = mrc.data
-            from IsoNet.util.FSC import combine_map_F
-            halfmap1 = combine_map_F(ref_map,halfmap1,ref_resolution,voxel_size,mask_data=mask_vol)
-            if i2 is not None:
-                halfmap2 = combine_map_F(ref_map,halfmap2,ref_resolution,voxel_size,mask_data=mask_vol)
-
-            from IsoNet.util.FSC import get_sphere
-            sphere = get_sphere(voxel_size/float(ref_resolution)*fsc3d.shape[0], fsc3d.shape[0])
-            fsc3d = np.maximum(fsc3d, sphere)
-            # with mrcfile.new("tmp_combined_FSC.mrc", overwrite=True) as mrc:
-            #     mrc.set_data(fsc3d.astype(np.float32))
-
-        if independent:
-            logging.info("processing half1")
-            map_refine(halfmap1, mask_vol, fsc3d, alpha = alpha,  voxel_size=voxel_size, output_dir=output_dir, 
-                   output_base=output_base1, mixed_precision=False, epochs = epochs,
+        from IsoNet.bin.refine import run_refine
+        run_refine(star_file=i,output_dir=output_dir, 
+                    mixed_precision=False, epochs = epochs,
                    n_subvolume=n_subvolume, cube_size=cube_size, pretrained_model=pretrained_model,
-                   batch_size = batch_size, acc_batches = acc_batches,predict_crop_size=predict_crop_size, learning_rate=learning_rate, limit_res= limit_res)
-        if (i2 is not None) and independent:
-            logging.info("processing half2")
-            map_refine(halfmap1, mask_vol, fsc3d, alpha = alpha,  voxel_size=voxel_size, output_dir=output_dir, 
-                   output_base=output_base2, mixed_precision=False, epochs = epochs,
-                   n_subvolume=n_subvolume, cube_size=cube_size, pretrained_model=pretrained_model,
-                   batch_size = batch_size, acc_batches = acc_batches,predict_crop_size=predict_crop_size,learning_rate=learning_rate, limit_res= limit_res)
-        if (i2 is not None) and (not independent):
-            map_refine_n2n(halfmap1,halfmap2, mask_vol, fsc3d, alpha = alpha,beta=beta,  voxel_size=voxel_size, output_dir=output_dir, 
-                   output_base1=output_base1, output_base2=output_base2, mixed_precision=False, epochs = epochs,
-                   n_subvolume=n_subvolume, cube_size=cube_size, pretrained_model=pretrained_model,
-                   batch_size = batch_size, acc_batches = acc_batches,predict_crop_size=predict_crop_size, learning_rate=learning_rate, limit_res= limit_res)
-
-        if limit_res is not None:
-            logging.info("combining")
-            self.combine_map(f"{output_dir}/corrected_{output_base1}_filtered.mrc",i1, out_map=f"{output_dir}/corrected_{output_base1}.mrc",threshold_res=limit_res,mask_file= mask)
-            if i2 is not None:
-                self.combine_map(f"{output_dir}/corrected_{output_base2}_filtered.mrc",i2, out_map=f"{output_dir}/corrected_{output_base2}.mrc",threshold_res=limit_res,mask_file= mask)
+                   batch_size = batch_size, ncpus=ncpus, acc_batches = acc_batches,predict_crop_size=predict_crop_size, learning_rate=learning_rate, limit_res= limit_res)
 
         logging.info("Finished")
 
-    def refine(self, 
+    def refine_old(self, 
                    i: str,
                    gpuID: str=None,
 
@@ -282,7 +195,7 @@ class ISONET:
 
         logging.info("Finished")
 
-    def predict(self, star_file: str, model: str, output_dir: str='./corrected_tomos', gpuID: str = None, cube_size:int=64,
+    def predict(self, star_file: str, model: str, output_dir: str='./corrected_tomos', predict_both=True, gpuID: str = None, cube_size:int=64,
     crop_size:int=96,use_deconv_tomo=True, batch_size:int=None,normalize_percentile: bool=True,log_level: str="info", tomo_idx=None):
         """
         \nPredict tomograms using trained model\n
@@ -321,86 +234,81 @@ class ISONET:
         for index, tomo_row in star.iterrows():
             print(tomo_row)
             with mrcfile.open(tomo_row['rlnTomogramName']) as mrc:
-                tomo = mrc.data.copy()
+                tomo1 = mrc.data.copy()
             if 'rlnTomogram2Name' in star.columns:
                 with mrcfile.open(tomo_row['rlnTomogram2Name']) as mrc:
-                    tomo += mrc.data
-            tomo = normalize(tomo,percentile=False)
-            outData = network.predict_map(tomo, output_dir).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
+                    tomo2 = mrc.data
+            if predict_both:
+                tomo = normalize(tomo1,percentile=False)
+                outData = network.predict_map(tomo, output_dir).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
+                file_base_name = os.path.basename(tomo_row['rlnTomogramName'])
+                file_name, file_extension = os.path.splitext(file_base_name)
+                with mrcfile.new(f"{output_dir}/corrected_{file_name}.mrc") as mrc:
+                    mrc.set_data(outData)
 
-            file_base_name = os.path.basename(tomo_row['rlnTomogramName'])
-            file_name, file_extension = os.path.splitext(file_base_name)
-            with mrcfile.new(f"{output_dir}/corrected_{file_name}.mrc") as mrc:
-                mrc.set_data(outData)
+                tomo = normalize(tomo2,percentile=False)
+                outData = network.predict_map(tomo, output_dir).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
+                file_base_name = os.path.basename(tomo_row['rlnTomogram2Name'])
+                file_name, file_extension = os.path.splitext(file_base_name)
+                with mrcfile.new(f"{output_dir}/corrected_{file_name}.mrc") as mrc:
+                    mrc.set_data(outData)
 
-    def whitening(self, 
-                    h1: str,
-                    o: str = "whitening.mrc",
-                    mask: str=None, 
-                    high_res: float=3,
-                    low_res: float=10,
-                    ):
-        """
-        \nFlattening Fourier amplitude within the resolution range. This will sharpen the map. Low resolution is typically 10 and high resolution limit is typicaly the resolution at FSC=0.143\n
-        """
-        import numpy as np
+    def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):
+        '''
+        This function rescale the tomograms to a given pixelsize
+        '''
         import mrcfile
-        from numpy.fft import fftshift, fftn, ifftn
+        import starfile
+        import os
+        import shutil
+        star = starfile.read(star_file)
+        from scipy.ndimage import zoom
+        new_star = star.copy(deep=True)
+        if not os.path.isdir(out_folder):
+            os.makedirs(out_folder)
 
-        with mrcfile.open(h1,'r') as mrc:
-            input_map = mrc.data
-            nz,ny,nx = input_map.shape
-            voxel_size = mrc.voxel_size.x
-            if voxel_size == 0:
-                voxel_size = 1
-            logging.info("voxel_size",voxel_size)
+        for index, row in star.iterrows():
+            old_tomo1_name = row["rlnTomogramName"]
+            old_tomo2_name = row["rlnTomogram2Name"]
+            old_tilt_name = row["rlnTiltFile"]
+            ori_apix = float(row["rlnPixelSize"])
+            zoom_factor = float(ori_apix)/apix
 
-        if mask is not None:
-            with mrcfile.open(mask,'r') as mrc:
-                mask = mrc.data
-            input_map_masked = input_map * mask
-        else:
-            input_map_masked = input_map
+            tomo_folder = os.path.basename(os.path.dirname(old_tomo1_name))
+            if not os.path.isdir(out_folder+'/'+tomo_folder):
+                os.makedirs(out_folder+'/'+tomo_folder)
+            
+            if old_tomo1_name is not None:
+                output_tomo1_name = out_folder+'/'+tomo_folder+'/'+os.path.basename(old_tomo1_name)
+                with mrcfile.open(old_tomo1_name, permissive=True) as mrc:
+                    data = mrc.data
+                print("scaling: {}".format(output_tomo1_name))
+                new_data = zoom(data, zoom_factor,order=3, prefilter=False)
+                with mrcfile.new(output_tomo1_name,overwrite=True) as mrc:
+                    mrc.set_data(new_data)
+                    mrc.voxel_size = apix
 
-        limit_r_low = int(voxel_size * nz / low_res)
-        limit_r_high = int(voxel_size * nz / high_res)
+            if old_tomo2_name is not None:
+                output_tomo2_name = out_folder+'/'+tomo_folder+'/'+os.path.basename(old_tomo2_name)
+                with mrcfile.open(old_tomo2_name, permissive=True) as mrc:
+                    data = mrc.data
+                print("scaling: {}".format(output_tomo2_name))
+                new_data = zoom(data, zoom_factor,order=3, prefilter=False)
+                with mrcfile.new(output_tomo2_name,overwrite=True) as mrc:
+                    mrc.set_data(new_data)
+                    mrc.voxel_size = apix   
 
-        # power spectrum
-        f1 = fftshift(fftn(input_map_masked))
-        ret = (np.real(np.multiply(f1,np.conj(f1)))**0.5).astype(np.float32)
+            if old_tilt_name is not None:
+                output_tilt_name = out_folder+'/'+tomo_folder+'/'+os.path.basename(old_tilt_name)
+                shutil.copy(old_tilt_name, output_tilt_name)
+                
 
-        #vet whitening filter
-        r = np.arange(nz)-nz//2
-        [Z,Y,X] = np.meshgrid(r,r,r)
-        index = np.round(np.sqrt(Z**2+Y**2+X**2))
-
-        F_curve = np.zeros(nz//2)
-        F_map = np.zeros_like(ret)
-        for i in range(nz//2):
-            F_curve[i] = np.average(ret[index==i])
-
-        eps = 1e-4
-        
-        for i in range(nz//2):
-            if i > limit_r_low:
-                if i < limit_r_high:
-                    F_map[index==i] = F_curve[limit_r_low]/(F_curve[i]+eps)
-                else:
-                    F_map[index==i] = 1
-            else:
-                F_map[index==i] = 1
-
-        # apply filter
-        F_input = fftn(input_map)
-        out = ifftn(F_input*fftshift(F_map))
-        out =  np.real(out).astype(np.float32)
-
-        # with mrcfile.new("F.mrc", overwrite=True) as mrc:
-        #     mrc.set_data(F_map)
-
-        with mrcfile.new(o, overwrite=True) as mrc:
-            mrc.set_data(out)
-            mrc.voxel_size = voxel_size
+            new_star.loc[index, "rlnTomogramName"] = output_tomo1_name
+            new_star.loc[index,"rlnTomogram2Name"] = output_tomo2_name
+            new_star.loc[index,"rlnPixelSize"] =  apix
+            new_star.loc[index,"rlnTiltFile"] =  output_tilt_name
+        starfile.write(new_star,out_folder+'.star')        
+        print("scale_finished: {}".format(out_folder+'.star'))
 
     def powerlaw_filtering(self, 
                     h1: str,
@@ -471,239 +379,7 @@ class ISONET:
             mrc.set_data(out)
             mrc.voxel_size = voxel_size
 
-    def combine_map(self, 
-                    low_map: str, 
-                    high_map: str, 
-                    out_map:str,
-                    threshold_res: float,
-                    mask_file: str=None):
-        """
-        \nCombine the low resolution info (lower than threshold_res) of one map and high resolution info (higher than (lower than threshold_res) of another map to produce a chimeric map. 
-        """
-        import numpy as np
-        import mrcfile
-        with mrcfile.open(low_map,'r') as mrc:
-            low_data = mrc.data
-            voxel_size = mrc.voxel_size.x
-            if voxel_size == 0:
-                voxel_size = 1
-            logging.info(f"voxel_size {voxel_size}")
-
-        with mrcfile.open(high_map,'r') as mrc:
-            high_data = mrc.data
-        
-        if mask_file is not None:
-            with mrcfile.open(mask_file,'r') as mrc:
-                mask = mrc.data
-        else:
-            mask = np.ones_like(high_data)
-            
-        from IsoNet.util.FSC import combine_map_F
-        out_data = combine_map_F(low_data, high_data, threshold_res, voxel_size, mask_data=mask)
-
-        with mrcfile.new(out_map,overwrite=True) as mrc:
-            mrc.set_data(out_data)
-            mrc.voxel_size = voxel_size
-        
-    def fsc3d(self, 
-                   h: str,
-                   h2: str, 
-                   mask: str=None, 
-                   o: str="FSC3D.mrc",
-                   ncpus: int=16, 
-                   limit_res: float=None, 
-                   cone_sampling_angle: float=10,
-                   keep_highres: bool = False
-                   ):
-
-        """
-        \n3D Fourier shell correlation\n
-        IsoNet.py map_refine half1.mrc half2.mrc mask.mrc [--gpuID] [--ncpus] [--output_dir] [--fsc_file]...
-        :param h: Input name of half1
-        :param h2: Input name of half2
-        :param mask: Filename of a user-provided mask
-        :param ncpus: Number of cpu.
-        :param limit_res: The resolution limit for recovery, default is the resolution of the map.
-        :param fsc_file: 3DFSC file if not set, isonet will generate one.
-        :param cone_sampling_angle: Angle for 3D fsc sampling for IsoNet generated 3DFSC. IsoNet default is 10 degrees, the default for official 3DFSC is 20 degrees
-        :param keep_highres: Set high frequency region to 1 instead of 0. This should be False
-        """
-        logging.basicConfig(format='%(asctime)s, %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s'
-            ,datefmt="%H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])   
-
-        from IsoNet.preprocessing.img_processing import normalize
-        import numpy as np
-        from multiprocessing import cpu_count
-        import mrcfile
-
-        from IsoNet.util.FSC import get_FSC_map, ThreeD_FSC, recommended_resolution
-
-        cpu_system = cpu_count()
-        if cpu_system < ncpus:
-            logging.info("requested number of cpus is more than the number of the cpu cores in the system")
-            logging.info(f"setting ncpus to {cpu_system}")
-            ncpus = cpu_system
-
-        with mrcfile.open(h, 'r') as mrc:
-            half1 = normalize(mrc.data,percentile=False)
-            voxel_size = mrc.voxel_size.x
-            if voxel_size == 0:
-                voxel_size = 1
-
-        with mrcfile.open(h2, 'r') as mrc:
-            half2 = normalize(mrc.data,percentile=False)
-
-
-        if mask is None:
-            mask_vol = np.ones(half1.shape, dtype = np.float32)
-            logging.warning("No mask is provided, please consider providing a soft mask")
-        else:
-            with mrcfile.open(mask, 'r') as mrc:
-                mask_vol = mrc.data
-
-        FSC_map = get_FSC_map([half1, half2], mask_vol)
-        if limit_res is None:
-            limit_res = recommended_resolution(FSC_map, voxel_size, threshold=0.143)
-            logging.info("Global resolution at FSC={} is {}".format(0.143, limit_res))
-
-        limit_r = int( (2.*voxel_size) / limit_res * (half1.shape[0]/2.) + 1)
-        logging.info("Limit resolution to {} for IsoNet 3D FSC calculation. You can also tune this paramerter with --limit_res .".format(limit_res))
-
-        logging.info("calculating fast 3DFSC, this will take few minutes")
-        fsc3d = ThreeD_FSC(FSC_map, limit_r,angle=float(cone_sampling_angle), n_processes=ncpus)
-        if keep_highres:
-            from IsoNet.util.FSC import get_sphere
-            fsc3d = np.maximum(1-get_sphere(limit_r-2,fsc3d.shape[0]),fsc3d)
-        with mrcfile.new(o, overwrite=True) as mrc:
-            mrc.set_data(fsc3d.astype(np.float32))
-        logging.info("voxel_size {}".format(voxel_size))
-  
-    def fsd3d(self, 
-                   star_file: str, 
-                   map_dim: int,
-                   apix: float=1.0,
-                   o: str="FSD3D.mrc",
-                   low_res: float=100,
-                   high_res: float=1, 
-                   number_subset: float=10000,
-                   grid_size: float=64,
-                   sym: str = "c1"
-                   ):
-
-        """
-        \nFourier shell density, reimpliment from cryoEF, relies on relion star file and also relion installation.\n
-        IsoNet.py map_refine half1.mrc half2.mrc mask.mrc [--gpuID] [--ncpus] [--output_dir] [--fsc_file]...
-        :param h: Input name of half1
-        :param h2: Input name of half2
-        :param mask: Filename of a user-provided mask
-        :param ncpus: Number of cpu.
-        :param limit_res: The resolution limit for recovery, default is the resolution of the map.
-        :param fsc_file: 3DFSC file if not set, isonet will generate one.
-        :param cone_sampling_angle: Angle for 3D fsc sampling for IsoNet generated 3DFSC. IsoNet default is 10 degrees, the default for official 3DFSC is 20 degrees.
-        """
-        logging.basicConfig(format='%(asctime)s, %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s'
-            ,datefmt="%H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])   
-        import numpy as np
-        import mrcfile
-        from subprocess import check_output
-
-        s = f"thetacol=`grep _rlnAngleTilt {star_file} | awk '{{print $2}}' | sed 's/#//'`;\
-        phicol=`grep _rlnAngleRot {star_file} | awk '{{print $2}}' | sed 's/#//'`;\
-        cat {star_file} | grep @ | awk -v thetacolvar=${{thetacol}} -v phicolvar=${{phicol}} '{{if (NF>2) print $thetacolvar, $phicolvar}}' > theta_phi_angles.dat"
-        check_output(s, shell=True)
-
-        coordinates = np.loadtxt("theta_phi_angles.dat",dtype=np.float32)
-        index = np.random.choice(coordinates.shape[0], number_subset)#, replace=True)
-        coordinates = coordinates[index]
-
-        def generate_grid(coordinates, grid_size):
-            # Create a 3D grid for calculation
-            x = np.linspace(-1, 1, grid_size).astype(np.float32)
-            y = np.linspace(-1, 1, grid_size).astype(np.float32)
-            z = np.linspace(-1, 1, grid_size).astype(np.float32)
-            x, y, z = np.meshgrid(x, y, z)
-
-            # Initialize the matrix to store the sum of circles
-            circle_matrix = np.zeros_like(x)
-
-            # Define the distance threshold
-            threshold = 5**0.5/grid_size
-            coord = np.radians(coordinates)
-            cos_coord = np.cos(coord)
-            sin_coord = np.sin(coord)
-
-            # This need to think carefully
-            surface_points = np.stack([sin_coord[:,0]*cos_coord[:,1],sin_coord[:,0]*sin_coord[:,1],cos_coord[:,0]])
-            #surface_points = np.stack([cos_coord[:,0],sin_coord[:,0]*sin_coord[:,1],sin_coord[:,0]*cos_coord[:,1]])
-            #print(surface_points)
-            pixels = np.column_stack([x.flatten(), y.flatten(), z.flatten()])
-
-            distances = np.abs(np.matmul(pixels,surface_points))
-            circle = np.where(distances <= threshold, 1, 0)
-            circle = np.sum(circle, axis=1)
-            circle_matrix =  circle.reshape(grid_size, grid_size, grid_size)
-            circle_matrix =  np.transpose(circle_matrix,[2,0,1])
-            return circle_matrix
-        
-        out_mat = generate_grid(coordinates[:1000],grid_size)
-        for i in range(1,10):
-            out_mat += generate_grid(coordinates[i*1000:(i+1)*1000],grid_size)
-        out_mat = out_mat / number_subset
-
-        with mrcfile.new(o, overwrite=True) as mrc:
-            mrc.set_data(out_mat.astype(np.float32))
-
-        s = f"relion_image_handler --i {o} --o {o} --sym {sym}"
-        check_output(s,shell=True)
-
-        with mrcfile.open(o,'r') as mrc:
-            input_map = mrc.data
-            nz,ny,nx = input_map.shape
-            voxel_size = mrc.voxel_size.x
-            if voxel_size == 0:
-                voxel_size = 1
-
-        #apix_small = apix * map_dim / grid_size
-        r = np.arange(nz)-nz//2
-        limit_r_low = int(apix * nz / low_res)
-        limit_r_high = int(apix * nz / high_res)
-
-
-        [Z,Y,X] = np.meshgrid(r,r,r)
-        index = np.round(np.sqrt(Z**2+Y**2+X**2))
-
-        F_map = np.zeros_like(input_map)
-        eps = 1e-4
-
-        for i in range(nz//2):
-            if i > limit_r_low:
-                if i < limit_r_high:
-                    F_map[index==i] = 1.1/np.max(input_map[index==i])
-                else:
-                    F_map[index==i] = 0
-            else:
-                F_map[index==i] = 1
-
-        out_map = F_map*input_map
-        for i in range(nz//2):
-            if i > limit_r_low:
-                if i > limit_r_high:
-                    out_map[index==i] = 0
-            else:
-                out_map[index==i] = 1
-
-        out_map[out_map>1] = 1
-        import skimage
-        out_map = skimage.transform.resize(out_map, [map_dim,map_dim,map_dim])
-        with mrcfile.new(o, overwrite=True) as mrc:
-            mrc.set_data(out_map)
-            mrc.voxel_size = voxel_size
-
-    def psf(self, diameter, wedge_angle):
-        from IsoNet.bin.wedge import get_F_wedge
-        get_F_wedge(diameter, wedge_angle)
-
-    def reconstruct_psf(self,size=128,tilt_file=None,w=8, output="wedge.mrc",between_tilts=False):
+    def psf(self,size=128,tilt_file=None,w=8, output="wedge.mrc",between_tilts=False):
         import numpy as np
         
         if tilt_file is None or tilt_file == 'None':
@@ -727,7 +403,7 @@ class ISONET:
         with mrcfile.new(output, overwrite=True) as mrc:
             mrc.set_data(out_mat)
 
-    def prepare_star(self, folder_name, output_star='tomograms.star',pixel_size = 10.0, defocus = 0.0, number_subtomos = 100):
+    def prepare_star(self, folder_name, output_star='tomograms.star', apix = None, defocus = 0.0, number_subtomos = 100):
         """
         \nThis command generates a tomograms.star file from a folder containing only tomogram files (.mrc or .rec).\n
         isonet.py prepare_star folder_name [--output_star] [--pixel_size] [--defocus] [--number_subtomos]
@@ -743,13 +419,13 @@ class ISONET:
         """
         import starfile
         import pandas as pd
-        
+        import mrcfile
         tomo_list = sorted(os.listdir(folder_name))
         print(tomo_list)
         data = []
-        label = ['rlnIndex','rlnTomogramName','rlnTomogram2Name','rlnTiltFile']
+        label = ['rlnIndex','rlnTomogramName','rlnTomogram2Name','rlnTiltFile','rlnPixelSize','rlnDefocus']
 
-
+        voxel_size_initial = apix
         for i,tomo_name in enumerate(tomo_list):
             tomo_path = os.path.join(folder_name,tomo_name)
             files=os.listdir(tomo_path)
@@ -759,20 +435,24 @@ class ISONET:
                 item_path = os.path.join(tomo_path,item)
                 if item[-4:]=='.mrc' or item[-4:]=='.rec':
                     tomo_file.append(item_path)
-                if item[-3:]=='tlt' or item[-3:]=='.tlt':
+                if item[-3:]=='tlt':
                     tilt_file = item_path
-            if len(tomo_file) == 2:
-                data.append([i, tomo_file[0], tomo_file[1],tilt_file])
-            elif len(tomo_file) == 1:
-                data.append([i, tomo_file[0], "None", tilt_file])                
-            #data_row = [i+1,tomo_path]
-            #if folder2_name is not None:
-            #    tomo2_path = os.path.join(folder2_name, tomo_name)
-            #    data_row.append(tomo2_path)
-            #if tilt_folder is not None:
-            #    tilt_path = os.path.join(tilt_folder, os.path.splitext(tomo_name)[0]+'.tlt')
-            #    data_row.append(tilt_path)
-            #data.append(data_row)
+    
+
+            if voxel_size_initial is None:
+                with mrcfile.open(tomo_file[0]) as mrc:
+                    voxel_size = mrc.voxel_size
+                voxel_size = voxel_size.x
+                if voxel_size == 0:
+                    voxel_size = 1.0
+            else:
+                voxel_size = voxel_size_initial
+
+
+            if len(tomo_file) == 1:
+                tomo_file.append("None")
+            data.append([i, tomo_file[0], tomo_file[1], tilt_file, voxel_size, defocus])    
+
         df = pd.DataFrame(data, columns = label)
         starfile.write(df,output_star)
 
@@ -780,7 +460,7 @@ class ISONET:
 
         if crop_size is None:
             crop_size = cube_size + 16
-        n_subtomo_per_tomo = 100
+        n_subtomo_per_tomo = 50
         import starfile
         import mrcfile
         import pandas as pd
@@ -833,24 +513,6 @@ class ISONET:
 
         df = pd.DataFrame(particle_list, columns = label)
         starfile.write(df,"subtomos.star")        
-        
-
-
-    def angular_whiten(self, in_name,out_name,low_res, high_res):
-        """
-        \nWhitening across different orientations. To prevent over representation at some of the directions
-        """
-        import mrcfile
-
-        with mrcfile.open(in_name) as mrc:
-            in_map = mrc.data.copy()
-            voxel_size = mrc.voxel_size.x
-
-        from IsoNet.util.FSC import angular_whitening
-        out_map = angular_whitening(in_map,voxel_size,low_res,high_res)
-        with mrcfile.new(out_name, overwrite=True) as mrc:
-            mrc.set_data(out_map)
-            mrc.voxel_size = tuple([voxel_size]*3) 
 
     def check(self):
         logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',

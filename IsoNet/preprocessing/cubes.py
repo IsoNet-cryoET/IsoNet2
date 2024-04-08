@@ -2,8 +2,6 @@ import os
 import numpy as np
 import mrcfile
 
-from IsoNet.preprocessing.simulate import apply_wedge_dcube as apply_wedge
-# from IsoNet.preprocessing.simulate import apply_wedge
 
 def extract_subvolume(current_map, seeds, crop_size, output_dir, prefix=''):
     subtomos=crop_cubes(current_map,seeds,crop_size)

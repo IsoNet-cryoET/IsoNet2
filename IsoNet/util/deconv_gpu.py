@@ -15,7 +15,7 @@ def tom_ctf1d(pixelsize, voltage, cs, defocus, amplitude, phaseshift, bfactor, l
     points = points.astype(np.float)
     points = points/(2 * length)*ny
 
-    k2 = points**2;
+    k2 = points**2
     term1 = lambda1**3 * cs * k2**2
 
     w = np.pi / 2 * (term1 + lambda2 * defocus * k2) - phaseshift
