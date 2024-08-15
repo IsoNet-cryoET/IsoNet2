@@ -727,10 +727,13 @@ class ISONET:
         with mrcfile.new(output, overwrite=True) as mrc:
             mrc.set_data(out_mat)
 
-    def prepare_star(self, tomo_folder="None",
+    def prepare_star(self, full_folder="None",
                      even_folder="None",
                      odd_folder="None",
-                     tilt_folder="None",
+                     tilt_file_folder="None",
+                     mask_folder='None',
+                     coordinate_folder='None',
+                     n_subtomo = 300,
                      output_star='tomograms.star',
                      pixel_size = 10.0, defocus = 0.0, 
                      number_subtomos = 100):
@@ -757,51 +760,81 @@ class ISONET:
         
         data = []
         label = []
-        if tomo_folder != "None":
-            tomograms_files = sorted(os.listdir(tomo_folder))
+        if full_folder != "None":
+            tomograms_files = sorted(os.listdir(full_folder))
+            tomograms_files = [f"{full_folder}/{item}" for item in tomograms_files]
             data.append(tomograms_files)
             label += ['rlnTomoName']
         if even_folder != "None":
             even_files = sorted(os.listdir(even_folder))
             label += ['rlnTomoReconstructedTomogramHalf1']
+            even_files = [f"{even_folder}/{item}" for item in even_files]
             data.append(even_files)
         if odd_folder != "None":
             odd_files = sorted(os.listdir(odd_folder))
             label += ['rlnTomoReconstructedTomogramHalf2']
+            odd_files = [f"{odd_folder}/{item}" for item in odd_files]
             data.append(odd_files)
-        if tilt_folder != "None":
-            tilt_files = sorted(os.listdir(tilt_folder))
+        if tilt_file_folder != "None":
+            tilt_files = sorted(os.listdir(tilt_file_folder))
+            tilt_files = [f"{tilt_file_folder}/{item}" for item in tilt_files]
             label += ['rlnTiltFile']
             data.append(tilt_files)
+        if mask_folder != "None":
+            mask_files = sorted(os.listdir(mask_folder))
+            mask_files = [f"{mask_folder}/{item}" for item in mask_files]
+            label += ['rlnMaskName']
+            data.append(mask_files)
+        if coordinate_folder != "None":
+            coordinate_files = sorted(os.listdir(coordinate_folder))
+            coordinate_files = [f"{coordinate_folder}/{item}" for item in coordinate_files]
+            # TODO read each coordinate file and add _rlnCoordinateX, Y, Z
+        
+        #TODO defocus file folder 
+        
+        label += ['rlnNumberSubtomo']
+        data.append([n_subtomo]*len(tomograms_files))
+
         data_length = len(data[0])
         data = list(map(list, zip(*data)))
         df = pd.DataFrame(data = data, columns = label)
         df.insert(0, 'rlnIndex', np.arange(data_length)+1)
         starfile.write(df,output_star)
 
-    def extract(self,  star, subtomo_folder="subtomos", between_tilts=False, cube_size=128, crop_size=None):
+    def extract(self,  star, 
+                subtomo_folder="subtomos", 
+                between_tilts=False, 
+                cube_size=128, 
+                crop_size=None):
 
-        if crop_size is None:
-            crop_size = cube_size + 16
-        n_subtomo_per_tomo = 100
         import starfile
         import mrcfile
         import pandas as pd
         import numpy as np
-        df = starfile.read(star)
-        os.makedirs(subtomo_folder, exist_ok=True)
         from IsoNet.preprocessing.cubes import extract_subvolume, create_cube_seeds
         from IsoNet.preprocessing.img_processing import normalize
+
+        if crop_size is None:
+            crop_size = cube_size + 16
+
+        # TODO read number of subtomo
+        n_subtomo_per_tomo = 100
+
+        df = starfile.read(star)
+        os.makedirs(subtomo_folder, exist_ok=True)
+
         particle_list = []
         for index, row in df.iterrows():
             tomo_index = row["rlnIndex"]
             tomo_folder = f"TS_{tomo_index:05d}"
             even_folder = os.path.join(subtomo_folder, tomo_folder, 'subtomo0')
             os.makedirs(even_folder, exist_ok=True)
-            with mrcfile.open(row["rlnTomogramName"]) as mrc:
+            with mrcfile.open(row["rlnTomoName"]) as mrc:
                 tomo = mrc.data
             mask = np.ones_like(tomo)
             tomo = normalize(tomo,percentile=False)
+
+
             seeds=create_cube_seeds(tomo, n_subtomo_per_tomo, cube_size, mask)
             extract_subvolume(tomo, seeds, cube_size, even_folder)
             
@@ -813,6 +846,7 @@ class ISONET:
                 tomo = normalize(tomo,percentile=False)
                 extract_subvolume(tomo, seeds, cube_size, odd_folder)
 
+            #TODO wedge do the relion similar wedge and CTF
             wedge_path = os.path.join(subtomo_folder, tomo_folder, 'wedge.mrc')
             if "rlnTiltFile" in list(df.columns):
                 print(wedge_path)
