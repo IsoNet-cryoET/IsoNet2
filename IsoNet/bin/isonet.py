@@ -56,8 +56,8 @@ class ISONET:
 
         # extract subtomograms
         data_list = self.extract(star_file, subtomo_folder=output_dir+"/subtomos", 
-                between_tilts=False, cube_size=cube_size, crop_size=cube_size, 
-                tomo_type = 0)
+                between_tilts=False, random=False, cube_size=cube_size, crop_size=cube_size, 
+                )
         # noise2noise training
         from IsoNet.bin.refine import run_training
         run_training([data_list[0] + data_list[1],data_list[1] + data_list[0]], epochs = epochs, mixed_precision = False,
@@ -75,7 +75,6 @@ class ISONET:
                    gpuID: str=None,
                    n2n: bool=False,
                    limit_res: str=None,
-                   tomo_type: int=5,
                    ncpus: int=16, 
                    output_dir: str="isonet_maps",
                    pretrained_model: str=None,
@@ -83,9 +82,9 @@ class ISONET:
 
                    use_denoised=False, 
                    use_deconv=False,
-                   epochs: int=3,
+                   epochs: int=10,
                    n_subvolume: int=1000, 
-                   cube_size: int=96,
+                   cube_size: int=64,
                    predict_crop_size: int=80,
                    batch_size: int=None, 
                    acc_batches: int=1,
@@ -136,7 +135,7 @@ class ISONET:
                 between_tilts=False, cube_size=cube_size, crop_size=cube_size, 
                 use_denoised=use_denoised, use_deconv=use_deconv, out_star = f"{output_dir}/particles_it000.star")
         prefix="train"   
-        iterations = 10
+        iterations = 1
        
         for i in range(iterations):
             particle_star_file = f"{output_dir}/particles_it{i:03d}.star"
@@ -419,6 +418,8 @@ class ISONET:
 
         if os.path.isdir(tomo_path):
             for i,tomo_name in enumerate(tomo_list):
+                if apix is None:
+                    voxel_size = 1
                 tomo_path = os.path.join(folder_name,tomo_name)
                 files=os.listdir(tomo_path)
                 tomo_file = []
@@ -467,7 +468,7 @@ class ISONET:
         elif use_denoised:
             tomo_type = 3
         else:
-            tomo_type = 1
+            tomo_type = 0
 
         if crop_size is None:
             crop_size = cube_size
@@ -482,7 +483,7 @@ class ISONET:
         for index, row in df.iterrows():
             tomo_index = row["rlnIndex"]
             tomo_folder = f"TS_{tomo_index:05d}"
-            n_subtomo_per_tomo = row["rlnNumberSubtomo"]
+            
             print(tomo_folder)
             mkfolder(os.path.join(subtomo_folder, tomo_folder))
 
@@ -508,10 +509,11 @@ class ISONET:
             mask = np.ones_like(tomo)
 
             if random:
+                n_subtomo_per_tomo = row["rlnNumberSubtomo"]
                 seeds=create_cube_seeds(tomo, n_subtomo_per_tomo, crop_size, mask)
                 subtomos_names = extract_subvolume(tomo, seeds, crop_size, even_folder, prefix='', wedge=wedge)
             else:
-                subtomos_names = extract_with_overlap(tomo, crop_size, cube_size, even_folder, wedge)
+                subtomos_names = extract_with_overlap(tomo, crop_size, cube_size, even_folder, prefix='', wedge=None)
             
             # second half
             if tomo_type < 1:
@@ -520,9 +522,9 @@ class ISONET:
                 mkfolder(odd_folder)
                 tomo = read_and_norm(tomo_name)
                 if random:
-                    subtomos_names = extract_subvolume(tomo, seeds, crop_size, even_folder)
+                    subtomos_names = extract_subvolume(tomo, seeds, crop_size, odd_folder)
                 else:
-                    subtomos_names = extract_with_overlap(tomo, crop_size, cube_size, even_folder)                
+                    subtomos_names = extract_with_overlap(tomo, crop_size, cube_size, odd_folder, prefix='', wedge=None)                
 
             for i in range(len(subtomos_names)):
                 im_name1 = '{}/subvolume{}_{:0>6d}.mrc'.format(even_folder, '', i)

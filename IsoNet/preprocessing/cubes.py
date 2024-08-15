@@ -2,7 +2,7 @@ import os
 import numpy as np
 import mrcfile
 from IsoNet.utils.toTile import reform3D
-def extract_with_overlap(current_map, crop_size, cube_size, output_dir, prefix=''):
+def extract_with_overlap(current_map, crop_size, cube_size, output_dir, prefix='', wedge = None):
     r3d=reform3D(current_map, cube_size, crop_size, edge_depth=7)
     subtomos=r3d.pad_and_crop()
     mrc_list = []
