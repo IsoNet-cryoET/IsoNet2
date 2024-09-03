@@ -2,30 +2,7 @@ import numpy as np
 import cupy as cp
 from multiprocessing import Pool
 from functools import partial
-def tom_ctf1d(pixelsize, voltage, cs, defocus, amplitude, phaseshift, bfactor, length=2048):
-
-    ny = 1 / pixelsize
-
-
-    lambda1 = 12.2643247 / np.sqrt(voltage * (1.0 + voltage * 0.978466e-6)) * 1e-10
-    lambda2 = lambda1 * 2
-
-
-    points = np.arange(0,length)
-    points = points.astype(np.float)
-    points = points/(2 * length)*ny
-
-    k2 = points**2;
-    term1 = lambda1**3 * cs * k2**2
-
-    w = np.pi / 2 * (term1 + lambda2 * defocus * k2) - phaseshift
-
-    acurve = np.cos(w) * amplitude
-    pcurve = -np.sqrt(1 - amplitude**2) * np.sin(w)
-    bfactor = np.exp(-bfactor * k2 * 0.25)
-
-
-    return (pcurve + acurve)*bfactor
+from IsoNet.util.CTF import ctf1d
 
 def wiener1d(angpix, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift):
     data = np.arange(0,1+1/2047.,1/2047.)
@@ -34,7 +11,7 @@ def wiener1d(angpix, defocus, snrfalloff, deconvstrength, highpassnyquist, phase
 
     snr = np.exp(-data * snrfalloff * 100 / angpix) * (10^(3 * deconvstrength)) * highpass
     #snr[0] = -1
-    ctf = tom_ctf1d(angpix*1e-10, 300e3, 2.7e-3, -defocus*1e-6, 0.07, phaseshift / 180 * np.pi, 0);
+    ctf = ctf1d(angpix*1e-10, 300e3, 2.7e-3, -defocus*1e-6, 0.07, phaseshift / 180 * np.pi, 0);
     if phaseflipped:
         ctf = abs(ctf)
 
@@ -51,7 +28,7 @@ def tom_deconv_tomo(inp, angpix, defocus, snrfalloff, deconvstrength, highpassny
     eps = 1e-10
     snr = np.exp(-data * snrfalloff * 100 / angpix) * np.power(10.0,(3.0 * deconvstrength)) * highpass + eps 
     #snr[0] = -1
-    ctf = tom_ctf1d(angpix*1e-10, 300e3, 2.7e-3, -defocus*1e-6, 0.07, phaseshift / 180 * np.pi, 0)
+    ctf = ctf1d(angpix*1e-10, 300e3, 2.7e-3, -defocus*1e-6, 0.07, phaseshift / 180 * np.pi, 0)
     if phaseflipped:
         ctf = abs(ctf)
 

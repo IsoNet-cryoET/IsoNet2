@@ -122,13 +122,6 @@ def get_donut(size, r_in, r_out):
 
     return mask
 
-def apply_F_filter(input_map,F_map):
-
-    F_input = fftn(input_map)
-    out = ifftn(F_input*fftshift(F_map))
-    out =  np.real(out).astype(np.float32)
-    return out
-
 def match_spectrum(target_map,source_map, mask = None):
     nz = target_map.shape[0]
     if mask is None:

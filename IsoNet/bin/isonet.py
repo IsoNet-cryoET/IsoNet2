@@ -791,6 +791,8 @@ class ISONET:
             # TODO read each coordinate file and add _rlnCoordinateX, Y, Z
         
         #TODO defocus file folder 
+        from IsoNet.util.fileio import read_defocus_file
+        #TODO decide the defocus file format from CTFFIND and GCTF
         
         label += ['rlnNumberSubtomo']
         data.append([n_subtomo]*len(tomograms_files))
@@ -804,8 +806,8 @@ class ISONET:
     def extract(self,  star, 
                 subtomo_folder="subtomos", 
                 between_tilts=False, 
-                cube_size=128, 
-                crop_size=None):
+                crop_size=64,
+                extract_halfmap=False):
 
         import starfile
         import mrcfile
@@ -813,9 +815,6 @@ class ISONET:
         import numpy as np
         from IsoNet.preprocessing.cubes import extract_subvolume, create_cube_seeds
         from IsoNet.preprocessing.img_processing import normalize
-
-        if crop_size is None:
-            crop_size = cube_size + 16
 
         # TODO read number of subtomo
         n_subtomo_per_tomo = 100
@@ -827,24 +826,34 @@ class ISONET:
         for index, row in df.iterrows():
             tomo_index = row["rlnIndex"]
             tomo_folder = f"TS_{tomo_index:05d}"
-            even_folder = os.path.join(subtomo_folder, tomo_folder, 'subtomo0')
+            even_folder = os.path.join(subtomo_folder, tomo_folder, 'subtomo')
             os.makedirs(even_folder, exist_ok=True)
             with mrcfile.open(row["rlnTomoName"]) as mrc:
                 tomo = mrc.data
             mask = np.ones_like(tomo)
             tomo = normalize(tomo,percentile=False)
 
+            # TODO if the tomo z size is small than the subtomogram size, call an exception
+            # TODO use the coordinate as seeds
 
-            seeds=create_cube_seeds(tomo, n_subtomo_per_tomo, cube_size, mask)
-            extract_subvolume(tomo, seeds, cube_size, even_folder)
+            seeds=create_cube_seeds(tomo, n_subtomo_per_tomo, crop_size, mask)
+            extract_subvolume(tomo, seeds, crop_size, even_folder)
             
-            if "rlnTomogram2Name" in list(df.columns):
-                odd_folder = os.path.join(subtomo_folder, tomo_folder, 'subtomo1')
+            if "rlnTomoReconstructedTomogramHalf1" in list(df.columns):
+                odd_folder = os.path.join(subtomo_folder, tomo_folder, 'subtomo-evn')
                 os.makedirs(odd_folder, exist_ok=True)
-                with mrcfile.open(row["rlnTomogram2Name"]) as mrc:
+                with mrcfile.open(row["rlnTomoReconstructedTomogramHalf1"]) as mrc:
                     tomo = mrc.data
                 tomo = normalize(tomo,percentile=False)
-                extract_subvolume(tomo, seeds, cube_size, odd_folder)
+                extract_subvolume(tomo, seeds, crop_size, odd_folder)
+            
+            if "rlnTomoReconstructedTomogramHalf2" in list(df.columns):
+                odd_folder = os.path.join(subtomo_folder, tomo_folder, 'subtomo-odd')
+                os.makedirs(odd_folder, exist_ok=True)
+                with mrcfile.open(row["rlnTomoReconstructedTomogramHalf2"]) as mrc:
+                    tomo = mrc.data
+                tomo = normalize(tomo,percentile=False)
+                extract_subvolume(tomo, seeds, crop_size, odd_folder)
 
             #TODO wedge do the relion similar wedge and CTF
             wedge_path = os.path.join(subtomo_folder, tomo_folder, 'wedge.mrc')
