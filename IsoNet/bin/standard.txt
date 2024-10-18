@@ -1,0 +1,18 @@
+
+rlnTomoName:
+Name of a tomogram
+
+rlnTomoReconstructedTomogramHalf1:
+Path of a tomogram reconstructed from even movie frames only 
+
+rlnTomoReconstructedTomogramHalf2:
+Path of a tomogram reconstructed from even movie frames only 
+
+rlnTiltFile:
+Not standard in relion, the file for tilt angles
+
+rlnMaskName .... _____:
+Not standard in relion, the mask used for extract subtomograms
+
+'rlnSnrFalloff','rlnDeconvStrength','rlnDeconvTomoName':
+Not standard in relion these are related to the cryoET deconvolution
