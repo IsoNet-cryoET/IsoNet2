@@ -52,7 +52,6 @@ def make_mask_sp(tomo_path, mask_name, sd = 2, offset = 3):
 def make_mask(tomo_path, mask_name, mask_boundary = None, side = 5, density_percentage=50., std_percentage=50., surface=None):
     from scipy.ndimage.filters import gaussian_filter
     from skimage.transform import resize
-    
     with mrcfile.open(tomo_path) as n:
         header_input = n.header
         #print(header_input)
@@ -74,18 +73,15 @@ def make_mask(tomo_path, mask_name, mask_boundary = None, side = 5, density_perc
         mask2 = np.ones(sp2)
 
     out_mask_bin = np.multiply(mask1,mask2)
-   
     if mask_boundary is not None:
         from IsoNet.utils.filter import boundary_mask
         mask3 = boundary_mask(bintomo, mask_boundary)
         out_mask_bin = np.multiply(out_mask_bin, mask3)
-
     if (surface is not None) and surface < 1:
         for i in range(int(surface*sp2[0])):
             out_mask_bin[i] = 0
         for i in range(int((1-surface)*sp2[0]),sp2[0]):
             out_mask_bin[i] = 0
-
 
     out_mask = np.zeros(sp)
     out_mask[0:-1:2,0:-1:2,0:-1:2] = out_mask_bin

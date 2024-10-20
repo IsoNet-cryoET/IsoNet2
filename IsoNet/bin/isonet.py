@@ -233,6 +233,9 @@ class ISONET:
                 new_star['rlnMaskStdPercentage'] = 50
                 new_star['rlnMaskName'] = 'None'
 
+            if not input_column in new_star.columns:
+                input_column = "rlnTomoName",
+
             tomo_idx = idx2list(tomo_idx)
             for i, it in star.iterrows():
                 if tomo_idx is None or str(it.rlnIndex) in tomo_idx:
@@ -242,6 +245,9 @@ class ISONET:
                         new_star.loc[i,'rlnMaskStdPercentage'] = std_percentage
 
                     tomo_file = it[input_column]
+                    if tomo_file == "None":
+                        logging.info(f"using rlnTomoName instead of {input_column}")
+                        tomo_file = it["rlnTomoName"]
                     tomo_root_name = os.path.splitext(os.path.basename(tomo_file))[0]
 
                     if os.path.isfile(tomo_file):
@@ -263,7 +269,7 @@ class ISONET:
                                 std_percentage=it.rlnMaskStdPercentage,
                                 surface = z_crop)
 
-                new_star.loc[i,'rlnMaskName']=mask_out_name
+                        new_star.loc[i,'rlnMaskName']=mask_out_name
             starfile.write(new_star,star_file)
             logging.info('\n######Isonet done making mask######\n')
 

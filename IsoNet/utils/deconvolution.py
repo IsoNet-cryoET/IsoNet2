@@ -50,23 +50,16 @@ def tom_deconv_tomo(vol_file, out_file,angpix, voltage, cs, defocus, snrfalloff,
         vol = f.data
         voxelsize = f.voxel_size
     data = np.arange(0,1+1/2047.,1/2047.)
-    highpass = np.minimum(np.ones(data.shape[0]), data/highpassnyquist) * np.pi;
-    highpass = 1-np.cos(highpass);
+    highpass = np.minimum(np.ones(data.shape[0]), data/highpassnyquist) * np.pi
+    highpass = 1-np.cos(highpass)
     eps = 1e-6
     snr = np.exp(-data * snrfalloff * 100 / angpix) * (10**deconvstrength) * highpass + eps
-    #snr[0] = -1
-    ctf = tom_ctf1d(angpix*1e-10, voltage * 1e3, cs * 1e-3, -defocus*1e-6, 0.07, phaseshift / 180 * np.pi, 0);
+
+    ctf = tom_ctf1d(angpix*1e-10, voltage * 1e3, cs * 1e-3, -defocus*1e-6, 0.07, phaseshift / 180 * np.pi, 0)
     if phaseflipped:
         ctf = abs(ctf)
+    wiener = ctf/(ctf*ctf+1/snr)
 
-    wiener = ctf/(ctf*ctf+1/snr);
-
-    denom = ctf*ctf+1/snr
-    #np.savetxt('den.txt',denom)
-    #np.savetxt('snr.txt',snr)
-    #np.savetxt('hipass.txt',highpass)
-    #np.savetxt('ctf.txt',ctf)
-    #np.savetxt('wiener.txt',wiener, fmt='%f')
 
     s1 = - int(np.shape(vol)[1] / 2)
     f1 = s1 + np.shape(vol)[1] - 1
@@ -80,33 +73,41 @@ def tom_deconv_tomo(vol_file, out_file,angpix, voltage, cs, defocus, snrfalloff,
     f3 = s3 + np.shape(vol)[2] - 1
     m3 = np.arange(s3,f3+1)
 
-#s3 = -floor(size(vol,3)/2);
-#f3 = s3 + size(vol,3) - 1;
     x, y, z = np.meshgrid(m1,m2,m3)
-    x = x.astype(np.float32) / np.abs(s1)
-    y = y.astype(np.float32) / np.abs(s2)
-    z = z.astype(np.float32) / np.maximum(1, np.abs(s3))
-    #z = z.astype(float) / np.abs(s3);
-    r = np.sqrt(x**2+y**2+z**2)
+
+    x = x.astype(np.float32)
+    x = x / np.abs(s1)
+    x = x**2
+
+    y = y.astype(np.float32) 
+    y = y / np.abs(s2)
+    y = y**2
+
+    z = z.astype(np.float32) 
+    z = z / np.maximum(1, np.abs(s3))
+    z = z**2
+
+    r = x + y
+    r = r + z
+
+    r = np.sqrt(r)
     del x,y,z
     gc.collect()
     r = np.minimum(1, r)
     r = np.fft.ifftshift(r)
 
-    #x = 0:1/2047:1;
     ramp = np.interp(r, data,wiener).astype(np.float32)
     del r
     gc.collect()
         
-    #ramp = np.interp(data,wiener,r);
-    deconv = np.real(scipy.fft.ifftn(scipy.fft.fftn(vol, overwrite_x=True, workers=ncpu) * ramp, overwrite_x=True, workers=ncpu))
+    deconv = scipy.fft.fftn(vol, overwrite_x=True, workers=ncpu)
+    deconv = np.real(scipy.fft.ifftn(deconv * ramp, overwrite_x=True, workers=ncpu))
     deconv = deconv.astype(np.float32)
     std_deconv = np.std(deconv)
     std_vol = np.std(vol)
     ave_vol = np.average(vol)
     del vol,ramp
     gc.collect()
-    # deconv = deconv/std_deconv* std_vol + ave_vol
     deconv /= std_deconv
     deconv *= std_vol
     deconv += ave_vol
