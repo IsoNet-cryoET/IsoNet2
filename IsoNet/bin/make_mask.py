@@ -3,7 +3,7 @@
 import sys
 import mrcfile
 args = sys.argv
-from IsoNet.utils.filter import maxmask,stdmask
+from IsoNet.utils.mask import maxmask,stdmask
 import numpy as np
 #import cupy as cp
 import os
@@ -74,7 +74,7 @@ def make_mask(tomo_path, mask_name, mask_boundary = None, side = 5, density_perc
 
     out_mask_bin = np.multiply(mask1,mask2)
     if mask_boundary is not None:
-        from IsoNet.utils.filter import boundary_mask
+        from IsoNet.utils.mask import boundary_mask
         mask3 = boundary_mask(bintomo, mask_boundary)
         out_mask_bin = np.multiply(out_mask_bin, mask3)
     if (surface is not None) and surface < 1:

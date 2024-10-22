@@ -8,7 +8,8 @@ import sys
 import numpy as np
 import shutil
 import os
-from IsoNet.preprocessing.prepare import get_noise_level,prepare_first_iter
+from IsoNet.preprocessing.prepare import prepare_first_iter
+from IsoNet.utils.noise import get_noise_level
 
 
 def run(params):
@@ -22,13 +23,16 @@ def run(params):
         #datefmt="%Y-%m-%d,%H:%M:%S",level=logging.INFO,handlers=[logging.StreamHandler(sys.stdout)])
     try:
         logging.info('\n######Isonet starts refining######\n')
-   
+
         params = parse_args(params)
 
         ###  find current iteration ###        
         current_iter = params.iter_count if hasattr(params, "iter_count") else 1
         if params.continue_from is not None:
             current_iter += 1
+
+        from IsoNet.models.network import Net
+        network = Net()
 
         ###  Main Loop ###
         ###  1. find network model file ###
@@ -39,11 +43,10 @@ def run(params):
         for num_iter in range(current_iter,params.iterations + 1):        
             logging.info("Start Iteration{}!".format(num_iter))
 
-            ### Select a subset of subtomos, useful when the number of subtomo is too large ###
-            if params.select_subtomo_number is not None:
-                params.mrc_list = np.random.choice(params.all_mrc_list, size = int(args.select_subtomo_number), replace = False)
-            else:
-                params.mrc_list = params.all_mrc_list
+            # ### TODO Select a subset of subtomos, useful when the number of subtomo is too large ###
+            # if params.select_subtomo_number is not None:
+            #     params.mrc_list = np.random.choice(params.mrc_list, size = int(params.select_subtomo_number), replace = False)
+
 
             ### Update the iteration count ###
             params.iter_count = num_iter
@@ -54,13 +57,13 @@ def run(params):
                 shutil.copyfile(params.pretrained_model,'{}/model_iter{:0>2d}.h5'.format(params.result_dir,num_iter-1))
                 logging.info('Use Pretrained model as the output model of iteration {} and predict subtomograms'.format(num_iter-1))
                 params.pretrained_model = None
-                predict(params)
+                network.predict_subtomos(params)
             elif params.continue_from is not None:
                 ### Continue from a json file ###
                 logging.info('Continue from previous model: {}/model_iter{:0>2d}.h5 of iteration {} and predict subtomograms \
                 '.format(params.result_dir,num_iter -1,num_iter-1))
                 params.continue_from = None
-                predict(params)
+                network.predict_subtomos(params)
             elif num_iter == 1:
                 ### First iteration ###
                 mkfolder(params.output_dir,remove=False)
@@ -69,15 +72,14 @@ def run(params):
                 prepare_first_iter(params)
             else:
                 ### Subsequent iterations for all conditions ###
-                predict(params)
+                network.predict_subtomos(params)
 
             #params.init_model = "{}/model_iter{:0>2d}.h5".format(params.output_dir, num_iter-1)
            
             ### Noise settings ###
             num_noise_volume = 1000
-            if num_iter>=params.noise_start_iter[0] and (not os.path.isdir(args.noise_dir) or len(os.listdir(params.noise_dir))< num_noise_volume ):
-                from IsoNet.util.noise_generator import make_noise_folder
-                
+            if num_iter>=params.noise_start_iter[0] and (not os.path.isdir(params.noise_dir) or len(os.listdir(params.noise_dir))< num_noise_volume ):
+                from IsoNet.utils.noise import make_noise_folder
                 print(params.noise_mode)
                 make_noise_folder(params.noise_dir,params.noise_mode,params.cube_size,num_noise_volume,ncpus=params.ncpus)
             noise_level_series = get_noise_level(params.noise_level,params.noise_start_iter,params.iterations)
@@ -94,24 +96,32 @@ def run(params):
 
             ### remove all the mrc files in results_dir ###
             if params.remove_intermediate is True:
-                logging.info("Remove intermediate files in iteration {}".format(args.iter_count-1))
+                logging.info("Remove intermediate files in iteration {}".format(params.iter_count-1))
                 for mrc in params.mrc_list:
                     root_name = mrc.split('/')[-1].split('.')[0]
-                    current_mrc = '{}/{}_iter{:0>2d}.mrc'.format(params.result_dir,root_name,args.iter_count-1)
+                    current_mrc = '{}/{}_iter{:0>2d}.mrc'.format(params.result_dir,root_name,params.iter_count-1)
                     os.remove(current_mrc)
 
             ### start training and save model and json ###
             logging.info("Start training!")
-            history = train_data(params) #train based on init model and save new one as model_iter{num_iter}.h5
-            params.losses = history.history['loss']
-            save_args_json(params,params.result_dir+'/refine_iter{:0>2d}.json'.format(num_iter))
+            network.train(params.data_dir, 
+                                    params.output_dir, 
+                                    batch_size=params.batch_size,
+                                    outmodel_path='{}/model_iter{:0>2d}.pt'.format(params.output_dir,params.iter_count),
+                                    epochs = params.epochs, 
+                                    steps_per_epoch=params.steps_per_epoch, 
+                                    acc_batches = 1,
+                                    mixed_precision=False,
+                                    learning_rate=params.learning_rate) #train based on init model and save new one as model_iter{num_iter}.h5
+            params.losses = network.metrics['average_loss']
+            save_args_json(params,params.output_dir+'/refine_iter{:0>2d}.json'.format(num_iter))
             logging.info("Done training!")
 
             ### for last iteration predict subtomograms ###
             if num_iter == params.iterations and params.remove_intermediate == False:
                 logging.info("Predicting subtomograms for last iterations")
                 params.iter_count +=1 
-                predict(params)
+                network.predict_subtomos(params)
                 params.iter_count -=1 
 
             logging.info("Done Iteration{}!".format(num_iter))
@@ -144,9 +154,9 @@ def parse_args(args):
         gpu_list = list(range(torch.cuda.device_count()))
         args.gpuID=','.join(map(str, gpu_list))
         print("using all GPUs in this node: %s" %args.gpuID)  
-    args.ngpus, args.gpuID, gpuID_list = process_gpuID(args.gpuID)
+    ngpus, args.gpuID, gpuID_list = process_gpuID(args.gpuID)
     args.ncpus = process_ncpus(args.ncpus)
-    args.batch_size = process_batch_size(args.batch_size, args.ngpus)
+    args.batch_size = process_batch_size(args.batch_size, ngpus)
 
     #environment
     import os
@@ -168,8 +178,7 @@ def parse_args(args):
     if args.output_dir is None:
         args.output_dir = 'results'
     if args.batch_size is None:
-        args.batch_size = max(4, 2 * args.ngpus)
-    args.predict_batch_size = args.batch_size
+        args.batch_size = max(4, 2 * ngpus)
     if args.filter_base is None:
         args.filter_base = 64
     if args.steps_per_epoch is None:
@@ -190,10 +199,10 @@ def parse_args(args):
     if len(star) <=0:
         logging.error("Subtomo list is empty!")
         sys.exit(0)
-    args.all_mrc_list = []
+    args.mrc_list = []
     if "rlnParticleName" in star.columns.to_list():
         for i,it in enumerate(star.iterrows()):
-            args.all_mrc_list.append(it[1]['rlnParticleName'])
+            args.mrc_list.append(it[1]['rlnParticleName'])
     return args
 
 

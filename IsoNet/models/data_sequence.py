@@ -7,43 +7,7 @@ from IsoNet.preprocessing.img_processing import normalize
 import random
 
 
-class Train_sets(Dataset):
-    def __init__(self, paths, shuffle=True):
-        super(Train_sets, self).__init__()
-        zipped_path = list(map(list, zip(*paths)))
-        if shuffle:
-            np.random.shuffle(zipped_path)
-        self.path_all = zipped_path
-        # print(self.path_all[0])
-        # print('\n')
-        # print(self.path_all[1])
-        # if shuffle:
-        #     zipped_path = list(zip(self.path_all[0],self.path_all[1]))
-        #     np.random.shuffle(zipped_path)
-        #     self.path_all[0], self.path_all[1] = zip(*zipped_path)
-        # print(self.path_all[0])
-        # print('\n')
-        # print(self.path_all[1])
-        #if max_length is not None:
-        #    if max_length < len(self.path_all):
 
-    def __getitem__(self, idx):
-
-        # with mrcfile.open(self.path_all[0][idx]) as mrc:
-        #     x = mrc.data[np.newaxis,:,:,:]
-        # with mrcfile.open(self.path_all[1][idx]) as mrc:
-        #     y = mrc.data[np.newaxis,:,:,:]
-
-        # rx = torch.as_tensor(x.copy())
-        # ry = torch.as_tensor(y.copy())
-        results = []
-        #l = list(zip(self.path_all[0],self.path_all[1]))
-        for i,p in enumerate(self.path_all[idx]):
-            with mrcfile.open(p) as mrc:
-                x = mrc.data[np.newaxis,:,:,:]
-            x = torch.as_tensor(x.copy())
-            results.append(x)
-        return results
 import starfile
 
 class IsoNet_Dataset(Dataset):

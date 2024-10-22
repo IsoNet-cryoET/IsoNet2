@@ -8,17 +8,17 @@ import starfile
 import mrcfile
 import pandas as pd
 import numpy as np
-from IsoNet.utils.utils import read_and_norm, read_mrc
+from IsoNet.utils.fileio import read_mrc
 from IsoNet.utils.utils import mkfolder
 from IsoNet.utils.utils import parse_cpu, parse_gpu
 
-types ={
-    0: ["rlnTomoReconstructedTomogramHalf1", "rlnTomoReconstructedTomogramHalf2"],
-    1: ["rlnTomoName"],
-    2: ["rlnDeconvTomoName"],
-    3: ["rlnDenoisedTomoName"],
-    4: ["rlnCorrectedTomoName"],
-}
+# types ={
+#     0: ["rlnTomoReconstructedTomogramHalf1", "rlnTomoReconstructedTomogramHalf2"],
+#     1: ["rlnTomoName"],
+#     2: ["rlnDeconvTomoName"],
+#     3: ["rlnDenoisedTomoName"],
+#     4: ["rlnCorrectedTomoName"],
+# }
 class ISONET:
     """
     ISONET: Train on tomograms and restore missing-wedge\n
@@ -292,6 +292,7 @@ class ISONET:
                 uniform_extract=False):
         
         from IsoNet.utils.utils import mkfolder
+        from IsoNet.utils.processing import normalize
         from IsoNet.preprocessing.cubes import extract_with_overlap
         from IsoNet.preprocessing.cubes import extract_subvolume, create_cube_seeds
 
@@ -318,7 +319,8 @@ class ISONET:
                 #     wedge = None
 
                 tomo_name = row[input_column]
-                tomo = read_and_norm(tomo_name)
+                tomo, _ = read_mrc(tomo_name)
+                tomo = normalize(tomo)
 
                 if "rlnMaskName" in tomo_columns:
                     mask_file = row["rlnMaskName"]
@@ -515,31 +517,17 @@ class ISONET:
 
         logging.info("Finished")
 
-    def predict_subtomos(self, subtomo_star, model, out_folder, gpuID='0,1,2,3'):
-        
-        ngpus, gpuID, gpuID_list = parse_gpu(gpuID)
-
-        mkfolder(out_folder)
-        from IsoNet.models.network import Net
-        network = Net(filter_base = 64,unet_depth=3, add_last=True)
-        network.load(model)
-        from IsoNet.utils.utils import write_mrc
-        import starfile
-        star = starfile.read(subtomo_star)
-        star["rlnCorrectedParticle"] = None
-        subtomo_name = list(star['rlnParticleName'])
-        outData = network.predict_subtomos(subtomo_name,out_folder)
-        for i,item in enumerate(outData):
-            #root_name = subtomo_name[i].split("/")[-1]
-            file_name = f"{out_folder}/subvolume_{i:0>6d}.mrc"
-            write_mrc(file_name, item)
-            star.at[i,"rlnCorrectedParticle"]=file_name
-        #starfile.write(star,subtomo_star)
-        return star
-
-
-    def predict(self, star_file: str, model: str, output_dir: str='./corrected_tomos', gpuID: str = None, cube_size:int=64,
-    crop_size:int=96,use_deconv_tomo=True, batch_size:int=None,normalize_percentile: bool=True,log_level: str="info", tomo_idx=None):
+    def predict(self, star_file: str, 
+                model: str, 
+                output_dir: str='./corrected_tomos', 
+                gpuID: str = None, 
+                cube_size:int=64,
+                crop_size:int=96,
+                input_column: str = "rlnDeconvTomoName",
+                batch_size:int=None,
+                normalize_percentile: bool=True,
+                log_level: str="info", 
+                tomo_idx=None):
         """
         \nPredict tomograms using trained model\n
         isonet.py predict star_file model [--gpuID] [--output_dir] [--cube_size] [--crop_size] [--batch_size] [--tomo_idx]
@@ -564,31 +552,26 @@ class ISONET:
         ngpus, gpuID, gpuID_list = parse_gpu(gpuID)
 
         from IsoNet.models.network import Net
-        from IsoNet.utils.utils import write_mrc
+        from IsoNet.utils.fileio import write_mrc
         import starfile
         import numpy as np
-        from IsoNet.preprocessing.img_processing import normalize
+        from IsoNet.utils.processing import normalize
 
         mkfolder(output_dir, remove=False)
         network = Net(filter_base = 64,unet_depth=3, add_last=True)
         network.load(model)
 
         star = starfile.read(star_file)
-        star[types[out_type][0]] = None
+        star["rlnCorrectedTomoName"] = None
         for index, tomo_row in star.iterrows():
-            print(tomo_row)
-            tomo = read_and_norm(tomo_row[types[tomo_type][0]])
-            tomo2 = tomo
-            if tomo_type < 1:
-                tomo2 = read_and_norm(tomo_row[types[tomo_type][1]])
-
-            tomo = normalize((tomo+tomo2)*-1,percentile=False)
+            tomo, _ = read_mrc(tomo_row[input_column])
+            tomo = normalize(tomo*-1,percentile=False)
             outData = network.predict_map(tomo, output_dir,cube_size=cube_size, crop_size=crop_size).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
-            file_base_name = os.path.basename(tomo_row[types[tomo_type][0]])
+            file_base_name = os.path.basename(tomo_row[input_column])
             file_name, file_extension = os.path.splitext(file_base_name)
             out_file_name = f"{output_dir}/corrected_{file_name}.mrc"
             write_mrc(out_file_name, outData*-1)        
-            star.at[index, types[out_type][0]] = out_file_name
+            star.at[index, "rlnCorrectedTomoName"] = out_file_name
         starfile.write(star,star_file)
 
     def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):

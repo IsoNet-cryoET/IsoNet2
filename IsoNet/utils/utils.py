@@ -1,4 +1,3 @@
-from IsoNet.preprocessing.img_processing import normalize
 import mrcfile
 import logging
 def mkfolder(folder, remove=True):
@@ -112,11 +111,6 @@ def parse_cpu(ncpus):
     return ncpus
 
 
-def read_and_norm(file_name, percentile=False):
-    with mrcfile.open(file_name) as mrc:
-        tomo = mrc.data
-    return normalize(tomo, percentile=percentile)
-
 
 import logging
 def mkfolder(folder, remove=True):
@@ -185,17 +179,4 @@ def idx2list(tomo_idx):
 
 
 
-def read_mrc(filename):
-    import mrcfile
-    with mrcfile.open(filename, permissive=True) as mrc:
-        data = mrc.data
-        voxel_size = mrc.voxel_size.x
-    return data, voxel_size
-
-def write_mrc(filename, data, voxel_size=1, origin=0):
-    import mrcfile
-    with mrcfile.new(filename, overwrite=True) as mrc:
-        mrc.set_data(data)
-        mrc.voxel_size = voxel_size
-        mrc.header.origin = origin
     

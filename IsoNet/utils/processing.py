@@ -18,6 +18,10 @@ def normalize(x, percentile = True, pmin=4.0, pmax=96.0, axis=None, clip=False, 
         out = out.astype(np.float32)
         return out
 
+def crop_to_size(array, crop_size, cube_size):
+        start = crop_size//2 - cube_size//2
+        end = crop_size//2 + cube_size//2
+        return array[start:end,start:end,start:end]
 
 def create_cube_seeds(img3D,nCubesPerImg,cubeSideLen,mask=None):
     sp=img3D.shape

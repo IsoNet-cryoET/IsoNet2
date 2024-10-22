@@ -1,4 +1,4 @@
-
+import numpy as np
 '''
 rotation_list = {
 
@@ -69,3 +69,20 @@ rotation_list = [(((0,1),1),((0,2),0)), (((0,1),1),((0,2),1)), (((0,1),1),((0,2)
 #((0,1),0),((1,2),2)), (((0,1),0),((1,2),3)),
 #((0,1),2),((1,2),0)), (((0,1),2),((1,2),1)),
 #((0,1),2),((1,2),2)), (((0,1),2),((1,2),3)),
+def rotate_cubes(data):
+    rotated_data = np.zeros((len(rotation_list), *data.shape))
+    old_rotation = True
+    if old_rotation:
+        for i,r in enumerate(rotation_list):
+            data_copy = np.rot90(data, k=r[0][1], axes=r[0][0])
+            data_copy = np.rot90(data_copy, k=r[1][1], axes=r[1][0])
+            rotated_data[i] = data_copy
+    else:
+        from scipy.ndimage import affine_transform
+        from scipy.stats import special_ortho_group 
+        for i in range(len(rotation_list)):
+            rot = special_ortho_group.rvs(3)
+            center = (np.array(data.shape) -1 )/2.
+            offset = center-np.dot(rot,center)
+            rotated_data[i] = affine_transform(data,rot,offset=offset)
+    return rotated_data

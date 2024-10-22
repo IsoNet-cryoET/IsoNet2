@@ -17,10 +17,11 @@ def extract_with_overlap(current_map, crop_size, cube_size, output_dir, prefix='
 def extract_subvolume(current_map, seeds, crop_size, output_dir, start=0, wedge = None):
     subtomos=crop_cubes(current_map,seeds,crop_size)
     mrc_list = []
-    from IsoNet.utils.missing_wedge import apply_wedge
+    # from IsoNet.utils.missing_wedge import mw3D
+    # mw = mw3D(crop_size)
     for j,s in enumerate(subtomos):
-        if wedge is not None:
-            s = apply_wedge(s, wedge)
+        # if wedge is not None:
+        #     s = apply_wedge(s, wedge)
         im_name = '{}/subvolume_{:0>6d}.mrc'.format(output_dir, start+j)
         with mrcfile.new(im_name, overwrite=True) as output_mrc:
             output_mrc.set_data(s.astype(np.float32))
