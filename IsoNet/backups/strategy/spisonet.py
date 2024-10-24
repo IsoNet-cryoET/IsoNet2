@@ -8,40 +8,19 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 from IsoNet.utils.fileio import read_mrc
-class Train_sets(Dataset):
-    def __init__(self, paths, shuffle=True):
-        super(Train_sets, self).__init__()
-        path_all = []
-        for dir in ["train_x", "train_y"]:
-            p = f"{paths}/{dir}/"
-            path_all.append(sorted([p+f for f in os.listdir(p)]))
+import starfile
+import mrcfile
 
-        zipped_path = list(map(list, zip(*path_all)))
-        if shuffle:
-            np.random.shuffle(zipped_path)
-        self.path_all = zipped_path
 
-    def __getitem__(self, idx):
-        results = []
-        for i,p in enumerate(self.path_all[idx]):
-            x, _ = read_mrc(p)
-            x = x[np.newaxis,:,:,:] 
-            x = torch.as_tensor(x.copy())
-            results.append(x)
-        return results
-    
-    def __len__(self):
-        return len(self.path_all)
-
-def ddp_train(rank, world_size, port_number, model, data_path, batch_size, acc_batches, epochs, steps_per_epoch, learning_rate, mixed_precision, model_path):
-    
+def ddp_train(rank, world_size, port_number, model, training_params):
+    #data_path, batch_size, acc_batches, epochs, steps_per_epoch, learning_rate, mixed_precision, model_path
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = port_number
     #os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
     dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
 
-    batch_size = batch_size // acc_batches
+    batch_size = training_params['batch_size'] // training_params['acc_batches']
     batch_size_gpu = batch_size // world_size
 
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -53,25 +32,27 @@ def ddp_train(rank, world_size, port_number, model, data_path, batch_size, acc_b
     #     if GPU_capability[0] >= 7:
     #         torch.set_float32_matmul_precision('high')
     #         model = torch.compile(model)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
     #torch.backends.cuda.matmul.allow_tf32 = True
     #torch.backends.cudnn.allow_tf32 = True
 
-    if mixed_precision:
+    if training_params['mixed_precision']:
         scaler = torch.cuda.amp.GradScaler()
     
     #from chatGPT: The DistributedSampler shuffles the indices of the entire dataset, not just the portion assigned to a specific GPU. 
-    train_dataset = Train_sets(data_path)
+    if rank == 0:
+        print("initializing dataset (extracting subtomograms)")
+    train_dataset = Train_sets(training_params['data_path'], cube_size=training_params['cube_size'])
     train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
                                              num_workers=4, pin_memory=True, sampler=train_sampler)
 
-    steps_per_epoch_train = steps_per_epoch
-    total_steps = min(len(train_loader)//acc_batches, steps_per_epoch)
+    steps_per_epoch_train = training_params['steps_per_epoch']
+    total_steps = min(len(train_loader)//training_params['acc_batches'], training_params['steps_per_epoch'])
     average_loss_list = []
     loss_fn = nn.L1Loss()
     from IsoNet.utils.utils import debug_matrix
-    for epoch in range(epochs):
+    for epoch in range(training_params['epochs']):
         train_sampler.set_epoch(epoch)
         with tqdm(total=total_steps, unit="batch", disable=(rank!=0)) as progress_bar:
             model.train()
@@ -82,31 +63,27 @@ def ddp_train(rank, world_size, port_number, model, data_path, batch_size, acc_b
                 x1 = x1.cuda()
                 x2 = x2.cuda()
                 optimizer.zero_grad(set_to_none=True)
-                if mixed_precision:
+                if training_params['mixed_precision']:
                     pass
                 else:
                     preds = model(x1)
                     loss = loss_fn(x2,preds)
-                    #print(loss)
-                    loss = loss / acc_batches
+                    loss = loss / training_params['acc_batches']
                     loss.backward()
-                    # debug_matrix(x1,'x1.mrc')
-                    # debug_matrix(x2,'x2.mrc')
-                    # debug_matrix(preds,'preds.mrc')
                 loss_item = loss.item()
                               
-                if ( (i+1)%acc_batches == 0 ) or (i+1) == min(len(train_loader), steps_per_epoch_train * acc_batches):
-                    if mixed_precision:
+                if ( (i+1)%training_params['acc_batches'] == 0 ) or (i+1) == min(len(train_loader), steps_per_epoch_train * training_params['acc_batches']):
+                    if training_params['mixed_precision']:
                         pass
                     else:
                         optimizer.step()
 
-                if rank == 0 and ( (i+1)%acc_batches == 0 ):
+                if rank == 0 and ( (i+1)%training_params['acc_batches'] == 0 ):
                    progress_bar.set_postfix({"Loss": loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
                    progress_bar.update()
                 average_loss += loss_item
                 
-                if i + 1 >= steps_per_epoch_train*acc_batches:
+                if i + 1 >= steps_per_epoch_train*training_params['acc_batches']:
                     break
             average_loss = average_loss / (i+1.)
         
@@ -117,11 +94,11 @@ def ddp_train(rank, world_size, port_number, model, data_path, batch_size, acc_b
         average_loss =  average_loss / dist.get_world_size()
         if rank == 0:
             average_loss_list.append(average_loss.cpu().numpy())
-            print(f"Epoch [{epoch+1}/{epochs}], Train Loss: {average_loss:.4f}")
+            print(f"Epoch [{epoch+1}/{training_params['epochs']}], Train Loss: {average_loss:.4f}")
             torch.save({
                 'model_state_dict': model.module.state_dict(),
                 'average_loss': average_loss_list,
-                }, model_path)
+                }, training_params['outmodel_path'])
     dist.destroy_process_group()
 
 def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path):

@@ -32,8 +32,7 @@ def run(params):
             current_iter += 1
 
         from IsoNet.models.network import Net
-        network = Net()
-
+        network = Net(method="regular", arch='unet-default')
         ###  Main Loop ###
         ###  1. find network model file ###
         ###  2. prediction if network found ###
@@ -104,15 +103,19 @@ def run(params):
 
             ### start training and save model and json ###
             logging.info("Start training!")
-            network.train(params.data_dir, 
-                                    params.output_dir, 
-                                    batch_size=params.batch_size,
-                                    outmodel_path='{}/model_iter{:0>2d}.pt'.format(params.output_dir,params.iter_count),
-                                    epochs = params.epochs, 
-                                    steps_per_epoch=params.steps_per_epoch, 
-                                    acc_batches = 1,
-                                    mixed_precision=False,
-                                    learning_rate=params.learning_rate) #train based on init model and save new one as model_iter{num_iter}.h5
+
+            training_params = {
+                "method":"regular",
+                "data_path":params.data_dir,
+                "outmodel_path":'{}/model_iter{:0>2d}.pt'.format(params.output_dir,params.iter_count),
+                "batch_size":params.batch_size,
+                "acc_batches": 1,
+                "epochs": params.epochs,
+                "steps_per_epoch":params.steps_per_epoch,
+                "learning_rate":params.learning_rate,
+                "mixed_precision":False
+            }
+            network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
             params.losses = network.metrics['average_loss']
             save_args_json(params,params.output_dir+'/refine_iter{:0>2d}.json'.format(num_iter))
             logging.info("Done training!")

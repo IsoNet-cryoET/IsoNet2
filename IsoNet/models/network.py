@@ -8,6 +8,7 @@ from IsoNet.utils.toTile import reform3D
 import socket
 import torch.multiprocessing as mp
 import torch.distributed as dist
+from IsoNet.models.train import ddp_train, ddp_predict
 
 def find_unused_port():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -16,60 +17,101 @@ def find_unused_port():
     sock.close()
     return port
 class Net:
-    def __init__(self, filter_base=64, unet_depth=3, add_last=True):
-        #TODO set algorithum type and also the network type
+    def __init__(self, method=None, arch = 'unet-default'):
+        if method != None:
+            self.initialize(method, arch)
         torch.backends.cudnn.benchmark = True
-        self.model = Unet(filter_base = filter_base,unet_depth=unet_depth, add_last=add_last)
+
+    
+    def initialize(self, method='regular', arch = 'unet-default'):
+        
+        self.arch = arch
+        if self.arch == 'unet-default':
+            from .unet import Unet
+            self.model = Unet(filter_base = 64,unet_depth=3, add_last=True)
+
+
+        self.method = method
+        # if method == "regular":
+        #     from IsoNet.models.strategy.regular import ddp_train, ddp_predict
+        # elif method == "n2n":
+        #     from IsoNet.models.strategy.n2n import ddp_train, ddp_predict
+        # elif method == "spisonet":
+        #     #TODO
+        #     #from IsoNet.models.strategy.spisonet import ddp_train, ddp_predict
+        #     pass
+        # self.ddp_train = ddp_train
+        # self.ddp_predict = ddp_predict
+
+
         self.world_size = torch.cuda.device_count()
         self.port_number = str(find_unused_port())
         logging.info(f"Port number: {self.port_number}")
+
+
         self.metrics = {"average_loss":[],
                         "avg_val_loss":[] }
 
     def load(self, path):
         checkpoint = torch.load(path)
+        methods = checkpoint['method']
+        arch = checkpoint['arch']
+
+        self.initialize(methods, arch)
+
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.metrics["average_loss"] = checkpoint['average_loss']
 
-    def load_jit(self, path):
-        #Using the TorchScript format, you will be able to load the exported model and run inference without defining the model class.
-        self.model = torch.jit.load(path)
-    
     def save(self, path):
         state = self.model.state_dict()
-        torch.save(state, path)
+        torch.save({
+            'arch':self.arch,
+            'method':self.method,
+            'model_state_dict': state,
+            'average_loss': self.metrics['average_loss'],
+            }, path)
+        
+    def load_jit(self, path):
+        # TODO
+        #Using the TorchScript format, you will be able to load the exported model and run inference without defining the model class.
+        self.model = torch.jit.load(path)
 
     def save_jit(self, path):
+        # TODO
         model_scripted = torch.jit.script(self.model) # Export to TorchScript
         model_scripted.save(path) # Save
 
-    def train(self, data_path, output_dir, batch_size=None, outmodel_path='tmp.pt',
-              epochs = 10, steps_per_epoch=200, acc_batches =2,
-              mixed_precision=False, learning_rate=3e-4):
-        print('learning rate',learning_rate)
+    #def train(self, data_path, output_dir, batch_size=None, outmodel_path='tmp.pt',
+    #          epochs = 10, steps_per_epoch=200, acc_batches =2,
+    #          mixed_precision=False, learning_rate=3e-4):
+    def train(self, training_params):
 
         self.model.zero_grad()
 
         #if os.path.exists(model_path):
         #    os.remove(model_path)
-        from IsoNet.models.strategy.regular import ddp_train
+
         try: 
+            # mp.spawn(self.ddp_train, args=(self.world_size, self.port_number, self.model,
+            #                            data_path, batch_size, acc_batches, epochs, steps_per_epoch, learning_rate, 
+            #                            mixed_precision, outmodel_path), nprocs=self.world_size)
             mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model,
-                                       data_path, batch_size, acc_batches, epochs, steps_per_epoch, learning_rate, 
-                                       mixed_precision, outmodel_path), nprocs=self.world_size)
+                                       training_params), nprocs=self.world_size)
 
         except KeyboardInterrupt:
            logging.info('KeyboardInterrupt: Terminating all processes...')
            dist.destroy_process_group() 
            os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
 
-        checkpoint = torch.load(outmodel_path)
+        checkpoint = torch.load(training_params['outmodel_path'])
         self.metrics['average_loss'].extend(checkpoint['average_loss'])
         self.model.load_state_dict(checkpoint['model_state_dict'])
         torch.save({
+            'arch':self.arch,
+            'method':self.method,
             'model_state_dict': checkpoint['model_state_dict'],
             'average_loss': self.metrics['average_loss'],
-            }, outmodel_path)
+            }, training_params['outmodel_path'])
         
     def predict_subtomos(self, settings):
         from IsoNet.utils.fileio import read_mrc,write_mrc
@@ -96,7 +138,6 @@ class Net:
         data = data[:,np.newaxis,:,:]
         data = torch.from_numpy(data)
         print('data_shape',data.shape)
-        from IsoNet.models.strategy.regular import ddp_predict
         mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path), nprocs=self.world_size)
         outData = np.load(tmp_data_path)
         outData = outData.squeeze()
