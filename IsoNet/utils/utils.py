@@ -32,6 +32,7 @@ def create_folder(directory_name):
     os.makedirs(directory_name)
     print(f"Created new empty directory '{directory_name}'.")
 
+
 import mrcfile
 def debug_matrix(mat, filename='debug.mrc'):
     print(mat.type())
@@ -112,21 +113,7 @@ def parse_cpu(ncpus):
 
 
 
-import logging
-def mkfolder(folder, remove=True):
-    import os
-    try:
-        os.makedirs(folder)
-    except FileExistsError:
-        if remove:
-            logging.warning(f"The {folder} folder already exists. The old {folder} folder will be moved to {folder}~")
-            import shutil
-            if os.path.exists(folder+'~'):
-                shutil.rmtree(folder+'~')
-            os.system('mv {} {}'.format(folder, folder+'~'))
-            os.makedirs(folder)
-        else:
-            logging.info(f"The {folder} folder already exists, outputs will write into this folder")
+
 
 
 import mrcfile
