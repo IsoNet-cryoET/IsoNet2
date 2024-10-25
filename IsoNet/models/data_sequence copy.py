@@ -34,19 +34,14 @@ class Train_sets_regular(Dataset):
         return len(self.path_all)
 
 
-
 class Train_sets_n2n(Dataset):
-    """
-    Dataset class to load tomograms and provide subvolumes for n2n and spisonet methods.
-    """
-
+    # this is a class similar to cryocare dataset
     def __init__(self, tomo_star, method="n2n", cube_size=64, n_samples=1000):
         self.star = starfile.read(tomo_star)
         self.method = method
         self.n_samples_per_tomo = n_samples
-        self.sample_shape = [cube_size, cube_size, cube_size]
+        self.sample_shape = [cube_size,cube_size,cube_size]
 
-        # Initialize paths, statistics, and coordinates
         self.tomo_paths_odd = []
         self.tomo_paths_even = []
         self.tomo_paths = []
@@ -54,13 +49,47 @@ class Train_sets_n2n(Dataset):
         self.mean = []
         self.std = []
         self.mw_list = []
-        self.n_tomos = len(self.star)
 
-        # Initialize data from starfile
-        self._initialize_data()
-        # Compute total dataset length
-        self.length = sum([coords.shape[0] for coords in self.coords])
+        column_name_list = self.star.columns.tolist()
 
+        input_column = "rlnTomoName"
+        #self.tomos_odd = [mrcfile.mmap(p, mode='r', permissive=True) for p in self.tomo_paths_odd]
+        #self.tomos_even = [mrcfile.mmap(p, mode='r', permissive=True) for p in self.tomo_paths_even]
+        for i, item in  enumerate(self.star.iterrows()):
+            row = item[1]
+            if method == 'spisonet' or method == 'n2n':
+                self.tomo_paths_odd.append(row['rlnTomoReconstructedTomogramHalf1'])
+                self.tomo_paths_even.append(row['rlnTomoReconstructedTomogramHalf2'])
+                tomo_data, pixel_size = read_mrc(row['rlnTomoReconstructedTomogramHalf1'])
+            elif method == 'spisonet-single':
+                self.tomo_paths.append(row[input_column])
+                tomo_data, pixel_size = read_mrc(row[input_column])
+
+            # TODO whether only depend of tomo half1
+            self.mean.append(np.mean(tomo_data))
+            self.std.append(np.std(tomo_data))
+
+            if "rlnMaskName" not in column_name_list or row['rlnMaskName'] == None or row['rlnMaskName'] == "None":
+                mask = np.ones_like(tomo_data)
+            else:
+                mask = read_mrc(row['mask_name'])
+
+            [z,y,x] = tomo_data.shape
+            coords = self.create_random_coords([0,z], [0, y], [0, x], mask, n_samples)
+            self.coords.append(coords)
+
+            if method == 'spisonet' or method == 'spisonet-single':
+                min_angle = row['rlnTiltMin']
+                max_angle = row['rlnTiltMax']
+                from IsoNet.utils.missing_wedge import mw3D
+                mw = mw3D(cube_size, missingAngle=[90+min_angle, 90-max_angle])
+                self.mw_list.append(np.fft.fftshift(mw))
+
+        self.length = sum([c.shape[0] for c in self.coords])
+        # self.tomos_odd = [mrcfile.mmap(p, mode='r', permissive=True) for p in self.tomo_paths_odd]
+        # self.tomos_even = [mrcfile.mmap(p, mode='r', permissive=True) for p in self.tomo_paths_even]
+        self.n_tomos = len(self.tomo_paths_odd)
+        
     def _initialize_data(self):
         """Initialize paths, mean, std, and coordinates from the starfile."""
         column_name_list = self.star.columns.tolist()
@@ -79,73 +108,67 @@ class Train_sets_n2n(Dataset):
                 min_angle, max_angle = row['rlnTiltMin'], row['rlnTiltMax']
                 self.mw_list.append(self._compute_missing_wedge(self.sample_shape[0], min_angle, max_angle))
 
-    def _load_tomogram_and_mask(self, row, column_name_list):
-        """Load tomogram data and corresponding mask."""
-        if self.method in ['spisonet', 'n2n']:
-            self.tomo_paths_odd.append(row['rlnTomoReconstructedTomogramHalf1'])
-            self.tomo_paths_even.append(row['rlnTomoReconstructedTomogramHalf2'])
-            tomo_data, _ = read_mrc(row['rlnTomoReconstructedTomogramHalf1'])
-        else:
-            self.tomo_paths.append(row['rlnTomoName'])
-            tomo_data, _ = read_mrc(row['rlnTomoName'])
 
-        mask = np.ones_like(tomo_data) if "rlnMaskName" not in column_name_list or row['rlnMaskName']=="None" or row['rlnMaskName']==None else read_mrc(row['rlnMaskName'])
-        return tomo_data, mask
+    def create_random_coords(self, z, y, x, mask, n_samples):
+        #TODO need careful analysis on this. To understand whether it start with the center or corner
 
-    def create_random_coords(self, shape, mask, n_samples):
-        """
-        Create random coordinates within permissible regions for subvolume extraction.
-        """
-        size = self.sample_shape[0]
-        z_max, y_max, x_max = shape
-        half_size = size // 2 + 1 
-        mask[0:half_size,:,:] = 0
-        mask[z_max-half_size:z_max,:,:] = 0
-        mask[:,0:half_size,:] = 0
-        mask[:,y_max-half_size:y_max,:] = 0
-        mask[:,:,0:half_size] = 0
-        mask[:,:,x_max-half_size:x_max] = 0
-
-
-        valid_inds = np.where(mask)
-
-        sample_inds = np.random.choice(len(valid_inds[0]), n_samples, replace=(len(valid_inds[0]) < n_samples))
+        # Inspired by isonet preprocessing.cubes:create_cube_seeds()
+        
+        # Get permissible locations based on extraction_shape and sample_shape
+        slices = tuple([slice(z[0],z[1]-self.sample_shape[2]),
+                       slice(y[0],y[1]-self.sample_shape[1]),
+                       slice(x[0],x[1]-self.sample_shape[0])])
+        
+        # Get intersect with mask-allowed values                       
+        valid_inds = np.where(mask[slices])
+        
+        valid_inds = [v + s.start for s, v in zip(slices, valid_inds)]
+        
+        sample_inds = np.random.choice(len(valid_inds[0]),
+                                       n_samples,
+                                       replace=len(valid_inds[0]) < n_samples)
+        
         rand_inds = [v[sample_inds] for v in valid_inds]
-        rand_inds = [v - half_size for v in rand_inds]
+        
 
-        return np.stack(rand_inds, -1)
+        return np.stack([rand_inds[0],rand_inds[1], rand_inds[2]], -1)
 
-    def _compute_missing_wedge(self, cube_size, min_angle, max_angle):
-        """Compute the missing wedge mask for given tilt angles."""
-        from IsoNet.utils.missing_wedge import mw3D
-        mw = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
-        return np.fft.fftshift(mw)
-
+                
+    
     def augment(self, x, y):
-        """
-        Data augmentation by randomly swapping input and target volumes.
-        """
+        # self.tilt_axis = None
+        # if self.tilt_axis is not None:
+        #     if self.sample_shape[0] == self.sample_shape[1] and \
+        #             self.sample_shape[0] == self.sample_shape[2]:
+        #         rot_k = np.random.randint(0, 4, 1)
+
+        #         x[...,0] = np.rot90(x[...,0], k=rot_k, axes=self.rot_axes)
+        #         y[...,0] = np.rot90(y[...,0], k=rot_k, axes=self.rot_axes)
+
+
         if np.random.rand() > 0.5:
             return y, x
-        return x, y
-
-    def load_and_normalize(self, tomo_paths, tomo_index, z, y, x):
-        """Load and normalize a subvolume from a tomogram."""
-        tomo = mrcfile.mmap(tomo_paths[tomo_index], mode='r', permissive=True)
-        subvolume = tomo.data[z:z + self.sample_shape[0], y:y + self.sample_shape[1], x:x + self.sample_shape[2]]
-        return (subvolume - self.mean[tomo_index]) / self.std[tomo_index]
+        else:
+            return x, y
 
     def __len__(self):
         return self.length
-
+    
+    def load_and_normalize(self, tomo_path, tomo_index, z, y, x):
+            tomo = mrcfile.mmap(tomo_path[tomo_index], mode='r', permissive=True)
+            subvolume = tomo.data[z:z + self.sample_shape[0],
+                                y:y + self.sample_shape[1],
+                                x:x + self.sample_shape[2]]
+            return (subvolume - self.mean[tomo_index]) / self.std[tomo_index]
+    
     def __getitem__(self, idx):
-        """Return a sample of data at a given index."""
-        tomo_index, coord_index = divmod(idx, self.n_samples_per_tomo)
+        tomo_index, coord_index = idx // self.n_samples_per_tomo, idx % self.n_samples_per_tomo
         z, y, x = self.coords[tomo_index][coord_index]
 
-        if self.method in ['n2n', 'spisonet']:
+        if self.method == 'n2n' or self.method == 'spisonet':
+
             even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x)
-            odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x)
+            odd_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x)
 
             x, y = self.augment(
                 np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...], 
@@ -153,12 +176,14 @@ class Train_sets_n2n(Dataset):
             )
 
             if self.method == 'spisonet':
-                return x, y, self.mw_list[tomo_index]
-            return x, y
-        
+                return x,y,self.mw_list[tomo_index]
+            return x,y
+            
         elif self.method == 'spisonet-single':
             even_subvolume = self.load_and_normalize(self.tomo_paths, tomo_index, z, y, x)
-            x = np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...]
+
+            x = np.array(even_subvolume, dtype=np.float32)[ np.newaxis,...]
+
             return x, self.mw_list[tomo_index]
 
     def close(self):

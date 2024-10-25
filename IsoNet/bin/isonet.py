@@ -414,9 +414,8 @@ class ISONET:
         
         
         params = Arg(locals())
-        
         from IsoNet.bin.refine import run
-        run(params)      
+        run(params)
         logging.info("Finished")
 
     def predict(self, star_file: str, 
@@ -487,16 +486,16 @@ class ISONET:
         if network.method == 'n2n' or network.method == 'spisonet':
 
             for index, tomo_row in star.iterrows():
-                tomo1, _ = read_mrc(tomo_row["_rlnTomoReconstructedTomogramHalf1"])
+                tomo1, _ = read_mrc(tomo_row["rlnTomoReconstructedTomogramHalf1"])
                 tomo1 = normalize(tomo1*-1,percentile=False)
                 outData1 = network.predict_map(tomo1, output_dir,cube_size=cube_size, crop_size=crop_size).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
 
-                tomo2, _ = read_mrc(tomo_row["_rlnTomoReconstructedTomogramHalf2"])
+                tomo2, _ = read_mrc(tomo_row["rlnTomoReconstructedTomogramHalf2"])
                 tomo2 = normalize(tomo2*-1,percentile=False)
                 outData2 = network.predict_map(tomo2, output_dir,cube_size=cube_size, crop_size=crop_size).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
                                 
                 outData = (outData1 + outData2)/2
-                file_base_name = os.path.basename(tomo_row[input_column])
+                file_base_name = os.path.basename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
                 file_name, file_extension = os.path.splitext(file_base_name)
                 out_file_name = f"{output_dir}/corrected_{file_name}.mrc"
                 write_mrc(out_file_name, outData*-1)        
@@ -508,7 +507,7 @@ class ISONET:
                    gpuID: str=None,
 
                    #ncpus: int=16, 
-                   only_denoise = True,
+                   only_denoise = False,
                    output_dir: str="isonet_maps",
                    pretrained_model: str=None,
                    cube_size: int=64,
@@ -519,7 +518,7 @@ class ISONET:
                    learning_rate: float=3e-4,
 
                    alpha: float=1,
-                   beta: float=0.5,
+                   beta: float=2,
                    ):
         from IsoNet.utils.utils import mkfolder
         mkfolder(output_dir)
@@ -562,7 +561,7 @@ class ISONET:
 
         network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
 
-    def ei_refine(self, 
+    def refine_spisonet(self, 
                    star_file: str,
                    gpuID: str=None,
 
@@ -574,7 +573,8 @@ class ISONET:
                    epochs: int=50,
                    batch_size: int=None, 
                    acc_batches: int=2,
-                   learning_rate: float=3e-4
+                   learning_rate: float=3e-4,
+                   alpha: float=1
                    ):
         from IsoNet.utils.utils import mkfolder
         mkfolder(output_dir)
@@ -589,7 +589,7 @@ class ISONET:
         steps_per_epoch = 200
 
         from IsoNet.models.network import Net
-        network = Net(method="spisonet", arch='unet-default')
+        network = Net(method="spisonet-single", arch='unet-default')
         if pretrained_model != None and pretrained_model != "None":
             network.load(pretrained_model)
 

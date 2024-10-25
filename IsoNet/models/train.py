@@ -10,17 +10,28 @@ from IsoNet.utils.utils import debug_matrix
 import random
 
 
+# def apply_filter(data, mwshift):
+#     # mwshift [x, y, z]
+#     # data [x, y, z]
+#     t1 = mwshift*torch.fft.fftn(data)
+#     return torch.real(torch.fft.ifftn(t1))#.astype(np.float32)
+
 def ddp_train(rank, world_size, port_number, model, training_params):
     #data_path, batch_size, acc_batches, epochs, steps_per_epoch, learning_rate, mixed_precision, model_path
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = port_number
     #os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-    dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
 
-    batch_size = training_params['batch_size'] // training_params['acc_batches']
-    batch_size_gpu = batch_size // world_size
 
+    if world_size > 1:
+        dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+        model = DDP(model, device_ids=[rank])
+    else:
+        model = model.to(rank)
+
+    batch_size_gpu = training_params['batch_size'] // (training_params['acc_batches'] * world_size)
 
     #### preparing data
     # from chatGPT: The DistributedSampler shuffles the indices of the entire dataset, not just the portion assigned to a specific GPU. 
@@ -28,23 +39,24 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         from IsoNet.models.data_sequence import Train_sets_regular
         train_dataset = Train_sets_regular(training_params['data_path'])
 
-    elif training_params['method'] == 'n2n' or 'spisonet':
+    elif training_params['method'] in ['n2n', 'spisonet']:
         from IsoNet.models.data_sequence import Train_sets_n2n
         if rank == 0:
             print("calculate subtomograms position")
         train_dataset = Train_sets_n2n(training_params['data_path'],method=training_params['method'], cube_size=training_params['cube_size'])
-
         from IsoNet.utils.rotations import rotation_list_24
         mwshift = np.ones((training_params['cube_size'])*3, dtype=np.float32)
 
-    train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
-                                             num_workers=4, pin_memory=True, sampler=train_sampler)
+
+    if world_size > 1:
+        train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
+    else:
+        train_sampler = None  # No sampler for single GPU
+
+    train_loader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
+        num_workers=4, pin_memory=True, sampler=train_sampler)
     
-    #### prepare model
-    model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    model = model.cuda()
-    model = DDP(model, device_ids=[rank])
     # if torch.__version__ >= "2.0.0":
     #     GPU_capability = torch.cuda.get_device_capability()
     #     if GPU_capability[0] >= 7:
@@ -58,15 +70,17 @@ def ddp_train(rank, world_size, port_number, model, training_params):
     # if training_params['mixed_precision']:
     #     scaler = torch.cuda.amp.GradScaler()
     
-
+    average_loss_list = []
 
     steps_per_epoch_train = training_params['steps_per_epoch']
     total_steps = min(len(train_loader)//training_params['acc_batches'], training_params['steps_per_epoch'])
-    average_loss_list = []
+
     for epoch in range(training_params['epochs']):
-        train_sampler.set_epoch(epoch)
+        if train_sampler:
+            train_sampler.set_epoch(epoch)
+        model.train()
         with tqdm(total=total_steps, unit="batch", disable=(rank!=0)) as progress_bar:
-            model.train()
+            
             # have to convert to tensor because reduce needed it
             average_loss = torch.tensor(0, dtype=torch.float).to(rank)
             for i, batch in enumerate(train_loader):
@@ -74,16 +88,16 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                 x1 = x1.cuda()
                 x2 = x2.cuda()
                 optimizer.zero_grad(set_to_none=True)
-
                 
                 preds = model(x1)               
                 if training_params['method'] == "n2n" or training_params['method'] == "regular":
                     loss = loss_fn(x2,preds)
                 elif training_params['method'] == "spisonet":
                     mwshift = batch[2].cuda()
+
                     data = torch.zeros_like(preds)
                     for j,d in enumerate(preds):
-                        data[j][0] = torch.real(torch.fft.ifftn(mwshift*torch.fft.fftn(d[0])))#.astype(np.float32)
+                        data[j][0] = torch.real(torch.fft.ifftn(mwshift[j]*torch.fft.fftn(d[0])))#.astype(np.float32)
                     loss_consistency_1 = loss_fn(data,x1)
 
                     if training_params['beta'] > 0:
@@ -103,7 +117,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                         if training_params['beta'] > 0:
                             tmp_2 = torch.rot90(pred_2[k][0],rot[0][1],rot[0][0])
                             data_rot_2[k][0] = torch.rot90(tmp_2,rot[1][1],rot[1][0])
-                        data_e[k][0] = torch.real(torch.fft.ifftn(mwshift*torch.fft.fftn(data_rot[k][0])))#+noise[i][0]#.astype(np.float32)
+                        data_e[k][0] = torch.real(torch.fft.ifftn(mwshift[k]*torch.fft.fftn(data_rot[k][0])))#+noise[i][0]#.astype(np.float32)
                     pred_y = model(data_e)
                     loss_equivariance_1 = loss_fn(pred_y, data_rot)
 
@@ -113,7 +127,23 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                         loss_equivariance_2 = 0
                     loss = training_params['alpha'] * loss_equivariance_1 + loss_consistency_1 + \
                            training_params['beta'] * ( training_params['alpha'] * loss_equivariance_2 + loss_consistency_2)
-                
+                elif training_params['method'] == "spisonet-single":
+                    mwshift = x2
+                    data = torch.zeros_like(preds)
+                    for j,d in enumerate(preds):
+                        data[j][0] = torch.real(torch.fft.ifftn(mwshift*torch.fft.fftn(d[0])))#.astype(np.float32)
+                    loss_consistency_1 = loss_fn(data,x1)
+                    data_rot = torch.zeros_like(preds)
+                    data_e = torch.zeros_like(preds)
+                    for k,d in enumerate(preds):
+                        rot = random.choice(rotation_list_24)
+                        tmp = torch.rot90(d[0],rot[0][1],rot[0][0])
+                        data_rot[k][0] = torch.rot90(tmp,rot[1][1],rot[1][0])
+                        data_e[k][0] = torch.real(torch.fft.ifftn(mwshift*torch.fft.fftn(data_rot[k][0])))#+noise[i][0]#.astype(np.float32)
+                    pred_y = model(data_e)
+                    loss_equivariance_1 = loss_fn(pred_y, data_rot)
+                    loss = training_params['alpha'] * loss_equivariance_1 + loss_consistency_1
+                                
                 
                 loss = loss / training_params['acc_batches']
                 loss.backward()
@@ -132,23 +162,36 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                 
                 if i + 1 >= steps_per_epoch_train*training_params['acc_batches']:
                     break
-            average_loss = average_loss / (i+1.)
+
+        # Normalize loss across GPUs
+        if world_size > 1:
+            dist.barrier()
+            dist.reduce(average_loss, dst=0)
+            average_loss /= dist.get_world_size()
+        else:
+            average_loss /= (i + 1)
         
                                       
-        dist.barrier()
-        dist.reduce(average_loss, dst=0)
+        
+        #dist.reduce(average_loss, dst=0)
 
-        average_loss =  average_loss / dist.get_world_size()
+        #average_loss =  average_loss / dist.get_world_size()
 
         if rank == 0:
             average_loss_list.append(average_loss.cpu().numpy())
             print(f"Epoch [{epoch+1}/{training_params['epochs']}], Train Loss: {average_loss:.4f}")
-            torch.save({
-                'model_state_dict': model.module.state_dict(),
-                'average_loss': average_loss_list,
-                }, training_params['outmodel_path'])
-            
-    dist.destroy_process_group()
+            if world_size > 1:
+                torch.save({
+                    'model_state_dict': model.module.state_dict(),
+                    'average_loss': average_loss_list,
+                    }, training_params['outmodel_path'])
+            else:
+                torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'average_loss': average_loss_list,
+                    }, training_params['outmodel_path'])                
+    if world_size > 1:
+        dist.destroy_process_group()
 
 
 def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path):
