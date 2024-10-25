@@ -29,6 +29,9 @@ class Net:
         if self.arch == 'unet-default':
             from .unet import Unet
             self.model = Unet(filter_base = 64,unet_depth=3, add_last=True)
+        elif self.arch == 'unet-default-nolast':
+            from .unet import Unet
+            self.model = Unet(filter_base = 64,unet_depth=3, add_last=False)
 
 
         self.method = method
@@ -95,8 +98,15 @@ class Net:
             # mp.spawn(self.ddp_train, args=(self.world_size, self.port_number, self.model,
             #                            data_path, batch_size, acc_batches, epochs, steps_per_epoch, learning_rate, 
             #                            mixed_precision, outmodel_path), nprocs=self.world_size)
-            mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model,
-                                       training_params), nprocs=self.world_size)
+            # mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model,
+            #                            training_params), nprocs=self.world_size)
+            print(self.world_size)
+            if self.world_size > 1:
+                # For multiple GPUs, use DistributedDataParallel and spawn multiple processes
+                mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, training_params), nprocs=self.world_size)
+            else:
+                # For single GPU, directly call ddp_train without using DDP
+                ddp_train(0, self.world_size, self.port_number, self.model, training_params)
 
         except KeyboardInterrupt:
            logging.info('KeyboardInterrupt: Terminating all processes...')
