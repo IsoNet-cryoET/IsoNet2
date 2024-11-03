@@ -28,11 +28,16 @@ class Net:
         self.arch = arch
         if self.arch == 'unet-default':
             from .unet import Unet
-            self.model = Unet(filter_base = 64,unet_depth=3, add_last=True)
-        elif self.arch == 'unet-default-nolast':
+            self.model = Unet(filter_base = 64,unet_depth=4, add_last=False)
+        elif self.arch == 'unet-small':
             from .unet import Unet
-            self.model = Unet(filter_base = 64,unet_depth=3, add_last=False)
-
+            self.model = Unet(filter_base = 16,unet_depth=4, add_last=False)
+        elif self.arch == 'unet-median':
+            from .unet import Unet
+            self.model = Unet(filter_base = 32,unet_depth=4, add_last=False)
+        elif self.arch == 'HSFormer':
+            from IsoNet.models.HSFormer import swin_tiny_patch4_window8
+            self.model = swin_tiny_patch4_window8(img_size=64, num_classes =1)
 
         self.method = method
         # if method == "regular":
@@ -155,7 +160,8 @@ class Net:
 
     
     def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, output_base=None, wedge=None):
-        reform_ins = reform3D(data,cube_size,crop_size,7)
+        # change edge width from 7 to 5 to reduce computing
+        reform_ins = reform3D(data,cube_size,crop_size,5)
         data = reform_ins.pad_and_crop()
         
         tmp_data_path = f"{output_dir}/tmp.npy"

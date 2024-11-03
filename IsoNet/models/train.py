@@ -48,6 +48,8 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         from IsoNet.utils.rotations import rotation_list_24
         mwshift = np.ones((training_params['cube_size'])*3, dtype=np.float32)
 
+    # print(train_dataset.tomo_paths_even)
+    # print(train_dataset.tomo_paths_odd)
 
     if world_size > 1:
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
@@ -64,7 +66,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
     #         torch.set_float32_matmul_precision('high')
     #         model = torch.compile(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
-    loss_fn = nn.L1Loss()
+    loss_fn = nn.MSELoss()
     #torch.backends.cuda.matmul.allow_tf32 = True
     #torch.backends.cudnn.allow_tf32 = True
 
@@ -85,17 +87,33 @@ def ddp_train(rank, world_size, port_number, model, training_params):
             # have to convert to tensor because reduce needed it
             average_loss = torch.tensor(0, dtype=torch.float).to(rank)
             for i, batch in enumerate(train_loader):
-                x1, x2 = batch[0], batch[1]
-                x1 = x1.cuda()
-                x2 = x2.cuda()
-                optimizer.zero_grad(set_to_none=True)
+
+                # if rank == np.random.randint(0, world_size):
+                #     debug_matrix(x1, filename='debug1.mrc')
+                #     debug_matrix(x2, filename='debug2.mrc')
+                #     debug_matrix(preds, filename='debug3.mrc')             
                 
-                preds = model(x1)               
                 if training_params['method'] == "n2n" or training_params['method'] == "regular":
+                    x1, x2 = batch[0], batch[1]
+                    x1 = x1.cuda()
+                    x2 = x2.cuda()
+                    optimizer.zero_grad(set_to_none=True)
+
+                    
+                    preds = model(x1)  
+                    print(training_params['method'])
                     loss = loss_fn(x2,preds)
                 elif training_params['method'] == "spisonet":
-                    mwshift = batch[2].cuda()
 
+                    x1, x2 = batch[0], batch[1]
+                    x1 = x1.cuda()
+                    x2 = x2.cuda()
+                    optimizer.zero_grad(set_to_none=True)
+
+                    
+                    preds = model(x1)  
+                    mw = batch[2].cuda()
+                    mwshift = torch.fft.fftshift(mw, dim=(-1, -2, -3))
                     data = torch.zeros_like(preds)
                     for j,d in enumerate(preds):
                         data[j][0] = torch.real(torch.fft.ifftn(mwshift[j]*torch.fft.fftn(d[0])))#.astype(np.float32)
@@ -129,7 +147,15 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     loss = training_params['alpha'] * loss_equivariance_1 + loss_consistency_1 + \
                            training_params['beta'] * ( training_params['alpha'] * loss_equivariance_2 + loss_consistency_2)
                 elif training_params['method'] == "spisonet-single":
-                    mwshift = x2
+                    x1, x2 = batch[0], batch[1]
+                    x1 = x1.cuda()
+                    x2 = x2.cuda()
+                    optimizer.zero_grad(set_to_none=True)
+
+                    
+                    preds = model(x1)  
+                    mw = x2
+                    mwshift = torch.fft.fftshift(mw, dim=(-1, -2, -3))
                     data = torch.zeros_like(preds)
                     for j,d in enumerate(preds):
                         data[j][0] = torch.real(torch.fft.ifftn(mwshift*torch.fft.fftn(d[0])))#.astype(np.float32)
@@ -146,38 +172,60 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     loss = training_params['alpha'] * loss_equivariance_1 + loss_consistency_1
 
                 elif training_params['method'] == "spisonet-ddw":
+                    x1, x2 = batch[0], batch[1]
+                    x1 = x1.cuda()
+                    x2 = x2.cuda()
+                    optimizer.zero_grad(set_to_none=True)
 
-                    mwshift = batch[2].cuda()
-                    mw = torch.fft.fftshift(mwshift, dim=(-1, -2, -3))
+                    #with torch.no_grad():
+                    preds = model(x1)  
+                    mw = batch[2].cuda()
+                    mwshift = torch.fft.fftshift(mw, dim=(-1, -2, -3))
+                    if rank == np.random.randint(0, world_size):
+                        debug_matrix(mwshift, filename='debugmwshift.mrc')
 
                     data = torch.zeros_like(preds)
                     for j,d in enumerate(preds):
                         data[j][0] = torch.real(torch.fft.ifftn(mwshift[j]*torch.fft.fftn(d[0])))#.astype(np.float32)
-                    loss_consistency_2 = loss_fn(data,x2)
+                    loss = loss_fn(data,x2)
 
-                    data_combine_rot_mw = torch.zeros_like(preds)
-                    data_combine_rot = torch.zeros_like(preds)
+                    if training_params['alpha'] > 0:
+                        data_combine_rot_mw = torch.empty_like(preds)
+                        x2_rot = torch.empty_like(preds)
+                        rotated_mw = torch.empty_like(mw)
+                        new_data = preds - data + x1
+                        for k,d in enumerate(preds):
+                            rot = random.choice(rotation_list_24)
 
-                    rotated_mw = torch.zeros_like(mw)
-                    for k,d in enumerate(preds):
-                        rot = random.choice(rotation_list_24)
+
+                            #outside_mw = torch.real(torch.fft.ifftn((1-mwshift[k])*torch.fft.fftn(preds[k][0])))
+                            #inside_mw = torch.real(torch.fft.ifftn(mwshift[k]*torch.fft.fftn(x1[k][0])))
+                            tmp = new_data[k][0]#outside_mw + inside_mw                   
+                            tmp = torch.rot90(tmp,rot[0][1],rot[0][0])
+                            tmp = torch.rot90(tmp,rot[1][1],rot[1][0])
+                            data_combine_rot_mw[k][0] = torch.real(torch.fft.ifftn(mwshift[k]*torch.fft.fftn(tmp)))
+
+                            tmp_mw = torch.rot90(mw[k],rot[0][1],rot[0][0])
+                            rotated_mw[k] = torch.rot90(tmp_mw,rot[1][1],rot[1][0])
+
+                            tmp_x2_rot = torch.rot90(x2[k][0],rot[0][1],rot[0][0])
+                            x2_rot[k][0] = torch.rot90(tmp_x2_rot,rot[1][1],rot[1][0])
 
 
-                        outside_mw = torch.real(torch.fft.ifftn((1-mwshift[k])*torch.fft.fftn(preds[k][0])))
-                        inside_mw = torch.real(torch.fft.ifftn(mwshift[k]*torch.fft.fftn(x1[k][0])))
-                        tmp = outside_mw + inside_mw                   
-                        tmp = torch.rot90(tmp,rot[0][1],rot[0][0])
-                        tmp = torch.rot90(tmp,rot[1][1],rot[1][0])
-                        data_combine_rot[k] = tmp
-                        data_combine_rot_mw[k] = torch.real(torch.fft.ifftn(mwshift[k]*torch.fft.fftn(tmp)))
-                    
-                        tmp_mw = torch.rot90(mw[k],rot[0][1],rot[0][0])
-                        rotated_mw[k] = torch.rot90(tmp_mw,rot[0][1],rot[0][0])
+                        pred_y = model(data_combine_rot_mw)
+                        # if rank == np.random.randint(0, world_size):
+                        #     debug_matrix(x1, filename='debug1.mrc')
+                        #     debug_matrix(x2, filename='debug2.mrc')
+                        #     debug_matrix(preds, filename='debug3.mrc')   
+                        #     debug_matrix(x2_rot, filename='debug4.mrc')
+                        #     debug_matrix(data_combine_rot_mw, filename='debug5.mrc')
+                        #     debug_matrix(pred_y, filename='debug6.mrc')
+                        #     debug_matrix(rotated_mw, filename='debug7.mrc')
+                        #loss_ddw = masked_loss(pred_y, x2_rot, rotated_mw, torch.ones_like(mw), mw_weight=2.0)
+                        loss_ddw = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
 
-                    pred_y = model(data_combine_rot_mw)
-                    loss_ddw = masked_loss(pred_y, data_combine_rot, rotated_mw, mw, mw_weight=2.0)
 
-                    loss = training_params['alpha'] * loss_consistency_2 + loss_ddw
+                        loss += loss_ddw * training_params['alpha']
                                 
                 
                 loss = loss / training_params['acc_batches']
@@ -185,10 +233,10 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                 loss_item = loss.item()
                               
                 if ( (i+1)%training_params['acc_batches'] == 0 ) or (i+1) == min(len(train_loader), steps_per_epoch_train * training_params['acc_batches']):
-                    if training_params['mixed_precision']:
-                        pass
-                    else:
-                        optimizer.step()
+                    # if training_params['mixed_precision']:
+                    #     pass
+                    # else:
+                    optimizer.step()
 
                 if rank == 0 and ( (i+1)%training_params['acc_batches'] == 0 ):
                    progress_bar.set_postfix({"Loss": loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
@@ -202,7 +250,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         if world_size > 1:
             dist.barrier()
             dist.reduce(average_loss, dst=0)
-            average_loss /= dist.get_world_size()
+            average_loss /= (world_size * (i + 1))
         else:
             average_loss /= (i + 1)
         
@@ -253,6 +301,10 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path):
         ):
             batch_input = data[i:i + 1].to(rank)
             batch_output = model(batch_input).cpu()  # Move output to CPU immediately
+            if rank == 1:
+                debug_matrix(batch_input, filename='debug1_predict1.mrc')
+                debug_matrix(batch_output, filename='debug1_predict2.mrc')
+
             outputs.append(batch_output)
 
     output = torch.cat(outputs, dim=0).cpu().numpy()

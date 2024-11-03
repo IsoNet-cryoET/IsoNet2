@@ -493,23 +493,23 @@ class ISONET:
                 tomo2 = normalize(tomo2*-1,percentile=False)
                 outData2 = network.predict_map(tomo2, output_dir,cube_size=cube_size, crop_size=crop_size).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
                                 
-                outData = (outData1 + outData2)/2
+                outData = (outData1 + outData2) * (-0.5)
                 file_base_name = os.path.basename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
                 file_name, file_extension = os.path.splitext(file_base_name)
-                out_file_name = f"{output_dir}/corrected_{file_name}.mrc"
-                write_mrc(out_file_name, outData*-1)        
+                out_file_name = f"{output_dir}/corrected_{network.method}_{file_name}.mrc"
+                write_mrc(out_file_name, outData)        
                 star.at[index, out_column] = out_file_name
             starfile.write(star,star_file)            
 
     def refine_n2n(self, 
                    star_file: str,
                    gpuID: str=None,
-
+                   arch='unet-default',
                    #ncpus: int=16, 
                    method = "spisonet-ddw",
                    output_dir: str="isonet_maps",
                    pretrained_model: str=None,
-                   cube_size: int=64,
+                   cube_size: int=80,
 
                    epochs: int=50,
                    batch_size: int=None, 
@@ -517,7 +517,7 @@ class ISONET:
                    learning_rate: float=3e-4,
 
                    alpha: float=1,
-                   beta: float=2,
+                   gamma: float=2,
                    ):
         from IsoNet.utils.utils import mkfolder
         mkfolder(output_dir)
@@ -530,19 +530,18 @@ class ISONET:
                 batch_size = 4
             else:
                 batch_size = 2 * len(gpuID_list)
-        steps_per_epoch = 200
+        steps_per_epoch = 200000000
 
         # if only_denoise == True:
         #     method = "n2n"
         # else:
         #     method = "spisonet"
-
+        print(f"method {method}")
         from IsoNet.models.network import Net
-        network = Net(method=method, arch='unet-default')
+        network = Net(method=method, arch=arch)
         if pretrained_model != None and pretrained_model != "None":
             network.load(pretrained_model)
 
-        mixed_precision = False
 
         training_params = {
             "method":method,
@@ -553,10 +552,10 @@ class ISONET:
             "epochs": epochs,
             "steps_per_epoch":steps_per_epoch,
             "learning_rate":learning_rate,
-            "mixed_precision":mixed_precision,
+            "mixed_precision":False,
             "cube_size": cube_size,
             "alpha": alpha,
-            "beta": beta,
+            "gamma": gamma,
         }
 
         network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5

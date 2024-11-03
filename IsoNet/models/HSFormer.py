@@ -65,13 +65,13 @@ class FinalPatchExpand_X4(nn.Module):
         Z, H, W = self.input_resolution
         x = self.expand(x)
         B, L, C = x.shape
-        assert L == Z * H * W, "input feature has wrong size"
+        #assert L == Z * H * W, "input feature has wrong size"
 
         x = x.view(B, Z, H, W, C)
         x = rearrange(x, 'b z h w (p1 p2 p3 c)-> b (z p1) (h p2) (w p3) c', p1=self.dim_scale, p2=self.dim_scale, p3=self.dim_scale, c=C//(self.dim_scale**3))
         x = x.view(B,-1,self.output_dim//4)
         x= self.norm(x)
-
+        
         return x
 
 class DropPath(nn.Module):
@@ -121,7 +121,9 @@ class PatchEmbed(nn.Module):
     """
     def __init__(self, image_size=256, patch_size=4, in_channel=1, embed_dim=96, norm_layer=None):
         super().__init__()
-        image_size = (image_size // 4, image_size, image_size) #(64,256,256)
+        #image_size = (image_size // 4, image_size, image_size) #(64,256,256)
+        image_size = (image_size, image_size, image_size) #(64,256,256)
+
         patch_size = (patch_size, patch_size, patch_size)
         self.patch_size = patch_size
         self.grid_size = (image_size[0] // patch_size[0], image_size[1] // patch_size[1], image_size[2] // patch_size[2])
@@ -140,7 +142,6 @@ class PatchEmbed(nn.Module):
             inputs = F.pad(inputs, (0, self.patch_size[2] - y % self.patch_size[2],
                                     0, self.patch_size[1] - x % self.patch_size[1],
                                     0, self.patch_size[0] - z % self.patch_size[0]))
-        
         inputs = self.proj(inputs)
         _, _, z, x, y = inputs.shape
         # flatten: [B, C, Z, X, Y] -> [B, C, ZXY]
@@ -623,7 +624,7 @@ class SwinTransformer(nn.Module):
         self.norm = norm_layer(self.num_features)
         self.norm_up = norm_layer(self.embed_dim)
 
-        self.up = FinalPatchExpand_X4(input_resolution=(img_size//(4*patch_size),img_size//patch_size, img_size//patch_size),dim_scale=4,dim=embed_dim)
+        self.up = FinalPatchExpand_X4(input_resolution=(img_size//patch_size,img_size//patch_size, img_size//patch_size),dim_scale=4,dim=embed_dim)
         self.output = nn.Conv3d(in_channels=embed_dim//4,out_channels=self.num_classes,kernel_size=1,bias=False)
         # self.avgpool = nn.AdaptiveAvgPool1d(1)
         # self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
@@ -682,10 +683,9 @@ class SwinTransformer(nn.Module):
         return x
 
     def up_x4(self, x):
-
         Z, H, W = self.patch_grid
         B, L, C = x.shape
-        assert L == Z*H*W, "input features has wrong size"
+        assert L == Z*H*W#, "input features has wrong size"
 
         # if self.final_upsample=="expand_first":
         x = self.up(x)
@@ -705,10 +705,10 @@ class SwinTransformer(nn.Module):
 
         return x
 
-def swin_tiny_patch4_window8_256(in_channels: int = 16, num_classes: int = 1000, **kwargs):
+def swin_tiny_patch4_window8(img_size:int = 256, in_channels: int = 16, num_classes: int = 1000, **kwargs):
     # trained ImageNet-1K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth
-    model = SwinTransformer(img_size=256,
+    model = SwinTransformer(img_size=img_size,
                             in_chans=in_channels,
                             patch_size=4,
                             window_size=8,
@@ -735,7 +735,7 @@ def swin_base_patch4_window8_256(in_channels: int = 1, num_classes: int = 1000, 
 
 if __name__ == "__main__":
 
-    model = swin_tiny_patch4_window8_256(num_classes=2)
+    model = swin_tiny_patch4_window8(num_classes=2)
     # model = swin_base_patch4_window8_256(num_classes=2)
 
     import numpy as np

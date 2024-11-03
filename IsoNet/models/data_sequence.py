@@ -64,7 +64,6 @@ class Train_sets_n2n(Dataset):
     def _initialize_data(self):
         """Initialize paths, mean, std, and coordinates from the starfile."""
         column_name_list = self.star.columns.tolist()
-        input_column = "rlnTomoName"
 
         for _, row in self.star.iterrows():
             self.n_samples_per_tomo=row['rlnNumberSubtomo']
@@ -83,8 +82,8 @@ class Train_sets_n2n(Dataset):
     def _load_tomogram_and_mask(self, row, column_name_list):
         """Load tomogram data and corresponding mask."""
         if self.method in ['spisonet', 'n2n','spisonet-ddw']:
-            self.tomo_paths_odd.append(row['rlnTomoReconstructedTomogramHalf1'])
-            self.tomo_paths_even.append(row['rlnTomoReconstructedTomogramHalf2'])
+            self.tomo_paths_even.append(row['rlnTomoReconstructedTomogramHalf1'])
+            self.tomo_paths_odd.append(row['rlnTomoReconstructedTomogramHalf2'])
             tomo_data, _ = read_mrc(row['rlnTomoReconstructedTomogramHalf1'])
         else:
             self.tomo_paths.append(row['rlnTomoName'])
@@ -120,7 +119,7 @@ class Train_sets_n2n(Dataset):
         """Compute the missing wedge mask for given tilt angles."""
         from IsoNet.utils.missing_wedge import mw3D
         mw = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
-        return np.fft.fftshift(mw)
+        return mw
 
     def augment(self, x, y):
         """
@@ -132,9 +131,11 @@ class Train_sets_n2n(Dataset):
 
     def load_and_normalize(self, tomo_paths, tomo_index, z, y, x):
         """Load and normalize a subvolume from a tomogram."""
+        #print(tomo_paths[tomo_index],z, y, x)
         tomo = mrcfile.mmap(tomo_paths[tomo_index], mode='r', permissive=True)
         subvolume = tomo.data[z:z + self.sample_shape[0], y:y + self.sample_shape[1], x:x + self.sample_shape[2]]
-        return (subvolume - self.mean[tomo_index]) / self.std[tomo_index]
+        # the output inverted the contrast
+        return (self.mean[tomo_index] - subvolume) / self.std[tomo_index]
 
     def __len__(self):
         return self.length
