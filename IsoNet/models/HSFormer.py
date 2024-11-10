@@ -337,7 +337,19 @@ class SwinTransformerBlock(nn.Module):
         if self.shift_size > 0:
             # calculate attention mask for SW-MSA
             Z, X, Y = self.input_resolution
-            img_mask  = torch.zeros((1, Z, X, Y, 1))  # 1 Z X Y 1
+
+
+            Z, X, Y = self.input_resolution
+            pad_z = (self.window_size - Z % self.window_size) % self.window_size
+            pad_x = (self.window_size - X % self.window_size) % self.window_size
+            pad_y = (self.window_size - Y % self.window_size) % self.window_size
+
+            Z_padded, X_padded, Y_padded = Z + pad_z, X + pad_x, Y + pad_y
+
+            # Create mask with padded dimensions
+            img_mask = torch.zeros((1, Z_padded, X_padded, Y_padded, 1))  # (1, Z, X, Y, 1)
+
+            #img_mask  = torch.zeros((1, Z, X, Y, 1))  # 1 Z X Y 1
 
             z_slices = (slice(0, -self.window_size),
                         slice(-self.window_size, -self.shift_size),
@@ -355,7 +367,6 @@ class SwinTransformerBlock(nn.Module):
                     for y in y_slices:
                         img_mask[:, z, x, y, :] = cnt
                         cnt += 1
-
             mask_windows = window_partition(img_mask, self.window_size)  # [nW, M, M, M, 1]
             mask_windows = mask_windows.view(-1, self.window_size * self.window_size * self.window_size)# [nW, M*M*M] 
             attn_mask = mask_windows.unsqueeze(1) - mask_windows.unsqueeze(2)#[nW, 1, M*M*M] - [nW, M*M*M, 1]
@@ -364,8 +375,8 @@ class SwinTransformerBlock(nn.Module):
             attn_mask = None
 
         self.register_buffer("attn_mask", attn_mask)
-
-    def forward(self, x):
+  
+    def forward_legacy(self, x):
         Z, X, Y = self.input_resolution
         B, L, C = x.shape
         assert L == Z * X * Y, "input feature has wrong size"
@@ -403,6 +414,57 @@ class SwinTransformerBlock(nn.Module):
         x = x + self.drop_path(self.mlp(self.norm2(x)))
 
         return x
+    
+    def forward(self, x):
+        Z, X, Y = self.input_resolution
+        B, L, C = x.shape
+        assert L == Z * X * Y, "input feature has wrong size"
+
+        shortcut = x
+        x = self.norm1(x)
+        x = x.view(B, Z, X, Y, C)
+
+        # Padding if input is not divisible by window size
+        pad_z = (self.window_size - Z % self.window_size) % self.window_size
+        pad_x = (self.window_size - X % self.window_size) % self.window_size
+        pad_y = (self.window_size - Y % self.window_size) % self.window_size
+
+        x = F.pad(x, (0, 0, 0, pad_y, 0, pad_x, 0, pad_z))
+        Z_padded, X_padded, Y_padded = Z + pad_z, X + pad_x, Y + pad_y
+
+        # Cyclic shift
+        if self.shift_size > 0:
+            shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size, -self.shift_size), dims=(1, 2, 3))
+        else:
+            shifted_x = x
+
+        # Partition windows
+        x_windows = window_partition(shifted_x, self.window_size)
+        x_windows = x_windows.view(-1, self.window_size ** 3, C)
+
+        # Window-based multi-head self-attention
+        attn_windows = self.attn(x_windows, mask=self.attn_mask)
+
+        # Merge windows
+        attn_windows = attn_windows.view(-1, self.window_size, self.window_size, self.window_size, C)
+        shifted_x = window_reverse(attn_windows, self.window_size, Z_padded, X_padded, Y_padded)
+
+        # Reverse cyclic shift
+        if self.shift_size > 0:
+            x = torch.roll(shifted_x, shifts=(self.shift_size, self.shift_size, self.shift_size), dims=(1, 2, 3))
+        else:
+            x = shifted_x
+
+        # Remove padding
+        if pad_z > 0 or pad_x > 0 or pad_y > 0:
+            x = x[:, :Z, :X, :Y, :]
+        x = x.reshape(B, Z * X * Y, C)
+
+        # FFN
+        x = shortcut + self.drop_path(x)
+        x = x + self.drop_path(self.mlp(self.norm2(x)))
+
+        return x
 
 class BasicLayer(nn.Module):
 
@@ -414,7 +476,6 @@ class BasicLayer(nn.Module):
         self.input_resolution = input_resolution
         self.depth = depth
         self.use_checkpoint = use_checkpoint
-
         # bulid merging layer
         self.blocks = nn.ModuleList([
             SwinTransformerBlock(
@@ -626,6 +687,15 @@ class SwinTransformer(nn.Module):
 
         self.up = FinalPatchExpand_X4(input_resolution=(img_size//patch_size,img_size//patch_size, img_size//patch_size),dim_scale=4,dim=embed_dim)
         self.output = nn.Conv3d(in_channels=embed_dim//4,out_channels=self.num_classes,kernel_size=1,bias=False)
+        # TODO conv
+            #         self.output = nn.Sequential(
+            #     nn.Conv3d(in_channels=embed_dim, out_channels=embed_dim, kernel_size=3,padding=1),
+            #     nn.LeakyReLU(),
+            #     nn.Conv3d(in_channels=embed_dim, out_channels=embed_dim, kernel_size=3,padding=1),
+            #     nn.LeakyReLU(),
+            #     nn.Conv3d(in_channels=embed_dim, out_channels=self.num_classes, kernel_size=1)
+            # )
+
         # self.avgpool = nn.AdaptiveAvgPool1d(1)
         # self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
         # self.head = DecodeHead(input_resolution=(2, 8, 8), dim=768, dim_scale=4, norm_layer=nn.LayerNorm, num_classes=self.num_classes)
@@ -711,7 +781,7 @@ def swin_tiny_patch4_window8(img_size:int = 256, in_channels: int = 16, num_clas
     model = SwinTransformer(img_size=img_size,
                             in_chans=in_channels,
                             patch_size=4,
-                            window_size=8,
+                            window_size=7,
                             embed_dim=128,#(4*4*4*1) patch_size*patch_size*patch_size*in_channel
                             depths=(2, 2, 6, 2),
                             num_heads=(4, 8, 16, 32),

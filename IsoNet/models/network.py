@@ -17,27 +17,27 @@ def find_unused_port():
     sock.close()
     return port
 class Net:
-    def __init__(self, method=None, arch = 'unet-default'):
+    def __init__(self, method=None, arch = 'unet-default', cube_size=96):
         if method != None:
-            self.initialize(method, arch)
+            self.initialize(method, arch,cube_size)
         torch.backends.cudnn.benchmark = True
 
     
-    def initialize(self, method='regular', arch = 'unet-default'):
+    def initialize(self, method='regular', arch = 'unet-default', cube_size=96):
         
         self.arch = arch
         if self.arch == 'unet-default':
             from .unet import Unet
-            self.model = Unet(filter_base = 64,unet_depth=4, add_last=False)
+            self.model = Unet(filter_base = 64,unet_depth=4, add_last=True)
         elif self.arch == 'unet-small':
             from .unet import Unet
-            self.model = Unet(filter_base = 16,unet_depth=4, add_last=False)
+            self.model = Unet(filter_base = 16,unet_depth=4, add_last=True)
         elif self.arch == 'unet-median':
             from .unet import Unet
-            self.model = Unet(filter_base = 32,unet_depth=4, add_last=False)
+            self.model = Unet(filter_base = 32,unet_depth=4, add_last=True)
         elif self.arch == 'HSFormer':
             from IsoNet.models.HSFormer import swin_tiny_patch4_window8
-            self.model = swin_tiny_patch4_window8(img_size=64, num_classes =1)
+            self.model = swin_tiny_patch4_window8(img_size=cube_size, num_classes =1)
 
         self.method = method
         # if method == "regular":
@@ -62,13 +62,13 @@ class Net:
 
     def load(self, path):
         checkpoint = torch.load(path)
-        methods = checkpoint['method']
+        method = checkpoint['method']
         arch = checkpoint['arch']
 
-        self.initialize(methods, arch)
+        self.initialize(method, arch)
 
         self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.metrics["average_loss"] = checkpoint['average_loss']
+        self.metrics = checkpoint['metrics']
 
     def save(self, path):
         state = self.model.state_dict()
@@ -76,7 +76,7 @@ class Net:
             'arch':self.arch,
             'method':self.method,
             'model_state_dict': state,
-            'average_loss': self.metrics['average_loss'],
+            'metrics': self.metrics['metrics'],
             }, path)
         
     def load_jit(self, path):
@@ -105,7 +105,6 @@ class Net:
             #                            mixed_precision, outmodel_path), nprocs=self.world_size)
             # mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model,
             #                            training_params), nprocs=self.world_size)
-            print(self.world_size)
             if self.world_size > 1:
                 # For multiple GPUs, use DistributedDataParallel and spawn multiple processes
                 mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, training_params), nprocs=self.world_size)
@@ -117,16 +116,16 @@ class Net:
            logging.info('KeyboardInterrupt: Terminating all processes...')
            dist.destroy_process_group() 
            os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
-
-        checkpoint = torch.load(training_params['outmodel_path'])
-        self.metrics['average_loss'].extend(checkpoint['average_loss'])
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        torch.save({
-            'arch':self.arch,
-            'method':self.method,
-            'model_state_dict': checkpoint['model_state_dict'],
-            'average_loss': self.metrics['average_loss'],
-            }, training_params['outmodel_path'])
+        self.load(f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt")
+        # checkpoint = torch.load(training_params['outmodel_path'])
+        # self.metrics['average_loss'].extend(checkpoint['average_loss'])
+        # self.model.load_state_dict(checkpoint['model_state_dict'])
+        # torch.save({
+        #     'arch':self.arch,
+        #     'method':self.method,
+        #     'model_state_dict': checkpoint['model_state_dict'],
+        #     'average_loss': self.metrics['average_loss'],
+        #     }, training_params['outmodel_path'])
         
     def predict_subtomos(self, settings):
         from IsoNet.utils.fileio import read_mrc,write_mrc

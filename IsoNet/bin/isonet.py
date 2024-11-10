@@ -8,8 +8,7 @@ import starfile
 import mrcfile
 import pandas as pd
 import numpy as np
-from IsoNet.utils.fileio import read_mrc
-from IsoNet.utils.utils import mkfolder
+from IsoNet.utils.fileio import read_mrc, write_mrc, create_folder
 from IsoNet.utils.utils import parse_cpu, parse_gpu
 
 # types ={
@@ -27,17 +26,17 @@ class ISONET:
     IsoNet.py refine -h
     """
 
-    def prepare_star(self, full_folder="None",
-                     even_folder="None",
-                     odd_folder="None",
-                     tilt_file_folder="None",
-                     mask_folder='None',
-                     coordinate_folder='None',
-                     n_subtomo = 300,
-                     output_star='tomograms.star',
+    def prepare_star(self, full: str="None",
+                     even: str="None",
+                     odd: str="None",
+                     tilt_file_folder: str="None",
+                     mask_folder: str='None',
+                     coordinate_folder: str='None',
+                     star_name: str='tomograms.star',
                      pixel_size = 10.0, 
-                     defocus_folder="None",
-                     number_subtomos = 100):
+                     defocus_folder: str="None",
+                     create_average: bool=True,
+                     number_subtomos = 1000):
         """
         \n
         If there is no evn odd seperation, please specify tomo_folder
@@ -58,16 +57,17 @@ class ISONET:
         import starfile
         import pandas as pd
         
-        if full_folder == "None":
-            count_folder = even_folder
+        if full == "None":
+            count_folder = even
         else:
-            count_folder = full_folder
+            count_folder = full
         num_tomo = len(os.listdir(count_folder))
         print("number of tomograms", num_tomo)
 
 
         data = []
         label = []
+
         def add_param(folder_name, param_name, default_val="None"):
             if folder_name != "None" and folder_name != None:
                 # TODO check file extension
@@ -78,9 +78,25 @@ class ISONET:
             else:
                 data.append([default_val]*num_tomo)
             label.append(param_name)
-        add_param(full_folder, 'rlnTomoName')
-        add_param(even_folder, 'rlnTomoReconstructedTomogramHalf1')
-        add_param(odd_folder, 'rlnTomoReconstructedTomogramHalf2')
+
+        def create_average(even, odd, full = "sum_even_odd_tomograms"):
+
+            even_files_names = sorted(os.listdir(even))
+            even_files = [f"{even}/{item}" for item in even_files_names]
+            odd_files = sorted(os.listdir(odd))
+            odd_files = [f"{even}/{item}" for item in odd_files]
+            create_folder(full)
+            for i in range(len(even_files)):
+                tomo_even, voxel_size = read_mrc(even_files[i])
+                tomo_odd, _ = read_mrc(odd_files[i])
+                write_mrc(f'{full}/{os.path.splitext(even_files_names)[0]}_full.mrc',tomo_odd+tomo_even, voxel_size=voxel_size)
+
+        if full == "None" and create_average:
+            create_average(even, odd)
+
+        add_param(full, 'rlnTomoName')
+        add_param(even, 'rlnTomoReconstructedTomogramHalf1')
+        add_param(odd, 'rlnTomoReconstructedTomogramHalf2')
 
         # deconv parameters
         add_param("None", 'rlnPixelSize',pixel_size)
@@ -110,7 +126,7 @@ class ISONET:
         data = list(map(list, zip(*data)))
         df = pd.DataFrame(data = data, columns = label)
         df.insert(0, 'rlnIndex', np.arange(num_tomo)+1)
-        starfile.write(df,output_star)
+        starfile.write(df,star_name)
 
     def deconv(self, star_file: str,
         deconv_folder:str="./deconv",
@@ -282,7 +298,7 @@ class ISONET:
             f.close()
             logging.error(error_text)
 
-    def extract(self,  
+    def extract_legacy(self,  
                 star_file: str,
                 input_column: str = "rlnDeconvTomoName",
                 subtomo_folder="subtomos", 
@@ -293,7 +309,6 @@ class ISONET:
                 tomo_idx = None,
                 uniform_extract=False):
         
-        from IsoNet.utils.utils import mkfolder
         from IsoNet.utils.processing import normalize
         from IsoNet.preprocessing.cubes import extract_with_overlap
         from IsoNet.preprocessing.cubes import extract_subvolume, create_cube_seeds
@@ -303,7 +318,7 @@ class ISONET:
 
         tomo_star = starfile.read(star_file)
         tomo_columns = tomo_star.columns.to_list()
-        mkfolder(subtomo_folder, remove=True)
+        create_folder(subtomo_folder, remove=True)
         particle_list = []
         for i, row in tomo_star.iterrows():
             if tomo_idx is None or str(row.rlnIndex) in tomo_idx: 
@@ -350,7 +365,7 @@ class ISONET:
 
         return  #extract_list
     
-    def refine(self,
+    def refine_legacy(self,
         subtomo_star: str,
         gpuID: str = None,
         iterations: int = None,
@@ -426,7 +441,6 @@ class ISONET:
                 crop_size:int=96,
                 input_column: str = "rlnDeconvTomoName",
                 batch_size:int=None,
-                normalize_percentile: bool=True,
                 log_level: str="info", 
                 tomo_idx=None):
         """
@@ -501,12 +515,12 @@ class ISONET:
                 star.at[index, out_column] = out_file_name
             starfile.write(star,star_file)            
 
-    def refine_n2n(self, 
+    def refine(self, 
                    star_file: str,
                    gpuID: str=None,
                    arch='unet-default',
                    #ncpus: int=16, 
-                   method = "spisonet-ddw",
+                   method = "isonet2",
                    output_dir: str="isonet_maps",
                    pretrained_model: str=None,
                    cube_size: int=80,
@@ -516,11 +530,9 @@ class ISONET:
                    acc_batches: int=2,
                    learning_rate: float=3e-4,
 
-                   alpha: float=1,
                    gamma: float=2,
                    ):
-        from IsoNet.utils.utils import mkfolder
-        mkfolder(output_dir)
+        create_folder(output_dir)
 
         ngpus, gpuID, gpuID_list=parse_gpu(gpuID)
         # print(ngpus, gpuID, gpuID_list)
@@ -532,21 +544,18 @@ class ISONET:
                 batch_size = 2 * len(gpuID_list)
         steps_per_epoch = 200000000
 
-        # if only_denoise == True:
-        #     method = "n2n"
-        # else:
-        #     method = "spisonet"
         print(f"method {method}")
         from IsoNet.models.network import Net
-        network = Net(method=method, arch=arch)
+        network = Net(method=method, arch=arch, cube_size=cube_size)
         if pretrained_model != None and pretrained_model != "None":
             network.load(pretrained_model)
 
 
         training_params = {
             "method":method,
+            "arch": arch,
             "data_path":star_file,
-            "outmodel_path":'{}/model_n2n.pt'.format(output_dir),
+            "output_dir":output_dir,
             "batch_size":batch_size,
             "acc_batches": acc_batches,
             "epochs": epochs,
@@ -554,56 +563,7 @@ class ISONET:
             "learning_rate":learning_rate,
             "mixed_precision":False,
             "cube_size": cube_size,
-            "alpha": alpha,
             "gamma": gamma,
-        }
-
-        network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
-
-    def refine_spisonet(self, 
-                   star_file: str,
-                   gpuID: str=None,
-
-                   #ncpus: int=16, 
-                   output_dir: str="isonet_maps",
-                   pretrained_model: str=None,
-                   cube_size: int=96,
-
-                   epochs: int=50,
-                   batch_size: int=None, 
-                   acc_batches: int=2,
-                   learning_rate: float=3e-4,
-                   alpha: float=1
-                   ):
-        from IsoNet.utils.utils import mkfolder
-        mkfolder(output_dir)
-
-        ngpus, gpuID, gpuID_list=parse_gpu(gpuID)
-
-        if batch_size is None:
-            if ngpus == 1:
-                batch_size = 4
-            else:
-                batch_size = 2 * len(gpuID_list)
-        steps_per_epoch = 200
-
-        from IsoNet.models.network import Net
-        network = Net(method="spisonet-single", arch='unet-default')
-        if pretrained_model != None and pretrained_model != "None":
-            network.load(pretrained_model)
-
-        mixed_precision = False
-
-        training_params = {
-            "data_path":star_file,
-            "outmodel_path":'{}/model_n2n.pt'.format(output_dir),
-            "batch_size":batch_size,
-            "acc_batches": acc_batches,
-            "epochs": epochs,
-            "steps_per_epoch":steps_per_epoch,
-            "learning_rate":learning_rate,
-            "mixed_precision":mixed_precision,
-            "cube_size": cube_size,
         }
 
         network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5

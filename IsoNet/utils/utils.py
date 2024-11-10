@@ -1,36 +1,6 @@
 import mrcfile
 import logging
-def mkfolder(folder, remove=True):
-    import os
-    try:
-        os.makedirs(folder)
-    except FileExistsError:
-        if remove:
-            logging.warning(f"The {folder} folder already exists. The old {folder} folder will be moved to {folder}~")
-            import shutil
-            if os.path.exists(folder+'~'):
-                shutil.rmtree(folder+'~')
-            os.system('mv {} {}'.format(folder, folder+'~'))
-            os.makedirs(folder)
-        else:
-            logging.info(f"The {folder} folder already exists, outputs will write into this folder")
 
-import os
-import shutil
-
-def create_folder(directory_name):
-    # Check if the directory exists
-    if os.path.exists(directory_name):
-        # Rename the existing directory
-        new_name = directory_name + '~'
-        if os.path.exists(new_name):
-            shutil.rmtree(new_name)
-        shutil.move(directory_name, new_name)
-        print(f"Directory '{directory_name}' already existed. Renamed to '{new_name}'.")
-    
-    # Create a new empty directory
-    os.makedirs(directory_name)
-    print(f"Created new empty directory '{directory_name}'.")
 
 
 import mrcfile
