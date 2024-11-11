@@ -198,7 +198,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         dist.destroy_process_group()
 
 
-def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path):
+def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, wedge):
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = str(port_number)
@@ -221,6 +221,9 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path):
             disable=(rank != 0)
         ):
             batch_input = data[i:i + 1].to(rank)
+            if wedge is not None:
+                mw = torch.from_numpy(wedge[np.newaxis,np.newaxis,:,:,:]).to(rank)
+                batch_input = apply_F_filter_torch(batch_input, mw)
             batch_output = model(batch_input).cpu()  # Move output to CPU immediately
             if rank == 1:
                 debug_matrix(batch_input, filename='debug1_predict1.mrc')
