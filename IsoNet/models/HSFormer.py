@@ -48,31 +48,31 @@ class PatchExpand(nn.Module):
 
         return x
 
-class FinalPatchExpand_X4(nn.Module):
-    def __init__(self, input_resolution, dim, dim_scale=4, norm_layer=nn.LayerNorm):
-        super().__init__()
-        self.input_resolution = input_resolution
-        self.dim = dim
-        self.dim_scale = dim_scale
-        self.expand = nn.Linear(dim, 16*dim, bias=False)
-        self.output_dim = dim 
-        self.norm = norm_layer(self.output_dim//4)
+# class FinalPatchExpand_X4(nn.Module):
+#     def __init__(self, input_resolution, dim, dim_scale=4, norm_layer=nn.LayerNorm):
+#         super().__init__()
+#         self.input_resolution = input_resolution
+#         self.dim = dim
+#         self.dim_scale = dim_scale
+#         self.expand = nn.Linear(dim, 16*dim, bias=False)
+#         self.output_dim = dim 
+#         self.norm = norm_layer(self.output_dim//4)
 
-    def forward(self, x):
-        """
-        x: B, H*W, C
-        """
-        Z, H, W = self.input_resolution
-        x = self.expand(x)
-        B, L, C = x.shape
-        #assert L == Z * H * W, "input feature has wrong size"
+#     def forward(self, x):
+#         """
+#         x: B, H*W, C
+#         """
+#         Z, H, W = self.input_resolution
+#         x = self.expand(x)
+#         B, L, C = x.shape
+#         #assert L == Z * H * W, "input feature has wrong size"
 
-        x = x.view(B, Z, H, W, C)
-        x = rearrange(x, 'b z h w (p1 p2 p3 c)-> b (z p1) (h p2) (w p3) c', p1=self.dim_scale, p2=self.dim_scale, p3=self.dim_scale, c=C//(self.dim_scale**3))
-        x = x.view(B,-1,self.output_dim//4)
-        x= self.norm(x)
+#         x = x.view(B, Z, H, W, C)
+#         x = rearrange(x, 'b z h w (p1 p2 p3 c)-> b (z p1) (h p2) (w p3) c', p1=self.dim_scale, p2=self.dim_scale, p3=self.dim_scale, c=C//(self.dim_scale**3))
+#         x = x.view(B,-1,self.output_dim//4)
+#         x= self.norm(x)
         
-        return x
+#         return x
 
 class DropPath(nn.Module):
     """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
@@ -230,7 +230,7 @@ class WindowAttention(nn.Module):
         coords_z = torch.arange(self.window_size[0])
         coords_x = torch.arange(self.window_size[1])
         coords_y = torch.arange(self.window_size[2])
-        coords = torch.stack(torch.meshgrid([coords_z, coords_x, coords_y]))  # [2, Mz, Mx, My]
+        coords = torch.stack(torch.meshgrid([coords_z, coords_x, coords_y],indexing='ij'))  # [2, Mz, Mx, My]
         coords_flatten = torch.flatten(coords, 1)  # [2, Mz*Mx*My]
         relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # [2, Mz*Mx*My, Mz*Mx*My]
         relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # [Mz*Mx*My, Mz*Mx*My , 2]
@@ -540,9 +540,40 @@ class BasicLayer_up(nn.Module):
         return input 
 
 class Convblock(nn.Module):
-    def __init__(self, in_channel, bias=False):
+    def __init__(self, in_channel, out_channel, bias=False):
         super(Convblock, self).__init__()
-        filters = [4, 8, 16]
+        filters = [4, 8, out_channel]
+        self.conv1 = nn.Conv3d(in_channel, out_channels=filters[0], kernel_size=3, stride=1,
+                                padding=1, dilation=1, bias=bias)
+        self.bn1 = nn.BatchNorm3d(filters[0])
+        self.relu = nn.ReLU()
+
+        self.conv2 = nn.Conv3d(filters[0], filters[1], kernel_size=3, stride=1, padding=2, dilation=2, bias=bias)
+        self.bn2 = nn.BatchNorm3d(filters[1])
+
+        self.conv3 = nn.Conv3d(filters[1], filters[2], kernel_size=3, stride=1, padding=5, dilation=5, bias=bias)
+        self.bn3 = nn.BatchNorm3d(filters[2])
+
+    def forward(self, x):
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+        out = self.relu(out)
+
+        return out
+
+class ConvblockFinal(nn.Module):
+    def __init__(self, in_channel, bias=False):
+        super(ConvblockFinal, self).__init__()
+        filters = [in_channel, in_channel, 1]
         self.conv1 = nn.Conv3d(in_channel, out_channels=filters[0], kernel_size=3, stride=1,
                                 padding=1, dilation=1, bias=bias)
         self.bn1 = nn.BatchNorm3d(filters[0])
@@ -607,8 +638,8 @@ class SwinTransformer(nn.Module):
         self.patch_norm = patch_norm
         self.num_features = int(embed_dim * 2 ** (self.num_layers - 1))
         self.mlp_ratio = mlp_ratio
-        
-        self.convblock = Convblock(in_channel=1, bias=False)
+        self.patch_size = patch_size
+        self.convblock = Convblock(in_channel=1,out_channel=in_chans, bias=False)
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
             image_size=img_size, patch_size=patch_size, in_channel=in_chans, embed_dim=embed_dim,
@@ -684,17 +715,11 @@ class SwinTransformer(nn.Module):
 
         self.norm = norm_layer(self.num_features)
         self.norm_up = norm_layer(self.embed_dim)
-
-        self.up = FinalPatchExpand_X4(input_resolution=(img_size//patch_size,img_size//patch_size, img_size//patch_size),dim_scale=4,dim=embed_dim)
-        self.output = nn.Conv3d(in_channels=embed_dim//4,out_channels=self.num_classes,kernel_size=1,bias=False)
-        # TODO conv
-            #         self.output = nn.Sequential(
-            #     nn.Conv3d(in_channels=embed_dim, out_channels=embed_dim, kernel_size=3,padding=1),
-            #     nn.LeakyReLU(),
-            #     nn.Conv3d(in_channels=embed_dim, out_channels=embed_dim, kernel_size=3,padding=1),
-            #     nn.LeakyReLU(),
-            #     nn.Conv3d(in_channels=embed_dim, out_channels=self.num_classes, kernel_size=1)
-            # )
+        
+        #self.up = FinalPatchExpand_X4(input_resolution=(img_size//patch_size,img_size//patch_size, img_size//patch_size),dim_scale=4,dim=embed_dim)
+        self.up = PatchExpand(input_resolution=(img_size//patch_size,img_size//patch_size, img_size//patch_size),dim_scale=4,dim=embed_dim)
+        self.output = ConvblockFinal(embed_dim//4, bias=False)
+        #self.output = nn.Conv3d(in_channels=embed_dim//4,out_channels=self.num_classes,kernel_size=1,bias=False)
 
         # self.avgpool = nn.AdaptiveAvgPool1d(1)
         # self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
@@ -752,37 +777,37 @@ class SwinTransformer(nn.Module):
   
         return x
 
-    def up_x4(self, x):
+    def up_xn(self, x):
         Z, H, W = self.patch_grid
         B, L, C = x.shape
         assert L == Z*H*W#, "input features has wrong size"
 
         # if self.final_upsample=="expand_first":
         x = self.up(x)
-        x = x.view(B,4*Z,4*H,4*W,-1)
+        x = x.view(B,self.patch_size*Z,self.patch_size*H,self.patch_size*W,-1)
         x = x.permute(0,4,1,2,3) #B,C,H,W
         x = self.output(x)
             
         return x
-    def forward(self, x):
 
+    def forward(self, x):
+        x0 = x
         x, x_downsample = self.forward_features(x)
         # x = self.head(x_downsample)
         # x = self.prob(x)
         # x = self.softmax(x)
         x = self.forward_up_features(x, x_downsample)
-        x = self.up_x4(x)
+        x = self.up_xn(x)
+        return x+x0
 
-        return x
-
-def swin_tiny_patch4_window8(img_size:int = 256, in_channels: int = 16, num_classes: int = 1000, **kwargs):
+def swin_tiny_patch4_window8(img_size:int = 256, embed_dim: int=128, in_channels: int = 16, num_classes: int = 1000, **kwargs):
     # trained ImageNet-1K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth
     model = SwinTransformer(img_size=img_size,
                             in_chans=in_channels,
-                            patch_size=4,
-                            window_size=7,
-                            embed_dim=128,#(4*4*4*1) patch_size*patch_size*patch_size*in_channel
+                            patch_size=2,
+                            window_size=8,
+                            embed_dim=embed_dim,#(4*4*4*1) patch_size*patch_size*patch_size*in_channel
                             depths=(2, 2, 6, 2),
                             num_heads=(4, 8, 16, 32),
                             num_classes=num_classes,

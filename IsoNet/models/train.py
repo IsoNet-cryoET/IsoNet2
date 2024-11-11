@@ -71,18 +71,19 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
         num_workers=training_params["ncpus"], pin_memory=True, sampler=train_sampler)
     
-    # if torch.__version__ >= "2.0.0":
-    #     GPU_capability = torch.cuda.get_device_capability()
-    #     if GPU_capability[0] >= 7:
-    #         torch.set_float32_matmul_precision('high')
-    #         model = torch.compile(model)
+    if training_params['compile_model'] == True:
+        if torch.__version__ >= "2.0.0":
+            GPU_capability = torch.cuda.get_device_capability()
+            if GPU_capability[0] >= 7:
+                torch.set_float32_matmul_precision('high')
+                model = torch.compile(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
     loss_fn = nn.MSELoss()
     #torch.backends.cuda.matmul.allow_tf32 = True
     #torch.backends.cudnn.allow_tf32 = True
 
-    # if training_params['mixed_precision']:
-    #     scaler = torch.cuda.amp.GradScaler()
+    if training_params['mixed_precision']:
+        scaler = torch.cuda.amp.GradScaler()
     
     average_loss_list = []
 
@@ -103,9 +104,15 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     x1, x2 = batch[0], batch[1]
                     x1 = x1.cuda()
                     x2 = x2.cuda()
-                    optimizer.zero_grad(set_to_none=True)                  
-                    preds = model(x1)  
-                    loss = loss_fn(x2,preds)
+                    optimizer.zero_grad(set_to_none=True)          
+
+                    if training_params["mixed_precision"]:
+                        with torch.cuda.amp.autocast():  # Mixed precision forward pass
+                            preds = model(x1)
+                            loss = loss_fn(x2, preds)    
+                    else:                            
+                        preds = model(x1)  
+                        loss = loss_fn(x2,preds)
 
                 elif training_params['method'] in ["isonet2",'isonet2-n2n']:
                     # x [B, C, Z, Y, X]
@@ -124,10 +131,15 @@ def ddp_train(rank, world_size, port_number, model, training_params):
 
                     # TODO whether need to apply wedge to x1
                     with torch.no_grad():
-                        preds = model(x1)
-                    # TODO whether need to apply wedge to x1
-                    subtomos = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
-
+                        if training_params["mixed_precision"]:
+                            with torch.cuda.amp.autocast():  # Mixed precision forward pass
+                                preds = model(x1)
+                        else:
+                            preds = model(x1)
+                    if training_params['apply_mw_x1']:
+                        subtomos = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
+                    else:
+                        subtomos = apply_F_filter_torch(preds, 1-mw) + x1
 
                     rotated_subtomo = rotate(subtomos, rot)
                     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
@@ -135,15 +147,22 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     x2_rot = rotate(x2, rot)
                     mw_rotated_subtomos = (mw_rotated_subtomos - mw_rotated_subtomos.mean())/mw_rotated_subtomos.std() \
                                                 *std_org + mean_org
-                    pred_y = model(mw_rotated_subtomos)
                     
-
-                    
-                    if training_params['gamma'] > 0:
-                        loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                    if training_params["mixed_precision"]:
+                        with torch.cuda.amp.autocast():  # Mixed precision forward pass
+                            pred_y = model(mw_rotated_subtomos)
+                            if training_params['gamma'] > 0:
+                                loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                            else:
+                                pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
+                                loss = loss_fn(pred_y_new,x2_rot)
                     else:
-                        pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
-                        loss = loss_fn(pred_y_new,x2_rot)
+                        pred_y = model(mw_rotated_subtomos)
+                        if training_params['gamma'] > 0:
+                            loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                        else:
+                            pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
+                            loss = loss_fn(pred_y_new,x2_rot)
                     # if i_batch%100 == 0:
                     #     print(f"x1 {x1.mean()} {x1.std()}")
                     #     print(f"x2 {x2.mean()} {x2.std()}")
@@ -151,27 +170,33 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     #     print(f"x2_rot {x2_rot.mean()} {x2_rot.std()}")
                     #     print(f"pred_y {pred_y.mean()} {pred_y.std()}")
                     #     print(f"pred_y_new {pred_y_new.mean()} {pred_y_new.std()}")
-                    if rank == np.random.randint(0, world_size):
-                        debug_matrix(x1, filename='debug_x1.mrc')
-                        debug_matrix(subtomos, filename='debug_subtomos.mrc')
-                        debug_matrix(pred_y, filename='debug_pred_y.mrc')
-                        debug_matrix(pred_y_new, filename='debug_pred_y_new.mrc')
-                        debug_matrix(rotated_subtomo, filename='debug_rotated_subtomo.mrc')
-                        debug_matrix(mw_rotated_subtomos, filename='debug_mw_rotated_subtomos.mrc')
-                        debug_matrix(x2_rot, filename='debug_x2_rot.mrc')
-                        debug_matrix(mw, filename='debug_mw.mrc')
-                        debug_matrix(rotated_mw, filename='debug_rotated_mw.mrc')
+                    # if rank == np.random.randint(0, world_size):
+                    #     debug_matrix(x1, filename='debug_x1.mrc')
+                    #     debug_matrix(subtomos, filename='debug_subtomos.mrc')
+                    #     debug_matrix(pred_y, filename='debug_pred_y.mrc')
+                    #     debug_matrix(pred_y_new, filename='debug_pred_y_new.mrc')
+                    #     debug_matrix(rotated_subtomo, filename='debug_rotated_subtomo.mrc')
+                    #     debug_matrix(mw_rotated_subtomos, filename='debug_mw_rotated_subtomos.mrc')
+                    #     debug_matrix(x2_rot, filename='debug_x2_rot.mrc')
+                    #     debug_matrix(mw, filename='debug_mw.mrc')
+                    #     debug_matrix(rotated_mw, filename='debug_rotated_mw.mrc')
 
                 
                 loss = loss / training_params['acc_batches']
-                loss.backward()
+                if training_params['mixed_precision']:
+                    scaler.scale(loss).backward()  # Scaled backward pass
+                else:
+                    loss.backward()  # Normal backward pass
+                #loss.backward()
                 loss_item = loss.item()
                               
                 if ( (i_batch+1)%training_params['acc_batches'] == 0 ) or (i_batch+1) == min(len(train_loader), steps_per_epoch_train * training_params['acc_batches']):
-                    # if training_params['mixed_precision']:
-                    #     pass
-                    # else:
-                    optimizer.step()
+                    if training_params['mixed_precision']:
+                        # Unscale the gradients and apply the optimizer step
+                        scaler.step(optimizer)
+                        scaler.update()
+                    else:
+                        optimizer.step()
 
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):
                    progress_bar.set_postfix({"Loss": loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})

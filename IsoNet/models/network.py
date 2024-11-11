@@ -16,6 +16,14 @@ def find_unused_port():
     _, port = sock.getsockname()
     sock.close()
     return port
+import torch
+
+# Assuming 'model' is your PyTorch model
+def get_num_parameters(model):
+    return sum(p.numel() for p in model.parameters())
+
+
+
 class Net:
     def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model=None):
 
@@ -38,14 +46,20 @@ class Net:
         elif self.arch == 'unet-small':
             from .unet import Unet
             self.model = Unet(filter_base = 16,unet_depth=4, add_last=True)
-        elif self.arch == 'unet-median':
+        elif self.arch == 'unet-medium':
             from .unet import Unet
             self.model = Unet(filter_base = 32,unet_depth=4, add_last=True)
         elif self.arch == 'HSFormer':
             from IsoNet.models.HSFormer import swin_tiny_patch4_window8
-            self.model = swin_tiny_patch4_window8(img_size=cube_size, num_classes =1)
+            self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=128,num_classes =1)
+        elif self.arch == 'HSFormer-small':
+            from IsoNet.models.HSFormer import swin_tiny_patch4_window8
+            self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=64, num_classes =1)
         else:
-            print("methods", method)
+            print(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )
+
+        num_params = get_num_parameters(self.model)
+        print(f'Total number of parameters: {num_params}')
 
 
         self.world_size = torch.cuda.device_count()

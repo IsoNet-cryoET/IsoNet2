@@ -476,7 +476,6 @@ class ISONET:
 
 
         star = starfile.read(star_file)
-
         out_column = "rlnCorrectedTomoName"
         if network.method == 'n2n':
             out_column = "rlnDenoisedTomoName"
@@ -496,7 +495,7 @@ class ISONET:
                 star.at[index, out_column] = out_file_name
             starfile.write(star,star_file)
 
-        if network.method in ['n2n','isonet-n2n']:
+        if network.method in ['n2n','isonet2-n2n']:
             for index, tomo_row in star.iterrows():
                 tomo1, _ = read_mrc(tomo_row["rlnTomoReconstructedTomogramHalf1"])
                 tomo1 = normalize(tomo1*-1,percentile=False)
@@ -531,6 +530,9 @@ class ISONET:
                    learning_rate: float=3e-4,
                    random_rotation: bool=True, 
                    gamma: float=2,
+                   apply_mw_x1: bool=False, 
+                   mixed_precision: bool=True,
+                   compile_model: bool=True
                    ):
         create_folder(output_dir)
 
@@ -563,7 +565,10 @@ class ISONET:
             "mixed_precision":False,
             "cube_size": cube_size,
             "gamma": gamma,
-            "random_rotation":random_rotation
+            "random_rotation":random_rotation,
+            'apply_mw_x1':apply_mw_x1,
+            'mixed_precision':mixed_precision,
+            'compile_model':compile_model
         }
 
         network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
