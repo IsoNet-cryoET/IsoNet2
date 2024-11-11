@@ -517,7 +517,7 @@ class ISONET:
                    star_file: str,
                    gpuID: str=None,
                    arch: str='unet-default',
-                   ncpus: int=4, 
+                   ncpus: int=8, 
                    method: str="isonet2-n2n",
                    output_dir: str="isonet_maps",
                    input_column: str= 'rlnDeconvTomoName',
@@ -526,12 +526,11 @@ class ISONET:
                 
                    epochs: int=50,
                    batch_size: int=None, 
-                   acc_batches: int=2,
+                   acc_batches: int=1,
                    learning_rate: float=3e-4,
                    random_rotation: bool=True, 
                    gamma: float=2,
                    apply_mw_x1: bool=False, 
-                   mixed_precision: bool=True,
                    compile_model: bool=True
                    ):
         create_folder(output_dir)
@@ -562,12 +561,10 @@ class ISONET:
             "epochs": epochs,
             "steps_per_epoch":steps_per_epoch,
             "learning_rate":learning_rate,
-            "mixed_precision":False,
             "cube_size": cube_size,
             "gamma": gamma,
             "random_rotation":random_rotation,
             'apply_mw_x1':apply_mw_x1,
-            'mixed_precision':mixed_precision,
             'compile_model':compile_model
         }
 
