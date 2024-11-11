@@ -438,6 +438,7 @@ class ISONET:
                 output_dir: str='./corrected_tomos', 
                 gpuID: str = None, 
                 input_column: str = "rlnDeconvTomoName",
+                apply_mw_x1: bool=False, 
                 log_level: str="info", 
                 tomo_idx=None):
         """
@@ -485,9 +486,15 @@ class ISONET:
 
         if network.method in ['regular','isonet']:
             for index, tomo_row in star.iterrows():
+                if apply_mw_x1:
+                    min_angle, max_angle = float(tomo_row['rlnTiltMin']), float(tomo_row['rlnTiltMax'])
+                    from IsoNet.utils.missing_wedge import mw3D
+                    mw = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
+                else:
+                    mw = None
                 tomo, _ = read_mrc(tomo_row[input_column])
                 tomo = normalize(tomo*-1,percentile=False)
-                outData = network.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
+                outData = network.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, wedge=mw).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
                 file_base_name = os.path.basename(tomo_row[input_column])
                 file_name, file_extension = os.path.splitext(file_base_name)
                 out_file_name = f"{output_dir}/corrected_{network.method}_{network.arch}_{file_name}.mrc"
@@ -496,14 +503,21 @@ class ISONET:
             starfile.write(star,star_file)
 
         if network.method in ['n2n','isonet2-n2n']:
+
             for index, tomo_row in star.iterrows():
+                if apply_mw_x1:
+                    min_angle, max_angle = float(tomo_row['rlnTiltMin']), float(tomo_row['rlnTiltMax'])
+                    from IsoNet.utils.missing_wedge import mw3D
+                    mw = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
+                else:
+                    mw = None
                 tomo1, _ = read_mrc(tomo_row["rlnTomoReconstructedTomogramHalf1"])
                 tomo1 = normalize(tomo1*-1,percentile=False)
-                outData1 = network.predict_map(tomo1, output_dir,cube_size=inner_cube_size, crop_size=cube_size).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
+                outData1 = network.predict_map(tomo1, output_dir,cube_size=inner_cube_size, crop_size=cube_size, wedge=mw).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
 
                 tomo2, _ = read_mrc(tomo_row["rlnTomoReconstructedTomogramHalf2"])
                 tomo2 = normalize(tomo2*-1,percentile=False)
-                outData2 = network.predict_map(tomo2, output_dir,cube_size=inner_cube_size, crop_size=cube_size).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
+                outData2 = network.predict_map(tomo2, output_dir,cube_size=inner_cube_size, crop_size=cube_size, wedge=mw).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
                                 
                 outData = (outData1 + outData2) * (-0.5)
                 file_base_name = os.path.basename(tomo_row['rlnTomoReconstructedTomogramHalf1'])

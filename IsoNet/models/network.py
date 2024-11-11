@@ -158,11 +158,11 @@ class Net:
                                                      -outData[i])
         return outData
 
-    def predict(self, data, tmp_data_path):    
+    def predict(self, data, tmp_data_path, wedge=None):    
         data = data[:,np.newaxis,:,:]
         data = torch.from_numpy(data)
         print('data_shape',data.shape)
-        mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path), nprocs=self.world_size)
+        mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path, wedge), nprocs=self.world_size)
         outData = np.load(tmp_data_path)
         outData = outData.squeeze()
         return outData
@@ -174,7 +174,7 @@ class Net:
         data = reform_ins.pad_and_crop()
         
         tmp_data_path = f"{output_dir}/tmp.npy"
-        outData = self.predict(data, tmp_data_path=tmp_data_path)
+        outData = self.predict(data, tmp_data_path=tmp_data_path, wedge=wedge)
         outData = outData.squeeze()
         outData=reform_ins.restore(outData)
         os.remove(tmp_data_path)
