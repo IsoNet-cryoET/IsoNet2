@@ -159,7 +159,7 @@ class WindowAttention3D(nn.Module):
             mask: (0/-inf) mask with shape of (num_windows, N, N) or None
         """
         B_, N, C = x.shape
-        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4).contiguous()
         q, k, v = qkv[0], qkv[1], qkv[2]  # B_, nH, N, C
 
         q = q * self.scale
@@ -453,7 +453,7 @@ class PatchExpand_old(nn.Module):
         x = rearrange(x, 'b d h w (p1 p2 c)-> b d (h p1) (w p2) c', p1=self.dim_scale, p2=self.dim_scale, c=C // 4)
 
         x = self.norm(x)
-        x = x.permute(0, 4, 1, 2, 3)
+        x = x.permute(0, 4, 1, 2, 3).contiguous()
 
         return x
 
@@ -493,7 +493,7 @@ class PatchExpand(nn.Module):
         # x = x.view(B, -1, self.output_dim)
         x = self.norm(x)
         #print("expandx4_5",x.size())
-        x = x.permute(0, 4, 1, 2, 3)
+        x = x.permute(0, 4, 1, 2, 3).contiguous()
 
         return x
 
@@ -576,7 +576,7 @@ class BasicLayer_up(nn.Module):
 
         # x = x.view(B, D, H, W, -1)
 
-        x = x.permute(0, 4, 1, 2, 3)
+        x = x.permute(0, 4, 1, 2, 3).contiguous()
         if self.upsample is not None:
             x = self.upsample(x)
         # x = rearrange(x, 'b d h w c -> b c d h w')
@@ -955,17 +955,17 @@ class VTUnet(nn.Module):
                 _, _, C = x.shape
                 x = x.view(B, D, H, W, C)
 
-                x = x.permute(0, 4, 1, 2, 3)
+                x = x.permute(0, 4, 1, 2, 3).contiguous()
                 #print("forward_up_features_1",x.size())
                 x = layer_up(x, v_values_1[3 - inx], k_values_1[3 - inx], q_values_1[3 - inx], v_values_2[3 - inx],
                              k_values_2[3 - inx], q_values_2[3 - inx])
         
         #print("forward_up_features_2",x.size())
 
-        x = x.permute(0, 2, 3, 4, 1)
+        x = x.permute(0, 2, 3, 4, 1).contiguous()
         #print("forward_up_features_3",x.size())
         x = self.norm_up(x)
-        x = x.permute(0, 4, 1, 2, 3)
+        x = x.permute(0, 4, 1, 2, 3).contiguous()
 
         return x
 

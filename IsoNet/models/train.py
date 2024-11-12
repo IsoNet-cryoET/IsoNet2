@@ -11,6 +11,8 @@ import random
 from IsoNet.models.masked_loss import masked_loss
 from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
+import torch.optim.lr_scheduler as lr_scheduler
+
 # def apply_filter(data, mwshift):
 #     # mwshift [x, y, z]
 #     # data [x, y, z]
@@ -78,6 +80,8 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                 torch.set_float32_matmul_precision('high')
                 model = torch.compile(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
+    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
+
     loss_fn = nn.MSELoss()
     
     average_loss_list = []
@@ -185,6 +189,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                 
                 if i_batch + 1 >= steps_per_epoch_train*training_params['acc_batches']:
                     break
+        scheduler.step()
 
         # Normalize loss across GPUs
         if world_size > 1:
@@ -203,7 +208,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         if rank == 0:
             average_loss_list.append(average_loss.cpu().numpy())
             outmodel_path = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
-            print(f"Epoch [{epoch+1}/{training_params['epochs']}], Train Loss: {average_loss:.4f}")
+            print(f"Epoch [{epoch+1}/{training_params['epochs']}], Train Loss: {average_loss:.4f}, Current learning rate: {scheduler.get_last_lr()[0]}")
 
             metrics = {"average_loss":average_loss_list}
             plot_metrics(metrics,f"{training_params['output_dir']}/loss.png")

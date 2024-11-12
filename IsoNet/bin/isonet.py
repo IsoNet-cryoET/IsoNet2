@@ -542,6 +542,8 @@ class ISONET:
                    batch_size: int=None, 
                    acc_batches: int=1,
                    learning_rate: float=3e-4,
+                   T_max: int=10,
+                   learning_rate_min:float=3e-4,
                    random_rotation: bool=True, 
                    gamma: float=2,
                    apply_mw_x1: bool=False, 
@@ -581,7 +583,9 @@ class ISONET:
             "random_rotation":random_rotation,
             'apply_mw_x1':apply_mw_x1,
             'mixed_precision':mixed_precision,
-            'compile_model':compile_model
+            'compile_model':compile_model,
+            'T_max':T_max,
+            'learning_rate_min':learning_rate_min
         }
 
         network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
