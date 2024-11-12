@@ -545,7 +545,8 @@ class ISONET:
                    random_rotation: bool=True, 
                    gamma: float=2,
                    apply_mw_x1: bool=False, 
-                   compile_model: bool=False
+                   compile_model: bool=False,
+                   mixed_precision: bool=True
                    ):
         create_folder(output_dir)
 
@@ -579,6 +580,7 @@ class ISONET:
             "gamma": gamma,
             "random_rotation":random_rotation,
             'apply_mw_x1':apply_mw_x1,
+            'mixed_precision':mixed_precision,
             'compile_model':compile_model
         }
 

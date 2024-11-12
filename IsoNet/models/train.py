@@ -81,6 +81,8 @@ def ddp_train(rank, world_size, port_number, model, training_params):
     loss_fn = nn.MSELoss()
     
     average_loss_list = []
+    if training_params['mixed_precision']:
+        scaler = torch.cuda.amp.GradScaler()
 
     steps_per_epoch_train = training_params['steps_per_epoch']
     total_steps = min(len(train_loader)//training_params['acc_batches'], training_params['steps_per_epoch'])
@@ -100,8 +102,13 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     x1 = x1.cuda()
                     x2 = x2.cuda()
                     optimizer.zero_grad(set_to_none=True)          
-                    preds = model(x1)  
-                    loss = loss_fn(x2,preds)
+                    if training_params["mixed_precision"]:
+                        with torch.cuda.amp.autocast():  # Mixed precision forward pass
+                            preds = model(x1)
+                            loss = loss_fn(x2, preds)    
+                    else:                            
+                        preds = model(x1)  
+                        loss = loss_fn(x2,preds)
 
                 elif training_params['method'] in ["isonet2",'isonet2-n2n']:
                     # x [B, C, Z, Y, X]
@@ -120,7 +127,12 @@ def ddp_train(rank, world_size, port_number, model, training_params):
 
                     # TODO whether need to apply wedge to x1
                     with torch.no_grad():
-                        preds = model(x1)
+                        if training_params["mixed_precision"]:
+                            with torch.cuda.amp.autocast():  # Mixed precision forward pass
+                                preds = model(x1)
+                        else:
+                            preds = model(x1)
+                    preds = preds.to(torch.float32)
                     if training_params['apply_mw_x1']:
                         subtomos = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
                     else:
@@ -134,21 +146,38 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                                                 *std_org + mean_org
                     
 
-                    pred_y = model(mw_rotated_subtomos)
-                    if training_params['gamma'] > 0:
-                        loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                    if training_params["mixed_precision"]:
+                        with torch.cuda.amp.autocast():  # Mixed precision forward pass
+                            pred_y = model(mw_rotated_subtomos).to(torch.float32)
+                            if training_params['gamma'] > 0:
+                                loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                            else:
+                                pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
+                                loss = loss_fn(pred_y_new,x2_rot)
                     else:
-                        pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
-                        loss = loss_fn(pred_y_new,x2_rot)
+                        pred_y = model(mw_rotated_subtomos).to(torch.float32)
+                        if training_params['gamma'] > 0:
+                            loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                        else:
+                            pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
+                            loss = loss_fn(pred_y_new,x2_rot)
 
                 
                 loss = loss / training_params['acc_batches']
-                loss.backward()
+                if training_params['mixed_precision']:
+                    scaler.scale(loss).backward()  # Scaled backward pass
+                else:
+                    loss.backward()  # Normal backward pass
+                #loss.backward()
                 loss_item = loss.item()
                               
                 if ( (i_batch+1)%training_params['acc_batches'] == 0 ) or (i_batch+1) == min(len(train_loader), steps_per_epoch_train * training_params['acc_batches']):
-                    optimizer.step()
-
+                    if training_params['mixed_precision']:
+                        # Unscale the gradients and apply the optimizer step
+                        scaler.step(optimizer)
+                        scaler.update()
+                    else:
+                        optimizer.step()
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):
                    progress_bar.set_postfix({"Loss": loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
                    progress_bar.update()
