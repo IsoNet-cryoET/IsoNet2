@@ -550,6 +550,14 @@ class ISONET:
                    compile_model: bool=False,
                    mixed_precision: bool=True
                    ):
+        '''
+        method: n2n isonet2 isonet2-n2n
+        arch: unet-default, unet-small, unet-medium, HSFormer, vtunet
+        gamma: <=0 normal loss, >0 ddw loss, ddw default 2, 
+        apply_mw_x1: apply missing wedge to subtomograms in the begining. True seems to be better.
+        compile_model: improve the speed of training, sometime error
+        mixed_precision: use mixed precision to reduce VRAM and increase speed
+        '''
         create_folder(output_dir)
 
         ngpus, gpuID, gpuID_list=parse_gpu(gpuID)
