@@ -55,6 +55,9 @@ class Net:
         elif self.arch == 'HSFormer-small':
             from IsoNet.models.HSFormer import swin_tiny_patch4_window8
             self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=64, num_classes =1)
+        elif self.arch == 'vtunet':
+            from IsoNet.models.vtunet import VTUnet
+            self.model = VTUnet()
         else:
             print(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )
 
