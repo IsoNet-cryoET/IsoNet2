@@ -25,13 +25,14 @@ def get_num_parameters(model):
 
 
 class Net:
-    def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model=None):
-
+    def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model=None, state="train"):
+        self.state = state
         if pretrained_model != None and pretrained_model != "None":
             self.load(pretrained_model)
         else:
             self.initialize(method, arch,cube_size)
         torch.backends.cudnn.benchmark = True
+        
 
     
     def initialize(self, method='regular', arch = 'unet-default', cube_size = 96):
@@ -58,6 +59,38 @@ class Net:
         elif self.arch == 'vtunet':
             from IsoNet.models.vtunet import VTUnet
             self.model = VTUnet()
+        elif self.arch == 'scunet':
+            if self.state == "train":
+                drop_rate=0.1
+            else:
+                drop_rate=0
+            print("drop_rate",drop_rate)
+            from IsoNet.models.scunet import SCUNet
+            self.model = SCUNet(
+                        in_nc=1,
+                        config=[2,2,2,2,2,2,2],
+                        dim=32,
+                        drop_path_rate=drop_rate,
+                        input_resolution=48,
+                        head_dim=16,
+                        window_size=3,
+                    )
+        elif self.arch == 'scunet-deeper':
+            if self.state == "train":
+                drop_rate=0.1
+            else:
+                drop_rate=0
+            print("drop_rate",drop_rate)
+            from IsoNet.models.scunet import SCUNet
+            self.model = SCUNet_depth4(
+                        in_nc=1,
+                        config=[2,2,2,2,2,2,2],
+                        dim=32,
+                        drop_path_rate=drop_rate,
+                        input_resolution=48,
+                        head_dim=16,
+                        window_size=3,
+                    )
         else:
             print(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )
 
@@ -73,11 +106,12 @@ class Net:
                         "avg_val_loss":[] }
 
     def load(self, path):
+        
         checkpoint = torch.load(path)
         self.method = checkpoint['method']
         self.arch = checkpoint['arch']
         self.cube_size = checkpoint['cube_size']
-
+        print(self.arch)
         self.initialize(self.method, self.arch, self.cube_size)
 
         self.model.load_state_dict(checkpoint['model_state_dict'])

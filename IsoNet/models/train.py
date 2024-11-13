@@ -8,7 +8,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 from IsoNet.utils.utils import debug_matrix
 import random
-from IsoNet.models.masked_loss import masked_loss
+from IsoNet.models.masked_loss import masked_loss,simple_loss
 from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
@@ -82,7 +82,6 @@ def ddp_train(rank, world_size, port_number, model, training_params):
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
 
-    loss_fn = nn.MSELoss()
     
     average_loss_list = []
     if training_params['mixed_precision']:
@@ -156,15 +155,15 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                             if training_params['gamma'] > 0:
                                 loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
                             else:
-                                pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
-                                loss = loss_fn(pred_y_new,x2_rot)
+                                #pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
+                                loss = simple_loss(pred_y,x2_rot,rotated_mw)
                     else:
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
                         if training_params['gamma'] > 0:
                             loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
                         else:
-                            pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
-                            loss = loss_fn(pred_y_new,x2_rot)
+                            #pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
+                            loss = simple_loss(pred_y,x2_rot,rotated_mw)
 
                 
                 loss = loss / training_params['acc_batches']
