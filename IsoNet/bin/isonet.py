@@ -471,7 +471,7 @@ class ISONET:
         from IsoNet.utils.processing import normalize
 
         create_folder(output_dir, remove=False)
-        network = Net(pretrained_model=model)
+        network = Net(pretrained_model=model,state='predict')
         cube_size = network.cube_size
         inner_cube_size = cube_size//3*2
 
@@ -541,6 +541,7 @@ class ISONET:
                    epochs: int=50,
                    batch_size: int=None, 
                    acc_batches: int=1,
+                   loss_func: str = "L2",
                    learning_rate: float=3e-4,
                    T_max: int=10,
                    learning_rate_min:float=3e-4,
@@ -557,8 +558,9 @@ class ISONET:
         apply_mw_x1: apply missing wedge to subtomograms in the begining. True seems to be better.
         compile_model: improve the speed of training, sometime error
         mixed_precision: use mixed precision to reduce VRAM and increase speed
+        loss_func: L2,smoothL1,smoothL1-SSIM
         '''
-        create_folder(output_dir)
+        create_folder(output_dir,remove=False)
 
         ngpus, gpuID, gpuID_list=parse_gpu(gpuID)
         # print(ngpus, gpuID, gpuID_list)
@@ -572,7 +574,7 @@ class ISONET:
 
         print(f"method {method}")
         from IsoNet.models.network import Net
-        network = Net(method=method, arch=arch, cube_size=cube_size, pretrained_model=pretrained_model)
+        network = Net(method=method, arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
 
         training_params = {
             "method":method,
@@ -593,7 +595,8 @@ class ISONET:
             'mixed_precision':mixed_precision,
             'compile_model':compile_model,
             'T_max':T_max,
-            'learning_rate_min':learning_rate_min
+            'learning_rate_min':learning_rate_min,
+            'loss_func':loss_func
         }
 
         network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
