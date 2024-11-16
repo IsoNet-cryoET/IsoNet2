@@ -82,13 +82,25 @@ def ddp_train(rank, world_size, port_number, model, training_params):
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
 
+
+    if training_params['loss_func'] == "L2":
+        loss_func = nn.MSELoss()
+    elif  training_params['loss_func']  == "smoothL1":
+        loss_func = nn.SmoothL1Loss()
+    elif  training_params['loss_func']  == "smoothL1-SSIM":
+        loss_func = nn.SmoothL1Loss()
     
-    average_loss_list = []
     if training_params['mixed_precision']:
         scaler = torch.cuda.amp.GradScaler()
 
     steps_per_epoch_train = training_params['steps_per_epoch']
     total_steps = min(len(train_loader)//training_params['acc_batches'], training_params['steps_per_epoch'])
+
+
+    average_loss_list = []
+    average_inside_mw_loss_list = []
+    average_outside_mw_loss_list = []
+    average_ssim_loss_list = []
 
     for epoch in range(training_params['epochs']):
         if train_sampler:
@@ -98,6 +110,9 @@ def ddp_train(rank, world_size, port_number, model, training_params):
             
             # have to convert to tensor because reduce needed it
             average_loss = torch.tensor(0, dtype=torch.float).to(rank)
+            average_inside_mw_loss = torch.tensor(0, dtype=torch.float).to(rank)
+            average_outside_mw_loss = torch.tensor(0, dtype=torch.float).to(rank)
+            average_ssim_loss = torch.tensor(0, dtype=torch.float).to(rank)
             for i_batch, batch in enumerate(train_loader):  
                 
                 if training_params['method'] in ["n2n", "regular"]:
@@ -108,10 +123,10 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     if training_params["mixed_precision"]:
                         with torch.cuda.amp.autocast():  # Mixed precision forward pass
                             preds = model(x1)
-                            loss = loss_fn(x2, preds)    
+                            loss = loss_func(x2, preds)    
                     else:                            
                         preds = model(x1)  
-                        loss = loss_fn(x2,preds)
+                        loss = loss_func(x2,preds)
 
                 elif training_params['method'] in ["isonet2",'isonet2-n2n']:
                     # x [B, C, Z, Y, X]
@@ -135,6 +150,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                                 preds = model(x1)
                         else:
                             preds = model(x1)
+
                     preds = preds.to(torch.float32)
                     if training_params['apply_mw_x1']:
                         subtomos = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
@@ -152,27 +168,43 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     if training_params["mixed_precision"]:
                         with torch.cuda.amp.autocast():  # Mixed precision forward pass
                             pred_y = model(mw_rotated_subtomos).to(torch.float32)
-                            if training_params['gamma'] > 0:
-                                loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                            outside_mw_loss, inside_mw_loss,ssim_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
+                            if training_params['mw_weight'] > 0:
+                                loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss + training_params['ssim_weight']*ssim_loss
                             else:
-                                #pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
-                                loss = simple_loss(pred_y,x2_rot,rotated_mw)
+                                loss =  inside_mw_loss + training_params['ssim_weight']*ssim_loss
+                            # if training_params['gamma'] > 0:
+                            #     loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                            # else:
+                            #     loss = simple_loss(pred_y,x2_rot,rotated_mw)
                     else:
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
-                        if training_params['gamma'] > 0:
-                            loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                        outside_mw_loss, inside_mw_loss,ssim_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
+                        if training_params['mw_weight'] > 0:
+                            loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss + training_params['ssim_weight']*ssim_loss
                         else:
-                            #pred_y_new = apply_F_filter_torch(pred_y,rotated_mw)
-                            loss = simple_loss(pred_y,x2_rot,rotated_mw)
+                            loss =  inside_mw_loss + training_params['ssim_weight']*ssim_loss
+                        # if training_params['gamma'] > 0:
+                        #     loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
+                        # else:
+                        #     loss = simple_loss(pred_y,x2_rot,rotated_mw)
 
-                
+
                 loss = loss / training_params['acc_batches']
+                inside_mw_loss = inside_mw_loss / training_params['acc_batches']
+                outside_mw_loss = outside_mw_loss / training_params['acc_batches']
+                ssim_loss = ssim_loss / training_params['acc_batches']
+
                 if training_params['mixed_precision']:
                     scaler.scale(loss).backward()  # Scaled backward pass
                 else:
                     loss.backward()  # Normal backward pass
                 #loss.backward()
                 loss_item = loss.item()
+                inside_mw_loss_item = inside_mw_loss.item()
+                outside_mw_loss_item = outside_mw_loss.item()
+                ssim_loss_item  = ssim_loss.item()
+            
                               
                 if ( (i_batch+1)%training_params['acc_batches'] == 0 ) or (i_batch+1) == min(len(train_loader), steps_per_epoch_train * training_params['acc_batches']):
                     if training_params['mixed_precision']:
@@ -182,9 +214,12 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     else:
                         optimizer.step()
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):
-                   progress_bar.set_postfix({"Loss": loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
+                   progress_bar.set_postfix({"Loss": loss_item,"inside_mw_loss": inside_mw_loss_item,"outside_mw_loss": outside_mw_loss_item,"SSIM": 1-ssim_loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
                    progress_bar.update()
                 average_loss += loss_item
+                average_inside_mw_loss += inside_mw_loss_item
+                average_outside_mw_loss += outside_mw_loss_item
+                average_ssim_loss  += ssim_loss_item
                 
                 if i_batch + 1 >= steps_per_epoch_train*training_params['acc_batches']:
                     break
@@ -194,10 +229,18 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         if world_size > 1:
             dist.barrier()
             dist.reduce(average_loss, dst=0)
-            average_loss /= (world_size * (i_batch + 1))
-        else:
-            average_loss /= (i_batch + 1)
-        
+            dist.reduce(average_inside_mw_loss, dst=0)
+            dist.reduce(average_outside_mw_loss, dst=0)
+            dist.reduce(average_ssim_loss, dst=0)
+        average_loss /= (world_size * (i_batch + 1))
+        average_inside_mw_loss /= (world_size * (i_batch + 1))
+        average_outside_mw_loss /= (world_size * (i_batch + 1))
+        average_ssim_loss /= (world_size * (i_batch + 1))
+        # else:
+        #     average_loss /= (i_batch + 1)
+        #     inside_mw_loss /= (world_size * (i_batch + 1))
+        #     outside_mw_loss /= (world_size * (i_batch + 1))
+        #     ssim_loss /= (world_size * (i_batch + 1))        
                                       
         
         #dist.reduce(average_loss, dst=0)
@@ -206,10 +249,20 @@ def ddp_train(rank, world_size, port_number, model, training_params):
 
         if rank == 0:
             average_loss_list.append(average_loss.cpu().numpy())
+            average_inside_mw_loss_list.append(average_inside_mw_loss.cpu().numpy())
+            average_outside_mw_loss_list.append(average_outside_mw_loss.cpu().numpy())
+            average_ssim_loss_list.append(1-average_ssim_loss.cpu().numpy())
             outmodel_path = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
-            print(f"Epoch [{epoch+1}/{training_params['epochs']}], Train Loss: {average_loss:.4f}, Current learning rate: {scheduler.get_last_lr()[0]}")
+            print(f"Epoch [{epoch+1}/{training_params['epochs']}], Loss:{average_loss:.4f},\
+                    in_mw_loss:{average_inside_mw_loss:.4f},\
+                    out_mw_loss:{average_outside_mw_loss:.4f},\
+                    SSIM:{1-average_ssim_loss:.4f},\
+                    learning_rate:{scheduler.get_last_lr()[0]:.4e}")
 
-            metrics = {"average_loss":average_loss_list}
+            metrics = {"average_loss":average_loss_list,
+                       "inside_mw_loss":average_inside_mw_loss_list,
+                       "outside_mw_loss":average_outside_mw_loss_list,
+                       "SSIM":average_ssim_loss_list}
             plot_metrics(metrics,f"{training_params['output_dir']}/loss.png")
             if world_size > 1:
                 torch.save({

@@ -75,22 +75,24 @@ class Net:
                         head_dim=16,
                         window_size=3,
                     )
+            self.model.apply(self.model._init_weights)
         elif self.arch == 'scunet-deeper':
             if self.state == "train":
                 drop_rate=0.1
             else:
                 drop_rate=0
             print("drop_rate",drop_rate)
-            from IsoNet.models.scunet import SCUNet
+            from IsoNet.models.scunet import SCUNet_depth4
             self.model = SCUNet_depth4(
                         in_nc=1,
-                        config=[2,2,2,2,2,2,2],
+                        config=[2,2,2,2,2,2,2,2,2],
                         dim=32,
                         drop_path_rate=drop_rate,
                         input_resolution=48,
                         head_dim=16,
                         window_size=3,
                     )
+            self.model.apply(self.model._init_weights)
         else:
             print(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )
 
@@ -196,7 +198,7 @@ class Net:
         return outData
 
     def predict(self, data, tmp_data_path, wedge=None):    
-        data = data[:,np.newaxis,:,:]
+        data = data[:,np.newaxis,:,:].astype(np.float32)
         data = torch.from_numpy(data)
         print('data_shape',data.shape)
         mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path, wedge), nprocs=self.world_size)
@@ -208,8 +210,7 @@ class Net:
     def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, output_base=None, wedge=None):
         # change edge width from 7 to 5 to reduce computing
         reform_ins = reform3D(data,cube_size,crop_size,5)
-        data = reform_ins.pad_and_crop()
-        
+        data = reform_ins.pad_and_crop()        
         tmp_data_path = f"{output_dir}/tmp.npy"
         outData = self.predict(data, tmp_data_path=tmp_data_path, wedge=wedge)
         outData = outData.squeeze()

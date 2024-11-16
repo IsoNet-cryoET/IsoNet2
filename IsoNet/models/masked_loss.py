@@ -1,5 +1,3 @@
-# code from this file is modified from deepdewedge
-
 import torch
 from torch import fft
 import torch.nn as nn
@@ -8,7 +6,10 @@ import torch.nn.functional as F
 def ssim_loss(x, y, window_size=11, size_average=True):
     # Gaussian kernel for SSIM computation
     def gaussian_window(window_size, sigma):
-        gauss = torch.Tensor([torch.exp(-(z - window_size // 2) ** 2 / (2 * sigma ** 2)) for z in range(window_size)])
+        #gauss = torch.Tensor([torch.exp(-(z - window_size // 2) ** 2 / (2 * sigma ** 2)) for z in range(window_size)])
+        z = torch.arange(window_size, dtype=torch.float32)
+        gauss = torch.exp(-(z - window_size // 2) ** 2 / (2 * sigma ** 2))
+        gauss /= gauss.sum()
         return gauss / gauss.sum()
 
     # Create 3D Gaussian window
@@ -47,7 +48,7 @@ def simple_loss(model_output, target, rot_mw_mask,loss_func='L2'):
 
         
 
-def masked_loss(model_output, target, rot_mw_mask, mw_mask, mw_weight=2.0, loss_func='L2'):
+def masked_loss(model_output, target, rot_mw_mask, mw_mask, loss_func=None):
     # This is essence of deepdewedge
     # inside_mw_loss is for IsoNet
     # outside_mw_loss is for noise2noise
@@ -58,23 +59,11 @@ def masked_loss(model_output, target, rot_mw_mask, mw_mask, mw_weight=2.0, loss_
     inside_mw_tomo = apply_fourier_mask_to_tomo(tomo=target - model_output, mask=inside_mw_mask, output="real")
 
     zero_target = torch.zeros_like(target)
-    if loss_func == "L2":
-        loss = nn.MSELoss()
-        return loss(outside_mw_tomo,zero_target) + \
-                mw_weight * loss(inside_mw_tomo,zero_target)
-    elif loss_func == "smoothL1":
-        loss = nn.SmoothL1Loss()
-        return loss(outside_mw_tomo,zero_target) + \
-                mw_weight * loss(inside_mw_tomo,zero_target)
-    elif loss_func == "smoothL1-SSIM":
-        loss = nn.SmoothL1Loss()
-        filtered_model_output = apply_fourier_mask_to_tomo(tomo=model_output, mask=rot_mw_mask, output="real")
-        return loss(outside_mw_tomo,zero_target) + \
-                mw_weight * loss(inside_mw_tomo,zero_target) \
-                      + ssim_loss(filtered_model_output,target)
-    else:
+    if loss_func == None:
         print("loss name is not correct")
-
+    else:
+        filtered_model_output = apply_fourier_mask_to_tomo(tomo=model_output, mask=rot_mw_mask, output="real")
+        return [loss_func(outside_mw_tomo,zero_target),loss_func(inside_mw_tomo,zero_target),ssim_loss(filtered_model_output,target)]
 
 # def masked_loss(model_output, target, rot_mw_mask, mw_mask, mw_weight=2.0, loss_func='L2'):
 #     # This is essence of deepdewedge
