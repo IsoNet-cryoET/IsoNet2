@@ -531,7 +531,7 @@ class ISONET:
                    star_file: str,
                    gpuID: str=None,
                    arch: str='unet-default',
-                   ncpus: int=8, 
+                   ncpus: int=4, 
                    method: str="isonet2-n2n",
                    output_dir: str="isonet_maps",
                    input_column: str= 'rlnDeconvTomoName',
@@ -546,7 +546,8 @@ class ISONET:
                    T_max: int=10,
                    learning_rate_min:float=3e-4,
                    random_rotation: bool=True, 
-                   gamma: float=2,
+                   mw_weight: float=-1,
+                   ssim_weight: float=0,
                    apply_mw_x1: bool=False, 
                    compile_model: bool=False,
                    mixed_precision: bool=True
@@ -558,7 +559,7 @@ class ISONET:
         apply_mw_x1: apply missing wedge to subtomograms in the begining. True seems to be better.
         compile_model: improve the speed of training, sometime error
         mixed_precision: use mixed precision to reduce VRAM and increase speed
-        loss_func: L2,smoothL1,smoothL1-SSIM
+        loss_func: L2,smoothL1
         '''
         create_folder(output_dir,remove=False)
 
@@ -589,7 +590,8 @@ class ISONET:
             "steps_per_epoch":steps_per_epoch,
             "learning_rate":learning_rate,
             "cube_size": cube_size,
-            "gamma": gamma,
+            "mw_weight": mw_weight,
+            "ssim_weight": ssim_weight,
             "random_rotation":random_rotation,
             'apply_mw_x1':apply_mw_x1,
             'mixed_precision':mixed_precision,

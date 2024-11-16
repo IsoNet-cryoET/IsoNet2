@@ -2,7 +2,6 @@
 def plot_metrics(metrics, filename):
     import numpy as np
     import matplotlib.pyplot as plt
-
     plt.set_loglevel("warning") 
 
     import matplotlib

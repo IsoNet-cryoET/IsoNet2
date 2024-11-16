@@ -44,7 +44,7 @@ class reform3D:
                             j*self.cubesize:j*self.cubesize+self.cropsize,
                             k*self.cubesize:k*self.cubesize+self.cropsize]
                     outdata.append(cube)
-        outdata=np.array(outdata)
+        outdata=np.array(outdata, dtype = np.float32)
         return outdata
     
     def mask(self, x_len, y_len, z_len):
@@ -78,7 +78,7 @@ class reform3D:
 
         restored = np.zeros((self._sidelen[0]*self.cubesize+self.edge_depth*2,
                         self._sidelen[1]*self.cubesize+self.edge_depth*2,
-                        self._sidelen[2]*self.cubesize+self.edge_depth*2))
+                        self._sidelen[2]*self.cubesize+self.edge_depth*2), dtype = np.float32)
         print("size restored", restored.shape)
         mask_cube = self.mask(self.cubesize+self.edge_depth*2,self.cubesize+self.edge_depth*2,self.cubesize+self.edge_depth*2)
         for i in range(self._sidelen[0]):
@@ -113,7 +113,7 @@ class reform3D:
 
         new = np.zeros((self._sidelen[0]*self.cubesize,
                         self._sidelen[1]*self.cubesize,
-                        self._sidelen[2]*self.cubesize))
+                        self._sidelen[2]*self.cubesize), dtype = np.float32)
         start=int((self.cropsize-self.cubesize)/2)
         end=int((self.cropsize+self.cubesize)/2)
         
@@ -125,14 +125,14 @@ class reform3D:
                         k*self.cubesize:(k+1)*self.cubesize] \
                         = cubes[i*self._sidelen[1]*self._sidelen[2]+j*self._sidelen[2]+k][start:end,start:end,start:end]
         return new[0:self._sp[0],0:self._sp[1],0:self._sp[2]]
-    def pad4times(self,time=4):
-        sp = np.array(self._orig_data.shape)
-        sp = np.expand_dims(sp,axis=0)
-        padsize = (sp // time + 1) * time - sp
-        self._padsize =padsize
-        print(padsize, np.zeros((len(self._orig_data.shape),1)))
-        width = np.concatenate((np.zeros((len(self._orig_data.shape),1),int),padsize.T),axis=1)
-        return np.pad(self._orig_data,width,'edge')
+    # def pad4times(self,time=4):
+    #     sp = np.array(self._orig_data.shape)
+    #     sp = np.expand_dims(sp,axis=0)
+    #     padsize = (sp // time + 1) * time - sp
+    #     self._padsize =padsize
+    #     print(padsize, np.zeros((len(self._orig_data.shape),1)))
+    #     width = np.concatenate((np.zeros((len(self._orig_data.shape),1),int),padsize.T),axis=1)
+    #     return np.pad(self._orig_data,width,'edge')
     def cropback(self,padded):
         sp = padded.shape
         ps = self._padsize

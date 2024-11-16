@@ -145,6 +145,8 @@ class ConvTransBlock(nn.Module):
                 FilterResponseNorm3d(self.conv_dim),
                 nn.Conv3d(self.conv_dim, self.conv_dim, 3, 1, 1, bias=False),
                 FilterResponseNorm3d(self.conv_dim),
+                nn.Conv3d(self.conv_dim, self.conv_dim, 3, 1, 1, bias=False),
+                FilterResponseNorm3d(self.conv_dim),
                 )
 
     def forward(self, x):
@@ -230,7 +232,7 @@ class SCUNet(nn.Module):
         x = self.m_up1(x+x2)
         x = self.m_tail(x+x1)
 
-        return x
+        return x+x0
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -245,7 +247,7 @@ class SCUNet(nn.Module):
 class SCUNet_depth4(nn.Module):
 
     def __init__(self, in_nc=1, config=[2, 2, 2, 2, 2, 2, 2, 2], dim=32, drop_path_rate=0.2, input_resolution=48, head_dim=16, window_size=3, n_classes=1):
-        super(SCUNet, self).__init__()
+        super(SCUNet_depth4, self).__init__()
         self.config = config
         self.dim = dim
         self.head_dim = head_dim
@@ -296,7 +298,8 @@ class SCUNet_depth4(nn.Module):
 
         begin += config[7]
         self.m_up1 = [nn.ConvTranspose3d(2*dim, dim, 2, 2, 0, bias=False),] + \
-                     [ConvTransBlock(dim//2, dim//2, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution)]
+                    [ConvTransBlock(dim//2, dim//2, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution) 
+                      for i in range(config[8])]
 
         self.m_tail = [nn.Conv3d(dim, n_classes, 3, 1, 1, bias=False)]
 
@@ -326,4 +329,13 @@ class SCUNet_depth4(nn.Module):
         x = self.m_up1(x + x2)
         x = self.m_tail(x + x1)
 
-        return x
+        return x+x0
+    
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=.02)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
