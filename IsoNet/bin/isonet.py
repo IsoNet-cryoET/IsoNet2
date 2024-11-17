@@ -550,8 +550,12 @@ class ISONET:
                    ssim_weight: float=0,
                    apply_mw_x1: bool=False, 
                    compile_model: bool=False,
-                   mixed_precision: bool=True
+                   mixed_precision: bool=True,
+
+                   correct_CTF: bool=False,
+                   isCTFflipped: bool=False,
                    ):
+        # TODO CS voltage Amplitutide contrast
         '''
         method: n2n isonet2 isonet2-n2n
         arch: unet-default, unet-small, unet-medium, HSFormer, vtunet
@@ -598,7 +602,9 @@ class ISONET:
             'compile_model':compile_model,
             'T_max':T_max,
             'learning_rate_min':learning_rate_min,
-            'loss_func':loss_func
+            'loss_func':loss_func,
+            'correct_CTF':correct_CTF,
+            "isCTFflipped": isCTFflipped
         }
 
         network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5

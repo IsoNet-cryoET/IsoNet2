@@ -61,7 +61,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         if rank == 0:
             print("calculate subtomograms position")
         train_dataset = Train_sets_n2n(training_params['star_file'],method=training_params['method'], 
-                                       cube_size=training_params['cube_size'], input_column=training_params['input_column'])
+                                       cube_size=training_params['cube_size'], input_column=training_params['input_column'],  isCTFflipped=training_params['input_column'])
         
 
     if world_size > 1:
@@ -131,6 +131,11 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                 elif training_params['method'] in ["isonet2",'isonet2-n2n']:
                     # x [B, C, Z, Y, X]
                     x1, x2, mw = batch[0].cuda(), batch[1].cuda(), batch[2].cuda()
+
+                    if training_params['correct_CTF']:
+                        ctf =  batch[3].cuda()                       
+                        wiener = batch[4].cuda()
+
                     if training_params['random_rotation'] == True:
                         rotate = rotate_vol_around_axis_torch
                         rot = sample_rot_axis_and_angle()
@@ -152,6 +157,9 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                             preds = model(x1)
 
                     preds = preds.to(torch.float32)
+                    if training_params['correct_CTF']:
+                        preds = apply_F_filter_torch(preds, ctf)
+                        
                     if training_params['apply_mw_x1']:
                         subtomos = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
                     else:
@@ -160,7 +168,15 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     rotated_subtomo = rotate(subtomos, rot)
                     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
                     rotated_mw = rotate(mw, rot)
-                    x2_rot = rotate(x2, rot)
+                    x2_rot_0 = rotate(x2, rot)
+                    
+
+                    if training_params['correct_CTF']:
+                        x2_rot = apply_F_filter_torch(x2_rot_0, wiener)
+                    else:
+                        x2_rot = x2_rot_0
+                        
+
                     mw_rotated_subtomos = (mw_rotated_subtomos - mw_rotated_subtomos.mean())/mw_rotated_subtomos.std() \
                                                 *std_org + mean_org
                     
@@ -188,7 +204,16 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                         #     loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
                         # else:
                         #     loss = simple_loss(pred_y,x2_rot,rotated_mw)
-
+                    # if rank == np.random.randint(0, world_size):
+                    #     debug_matrix(x1, filename='debug_x1.mrc')
+                    #     debug_matrix(subtomos, filename='debug_subtomos.mrc')
+                    #     debug_matrix(pred_y, filename='debug_pred_y.mrc')
+                    #     debug_matrix(rotated_subtomo, filename='debug_rotated_subtomo.mrc')
+                    #     debug_matrix(mw_rotated_subtomos, filename='debug_mw_rotated_subtomos.mrc')
+                    #     debug_matrix(x2_rot_0, filename='debug_x2_rot_0.mrc')
+                    #     debug_matrix(x2_rot, filename='debug_x2_rot.mrc')
+                    #     debug_matrix(mw, filename='debug_mw.mrc')
+                    #     debug_matrix(rotated_mw, filename='debug_rotated_mw.mrc')
 
                 loss = loss / training_params['acc_batches']
                 inside_mw_loss = inside_mw_loss / training_params['acc_batches']

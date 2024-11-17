@@ -40,11 +40,12 @@ class Train_sets_n2n(Dataset):
     Dataset class to load tomograms and provide subvolumes for n2n and spisonet methods.
     """
 
-    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName"):
+    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", isCTFflipped=False):
         self.star = starfile.read(tomo_star)
         self.method = method
         self.n_samples_per_tomo = []
         self.sample_shape = [cube_size, cube_size, cube_size]
+        self.cube_size = cube_size
 
         # Initialize paths, statistics, and coordinates
         self.tomo_paths_odd = []
@@ -54,8 +55,11 @@ class Train_sets_n2n(Dataset):
         self.mean = []
         self.std = []
         self.mw_list = []
+        self.wiener_list = []
+        self.CTF_list = []
         self.n_tomos = len(self.star)
         self.input_column = input_column
+        self.isCTFflipped = isCTFflipped
 
         # Initialize data from starfile
         self._initialize_data()
@@ -77,6 +81,10 @@ class Train_sets_n2n(Dataset):
             if self.method in ['isonet2','isonet2-n2n']:
                 min_angle, max_angle = row['rlnTiltMin'], row['rlnTiltMax']
                 self.mw_list.append(self._compute_missing_wedge(self.sample_shape[0], min_angle, max_angle))
+                CTF_vol, wiener_vol = self._compute_CTF_vol(row)
+                self.wiener_list.append(wiener_vol)
+                self.CTF_list.append(CTF_vol)
+
 
     def _load_statistics_and_mask(self, row, column_name_list):
         """Load tomogram data and corresponding mask."""
@@ -138,6 +146,18 @@ class Train_sets_n2n(Dataset):
         mw = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
         return mw
 
+    def _compute_CTF_vol(self, row):
+        """Compute the missing wedge mask for given tilt angles."""
+        # defocus in Anstron convert to um
+        defocus = row['rlnDefocus']/10000.
+        from IsoNet.utils.CTF import get_wiener_3d,get_ctf_3d
+        ctf3d = get_ctf_3d(angpix=row['rlnPixelSize'], voltage=300, cs=2.7, defocus=defocus,\
+                                    phaseflipped=self.isCTFflipped, phaseshift=0,length=self.cube_size)
+        wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=300, cs=2.7, defocus=defocus,\
+                                  snrfalloff=row['rlnSnrFalloff'], deconvstrength=row['rlnDeconvStrength'], highpassnyquist=0.02, \
+                                    phaseflipped=self.isCTFflipped, phaseshift=0,length=self.cube_size)
+        return ctf3d, wiener3d
+
     def augment(self, x, y):
         """
         Data augmentation by randomly swapping input and target volumes.
@@ -172,7 +192,8 @@ class Train_sets_n2n(Dataset):
             )
 
             if self.method in ['isonet2','isonet2-n2n']:
-                return x, y, self.mw_list[tomo_index][np.newaxis, ...]
+                return x, y, self.mw_list[tomo_index][np.newaxis, ...], \
+                    self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...]
             return x, y
         
         # elif self.method == 'spisonet-single':

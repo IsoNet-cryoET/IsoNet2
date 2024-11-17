@@ -38,7 +38,7 @@ def get_ctf2d(pixelsize, voltage, cs, defocus, amplitude, phaseshift, bfactor, l
     ramp = np.interp(r, data, ctf).astype(np.float32)
     return ramp
 
-def get_weiner_1d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift, length):
+def get_wiener_1d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift, length):
     #data = np.arange(0,1+1/2047.,1/2047.)
     data = np.linspace(0,1,length)
     highpass = np.minimum(np.ones(data.shape[0]), data/highpassnyquist) * np.pi
@@ -51,18 +51,82 @@ def get_weiner_1d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, high
     wiener = ctf/(ctf*ctf+1/snr)
     return wiener
 
+def get_wiener_3d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift, length):
+    wiener1d = get_wiener_1d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift, length)
+    
 
-# def compute_wiener_filter(ctf, angpix, snrfalloff, deconvstrength, highpassnyquist, length=2048):
-#     """Compute the Wiener filter using the CTF and noise model."""
-#     data = torch.linspace(0, 1, length, device='cuda')
-#     highpass = torch.minimum(torch.ones_like(data), data / highpassnyquist) * torch.pi
-#     highpass_filter = 1 - torch.cos(highpass)
+    s1 = - int(length / 2)
+    f1 = s1 + length - 1
+    m1 = np.arange(s1,f1+1)
 
-#     # Compute SNR curve
-#     eps = 1e-6
-#     snr = torch.exp(-data * snrfalloff * 100 / angpix) * (10 ** deconvstrength) * highpass_filter + eps
-#     return ctf / (ctf ** 2 + 1 / snr)
+    s2 = - int(length / 2)
+    f2 = s2 + length - 1
+    m2 = np.arange(s2,f2+1)
 
+    s3 = - int(length / 2)
+    f3 = s3 + length - 1
+    m3 = np.arange(s3,f3+1)
+
+    x, y, z = np.meshgrid(m1,m2,m3)
+
+    x = x.astype(np.float32)
+    x = x / np.abs(s1)
+    x = x**2
+
+    y = y.astype(np.float32) 
+    y = y / np.abs(s2)
+    y = y**2
+
+    z = z.astype(np.float32) 
+    z = z / np.maximum(1, np.abs(s3))
+    z = z**2
+
+    r = x + y + z
+
+    r = np.sqrt(r)
+    r = np.minimum(1, r)
+    #r = np.fft.ifftshift(r)
+    ramp = np.interp(r, np.linspace(0,1,length), wiener1d).astype(np.float32)
+    return ramp
+
+def get_ctf_3d(angpix, voltage, cs, defocus, phaseflipped, phaseshift, length):
+    ctf = get_ctf1d(pixelsize=angpix, voltage=voltage, cs=cs, defocus=defocus, amplitude=0.1, phaseshift=phaseshift, bfactor=0, length=length)
+    if phaseflipped:
+        ctf = abs(ctf)
+
+    s1 = - int(length / 2)
+    f1 = s1 + length - 1
+    m1 = np.arange(s1,f1+1)
+
+    s2 = - int(length / 2)
+    f2 = s2 + length - 1
+    m2 = np.arange(s2,f2+1)
+
+    s3 = - int(length / 2)
+    f3 = s3 + length - 1
+    m3 = np.arange(s3,f3+1)
+
+    x, y, z = np.meshgrid(m1,m2,m3)
+
+    x = x.astype(np.float32)
+    x = x / np.abs(s1)
+    x = x**2
+
+    y = y.astype(np.float32) 
+    y = y / np.abs(s2)
+    y = y**2
+
+    z = z.astype(np.float32) 
+    z = z / np.maximum(1, np.abs(s3))
+    z = z**2
+
+    r = x + y + z
+
+    r = np.sqrt(r)
+    r = np.minimum(1, r)
+    #r = np.fft.ifftshift(r)
+    ramp = np.interp(r, np.linspace(0,1,length), ctf).astype(np.float32)
+    return ramp
 
 def fake_3DCTF_1(ctf2d, angles):
     assert ctf2d.shape[0] == len(angles)
@@ -137,13 +201,19 @@ def fake_3DCTF_2(ctf2d, angles, repeats = 100):
     # gc.collect()
 
 if __name__ == '__main__':
-    w = get_weiner_1d(angpix=5.4, voltage=300, cs=2.7, defocus=3, snrfalloff=0, deconvstrength=0.1, highpassnyquist=0.02, phaseflipped=1, phaseshift=0,length=1024)
-    from IsoNet.utils.plot_metrics import plot_metrics
-    a = {'w': w}
-    print(a)
-    plot_metrics(a, "weiner.png")
+    w = get_wiener_3d(angpix=5.4, voltage=300, cs=2.7, defocus=3.8, snrfalloff=0, deconvstrength=0, highpassnyquist=0.02, phaseflipped=1, phaseshift=0,length=96)
+    c = get_ctf_3d(angpix=5.4, voltage=300, cs=2.7, defocus=3.8, snrfalloff=0, deconvstrength=0, highpassnyquist=0.02, phaseflipped=1, phaseshift=0,length=96)
+
+    from IsoNet.utils.fileio import write_mrc
+    write_mrc('test.mrc',w)
+    write_mrc('ctf.mrc',c)
+
+    #from IsoNet.utils.plot_metrics import plot_metrics
+    #a = {'w': w}
+    #print(a)
+    #plot_metrics(a, "weiner.png")
     #angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift
-    print(w)
+    #print(w)
     # ctf2d = get_ctf2d(10,300,2.7, 8, 0.1, 0, 0, 128)
     # ctf2d = np.tile(ctf2d, (41,1,1))
     # angles = np.linspace(-60,60,41)
