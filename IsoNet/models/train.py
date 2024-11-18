@@ -85,10 +85,8 @@ def ddp_train(rank, world_size, port_number, model, training_params):
 
     if training_params['loss_func'] == "L2":
         loss_func = nn.MSELoss()
-    elif  training_params['loss_func']  == "smoothL1":
-        loss_func = nn.SmoothL1Loss()
-    elif  training_params['loss_func']  == "smoothL1-SSIM":
-        loss_func = nn.SmoothL1Loss()
+    elif  training_params['loss_func']  == "Huber":
+        loss_func = nn.HuberLoss()
     
     if training_params['mixed_precision']:
         scaler = torch.cuda.amp.GradScaler()
@@ -159,7 +157,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     preds = preds.to(torch.float32)
                     if training_params['correct_CTF']:
                         preds = apply_F_filter_torch(preds, ctf)
-                        
+
                     if training_params['apply_mw_x1']:
                         subtomos = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
                     else:

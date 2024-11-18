@@ -518,12 +518,18 @@ class ISONET:
                 tomo2, _ = read_mrc(tomo_row["rlnTomoReconstructedTomogramHalf2"])
                 tomo2 = normalize(tomo2*-1,percentile=False)
                 outData2 = network.predict_map(tomo2, output_dir,cube_size=inner_cube_size, crop_size=cube_size, wedge=mw).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
-                                
+                
                 outData = (outData1 + outData2) * (-0.5)
                 file_base_name = os.path.basename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
                 file_name, file_extension = os.path.splitext(file_base_name)
                 out_file_name = f"{output_dir}/corrected_{network.method}_{network.arch}_{file_name}.mrc"
-                write_mrc(out_file_name, outData)        
+                write_mrc(out_file_name, outData)    
+
+                variance_map = (outData1-outData2)**2
+                out_file_name_variance = f"{output_dir}/variance_{network.method}_{network.arch}_{file_name}.mrc"
+                write_mrc(out_file_name_variance, variance_map)                     
+
+   
                 star.at[index, out_column] = out_file_name
             starfile.write(star,star_file)            
 
@@ -554,6 +560,7 @@ class ISONET:
 
                    correct_CTF: bool=False,
                    isCTFflipped: bool=False,
+                   with_predict: bool=False
                    ):
         # TODO CS voltage Amplitutide contrast
         '''
@@ -563,7 +570,7 @@ class ISONET:
         apply_mw_x1: apply missing wedge to subtomograms in the begining. True seems to be better.
         compile_model: improve the speed of training, sometime error
         mixed_precision: use mixed precision to reduce VRAM and increase speed
-        loss_func: L2,smoothL1
+        loss_func: L2, Huber
         '''
         create_folder(output_dir,remove=False)
 
@@ -608,7 +615,10 @@ class ISONET:
         }
 
         network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
-
+        if with_predict:
+            model_file = f"{output_dir}/network_{arch}_{method}.pt"
+            self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID) 
+            #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
     def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):
         '''

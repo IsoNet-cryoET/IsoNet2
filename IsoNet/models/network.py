@@ -71,7 +71,7 @@ class Net:
                         config=[2,2,2,2,2,2,2],
                         dim=32,
                         drop_path_rate=drop_rate,
-                        input_resolution=48,
+                        input_resolution=cube_size,
                         head_dim=16,
                         window_size=3,
                     )
@@ -85,10 +85,10 @@ class Net:
             from IsoNet.models.scunet import SCUNet_depth4
             self.model = SCUNet_depth4(
                         in_nc=1,
-                        config=[2,2,2,2,2,2,2,2,2],
-                        dim=32,
+                        config=[1,1,1,1,1,1,1,1,1],
+                        dim=64,
                         drop_path_rate=drop_rate,
-                        input_resolution=48,
+                        input_resolution=cube_size,
                         head_dim=16,
                         window_size=3,
                     )
