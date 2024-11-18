@@ -275,7 +275,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
             average_inside_mw_loss_list.append(average_inside_mw_loss.cpu().numpy())
             average_outside_mw_loss_list.append(average_outside_mw_loss.cpu().numpy())
             average_ssim_loss_list.append(1-average_ssim_loss.cpu().numpy())
-            outmodel_path = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
+            outmodel_path = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}.pt"
             print(f"Epoch [{epoch+1}/{training_params['epochs']}], Loss:{average_loss:.4f},\
                     in_mw_loss:{average_inside_mw_loss:.4f},\
                     out_mw_loss:{average_outside_mw_loss:.4f},\

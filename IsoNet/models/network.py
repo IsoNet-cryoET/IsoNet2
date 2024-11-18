@@ -35,67 +35,67 @@ class Net:
         
 
     
-    def initialize(self, method='regular', arch = 'unet-default', cube_size = 96):
+    def initialize(self, method='regular', arch = 'unet-medium', cube_size = 96):
         
         self.arch = arch
         self.method = method
         self.cube_size = cube_size
 
-        if self.arch == 'unet-default':
+        if self.arch == 'unet-large':
             from .unet import Unet
             self.model = Unet(filter_base = 64,unet_depth=4, add_last=True)
-        elif self.arch == 'unet-small':
-            from .unet import Unet
-            self.model = Unet(filter_base = 16,unet_depth=4, add_last=True)
         elif self.arch == 'unet-medium':
             from .unet import Unet
             self.model = Unet(filter_base = 32,unet_depth=4, add_last=True)
-        elif self.arch == 'HSFormer':
-            from IsoNet.models.HSFormer import swin_tiny_patch4_window8
-            self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=128,num_classes =1)
-        elif self.arch == 'HSFormer-small':
-            from IsoNet.models.HSFormer import swin_tiny_patch4_window8
-            self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=64, num_classes =1)
-        elif self.arch == 'vtunet':
-            from IsoNet.models.vtunet import VTUnet
-            self.model = VTUnet()
-        elif self.arch == 'scunet':
+        elif self.arch == 'unet-small':
+            from .unet import Unet
+            self.model = Unet(filter_base = 16,unet_depth=4, add_last=True)
+
+        elif self.arch in ['scunet-large','scunet-medium','scunet-small']:
             if self.state == "train":
                 drop_rate=0.1
             else:
                 drop_rate=0
-            print("drop_rate",drop_rate)
-            from IsoNet.models.scunet import SCUNet
-            self.model = SCUNet(
-                        in_nc=1,
-                        config=[2,2,2,2,2,2,2],
-                        dim=32,
-                        drop_path_rate=drop_rate,
-                        input_resolution=cube_size,
-                        head_dim=16,
-                        window_size=3,
-                    )
-            self.model.apply(self.model._init_weights)
-        elif self.arch == 'scunet-deeper':
-            if self.state == "train":
-                drop_rate=0.1
-            else:
-                drop_rate=0
-            print("drop_rate",drop_rate)
+
+            if cube_size%3 == 0:
+                window_size = 3
+            elif cube_size%4 == 0:
+                window_size = 4
+            
+            if self.arch == 'scunet-medium':
+                dim=64
+                config=[1,1,1,1,1,1,1,1,1]
+            elif self.arch == 'scunet-small':
+                dim=32
+                config=[1,1,1,1,1,1,1,1,1]
+            elif self.arch == 'scunet-large':
+                dim=64
+                config=[2,2,2,2,2,2,2,2,2]
+            
+
             from IsoNet.models.scunet import SCUNet_depth4
             self.model = SCUNet_depth4(
                         in_nc=1,
-                        config=[1,1,1,1,1,1,1,1,1],
-                        dim=64,
+                        config=config,
+                        dim=dim,
                         drop_path_rate=drop_rate,
                         input_resolution=cube_size,
                         head_dim=16,
-                        window_size=3,
+                        window_size=window_size,
                     )
             self.model.apply(self.model._init_weights)
+
         else:
             print(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )
-
+        # elif self.arch == 'HSFormer':
+        #     from IsoNet.models.HSFormer import swin_tiny_patch4_window8
+        #     self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=128,num_classes =1)
+        # elif self.arch == 'HSFormer-small':
+        #     from IsoNet.models.HSFormer import swin_tiny_patch4_window8
+        #     self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=64, num_classes =1)
+        # elif self.arch == 'vtunet':
+        #     from IsoNet.models.vtunet import VTUnet
+        #     self.model = VTUnet()
         num_params = get_num_parameters(self.model)
         print(f'Total number of parameters: {num_params}')
 
@@ -165,7 +165,7 @@ class Net:
            logging.info('KeyboardInterrupt: Terminating all processes...')
            dist.destroy_process_group() 
            os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
-        self.load(f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt")
+        self.load(f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}.pt")
         # checkpoint = torch.load(training_params['outmodel_path'])
         # self.metrics['average_loss'].extend(checkpoint['average_loss'])
         # self.model.load_state_dict(checkpoint['model_state_dict'])

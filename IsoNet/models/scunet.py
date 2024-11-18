@@ -145,8 +145,8 @@ class ConvTransBlock(nn.Module):
                 FilterResponseNorm3d(self.conv_dim),
                 nn.Conv3d(self.conv_dim, self.conv_dim, 3, 1, 1, bias=False),
                 FilterResponseNorm3d(self.conv_dim),
-                nn.Conv3d(self.conv_dim, self.conv_dim, 3, 1, 1, bias=False),
-                FilterResponseNorm3d(self.conv_dim),
+                # nn.Conv3d(self.conv_dim, self.conv_dim, 3, 1, 1, bias=False),
+                # FilterResponseNorm3d(self.conv_dim),
                 )
 
     def forward(self, x):

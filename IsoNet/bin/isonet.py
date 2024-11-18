@@ -616,7 +616,7 @@ class ISONET:
 
         network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
         if with_predict:
-            model_file = f"{output_dir}/network_{arch}_{method}.pt"
+            model_file = f"{output_dir}/network_{arch}_{cube_size}.pt"
             self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID) 
             #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
