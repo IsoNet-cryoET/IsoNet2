@@ -62,8 +62,8 @@ def masked_loss(model_output, target, rot_mw_mask, mw_mask, loss_func=None):
     if loss_func == None:
         print("loss name is not correct")
     else:
-        filtered_model_output = apply_fourier_mask_to_tomo(tomo=model_output, mask=rot_mw_mask, output="real")
-        return [loss_func(outside_mw_tomo,zero_target),loss_func(inside_mw_tomo,zero_target),ssim_loss(filtered_model_output,target)]
+        #filtered_model_output = apply_fourier_mask_to_tomo(tomo=model_output, mask=rot_mw_mask, output="real")
+        return [loss_func(outside_mw_tomo,zero_target),loss_func(inside_mw_tomo,zero_target)]
 
 # def masked_loss(model_output, target, rot_mw_mask, mw_mask, mw_weight=2.0, loss_func='L2'):
 #     # This is essence of deepdewedge

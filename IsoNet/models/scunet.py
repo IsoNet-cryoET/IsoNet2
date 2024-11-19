@@ -44,7 +44,6 @@ class WMSA(nn.Module):
 
         trunc_normal_(self.relative_position_params, std=.02)
         self.relative_position_params = torch.nn.Parameter(self.relative_position_params.view(2*window_size-1, 2*window_size-1, 2*window_size-1, self.n_heads).transpose(2,3).transpose(1,2).transpose(0,1))
-
         # Modified by Jiahua He 
         cord = torch.tensor(np.array([[i, j, k] for i in range(self.window_size) for j in range(self.window_size) for k in range(self.window_size)]))
         self.relation = cord[:, None, :] - cord[None, :, :] + self.window_size -1
@@ -76,10 +75,14 @@ class WMSA(nn.Module):
         x = rearrange(x, 'b w1 w2 w3 p1 p2 p3 c -> b (w1 w2 w3) (p1 p2 p3) c', p1=self.window_size, p2=self.window_size, p3=self.window_size)
 
         qkv = self.embedding_layer(x)
-
         q, k, v = rearrange(qkv, 'b nw np (threeh c) -> threeh b nw np c', c=self.head_dim).chunk(3, dim=0)
         sim = torch.einsum('hbwpc,hbwqc->hbwpq', q, k) * self.scale
-
+        # print("sim",sim.shape)
+        # print(self.relation.shape)
+        # print(self.relative_position_params[:, self.relation[:,:,0].long(), self.relation[:,:,1].long(), self.relation[:,:,2].long()].shape)
+        # print(self.relative_position_params.shape)
+        # print(self.relation.shape)
+        # print(self.relative_position_params[:, self.relation[:,:,0].long(), self.relation[:,:,1].long(), self.relation[:,:,2].long()].shape)
         sim = sim + rearrange(self.relative_position_params[:, self.relation[:,:,0].long(), self.relation[:,:,1].long(), self.relation[:,:,2].long()], 'h p q -> h 1 1 p q')
 
         if self.type != 'W':
@@ -300,6 +303,123 @@ class SCUNet_depth4(nn.Module):
         self.m_up1 = [nn.ConvTranspose3d(2*dim, dim, 2, 2, 0, bias=False),] + \
                     [ConvTransBlock(dim//2, dim//2, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution) 
                       for i in range(config[8])]
+
+        self.m_tail = [nn.Conv3d(dim, n_classes, 3, 1, 1, bias=False)]
+
+        self.m_head = nn.Sequential(*self.m_head)
+        self.m_down1 = nn.Sequential(*self.m_down1)
+        self.m_down2 = nn.Sequential(*self.m_down2)
+        self.m_down3 = nn.Sequential(*self.m_down3)
+        self.m_down4 = nn.Sequential(*self.m_down4)
+        self.m_body = nn.Sequential(*self.m_body)
+        self.m_up4 = nn.Sequential(*self.m_up4)
+        self.m_up3 = nn.Sequential(*self.m_up3)
+        self.m_up2 = nn.Sequential(*self.m_up2)
+        self.m_up1 = nn.Sequential(*self.m_up1)
+        self.m_tail = nn.Sequential(*self.m_tail)
+
+    def forward(self, x0):
+
+        x1 = self.m_head(x0)
+        x2 = self.m_down1(x1)
+        x3 = self.m_down2(x2)
+        x4 = self.m_down3(x3)
+        x5 = self.m_down4(x4)
+        x = self.m_body(x5)
+        x = self.m_up4(x + x5)
+        x = self.m_up3(x + x4)
+        x = self.m_up2(x + x3)
+        x = self.m_up1(x + x2)
+        x = self.m_tail(x + x1)
+
+        return x+x0
+    
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=.02)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+
+
+class SCUNet_depth4_from2nd(nn.Module):
+
+    def __init__(self, in_nc=1, config=[0, 2, 2, 2, 2, 2, 2, 0], dim=32, drop_path_rate=0.2, input_resolution=48, head_dim=16, window_size=3, n_classes=1):
+        super(SCUNet_depth4_from2nd, self).__init__()
+        self.config = config
+        self.dim = dim
+        self.head_dim = head_dim
+        self.window_size = window_size
+
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(config))]
+
+        self.m_head = [nn.Conv3d(in_nc, dim, 3, 1, 1, bias=False)]
+        begin = 0
+        self.m_down1 = nn.Sequential(
+                FilterResponseNorm3d(dim),
+                nn.Conv3d(dim, dim, 3, 1, 1, bias=False),
+                FilterResponseNorm3d(dim),
+                nn.Conv3d(dim, dim, 3, 1, 1, bias=False),
+                FilterResponseNorm3d(dim),
+                nn.Conv3d(dim, dim, 3, 1, 1, bias=False),
+                FilterResponseNorm3d(dim),
+                nn.Conv3d(dim, 2*dim, 2, 2, 0, bias=False)
+                )
+        
+        # self.m_down1 = [ConvTransBlock(dim//2, dim//2, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution) 
+        #                 for i in range(config[0])] + \
+        #                [nn.Conv3d(dim, 2*dim, 2, 2, 0, bias=False)]
+
+        begin += config[0]
+        self.m_down2 = [ConvTransBlock(dim, dim, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution//2)
+                        for i in range(config[1])] + \
+                       [nn.Conv3d(2*dim, 4*dim, 2, 2, 0, bias=False)]
+
+        begin += config[1]
+        self.m_down3 = [ConvTransBlock(2*dim, 2*dim, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution//4)
+                        for i in range(config[2])] + \
+                       [nn.Conv3d(4*dim, 8*dim, 2, 2, 0, bias=False)]
+
+        begin += config[2]
+        self.m_down4 = [ConvTransBlock(4*dim, 4*dim, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution//8)
+                        for i in range(config[3])] + \
+                       [nn.Conv3d(8*dim, 16*dim, 2, 2, 0, bias=False)]
+
+        begin += config[3]
+        self.m_body = [ConvTransBlock(8*dim, 8*dim, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution//16)
+                       for i in range(config[4])]
+
+        begin += config[4]
+        self.m_up4 = [nn.ConvTranspose3d(16*dim, 8*dim, 2, 2, 0, bias=False),] + \
+                     [ConvTransBlock(4*dim, 4*dim, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution//8)
+                      for i in range(config[5])]
+
+        begin += config[5]
+        self.m_up3 = [nn.ConvTranspose3d(8*dim, 4*dim, 2, 2, 0, bias=False),] + \
+                     [ConvTransBlock(2*dim, 2*dim, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution//4)
+                      for i in range(config[6])]
+
+        begin += config[6]
+        self.m_up2 = [nn.ConvTranspose3d(4*dim, 2*dim, 2, 2, 0, bias=False),] + \
+                     [ConvTransBlock(dim, dim, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution//2)
+                      for i in range(config[7])]
+
+        begin += config[7]
+        # self.m_up1 = [nn.ConvTranspose3d(2*dim, dim, 2, 2, 0, bias=False),] + \
+        #             [ConvTransBlock(dim//2, dim//2, self.head_dim, self.window_size, dpr[i+begin], 'W' if not i%2 else 'SW', input_resolution) 
+        #               for i in range(config[8])]
+
+        self.m_up1 = nn.Sequential(
+                nn.ConvTranspose3d(2*dim, dim, 2, 2, 0, bias=False),
+                nn.Conv3d(dim, dim, 3, 1, 1, bias=False),
+                FilterResponseNorm3d(dim),
+                nn.Conv3d(dim, dim, 3, 1, 1, bias=False),
+                FilterResponseNorm3d(dim),
+                nn.Conv3d(dim, dim, 3, 1, 1, bias=False),
+                FilterResponseNorm3d(dim),
+                )
 
         self.m_tail = [nn.Conv3d(dim, n_classes, 3, 1, 1, bias=False)]
 

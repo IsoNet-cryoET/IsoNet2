@@ -51,7 +51,7 @@ class Net:
             from .unet import Unet
             self.model = Unet(filter_base = 16,unet_depth=4, add_last=True)
 
-        elif self.arch in ['scunet-large','scunet-medium','scunet-small']:
+        elif self.arch in ['scunet-large','scunet-medium','scunet-small','scunet-fast','scunet-fast-large']:
             if self.state == "train":
                 drop_rate=0.1
             else:
@@ -64,26 +64,42 @@ class Net:
             
             if self.arch == 'scunet-medium':
                 dim=64
-                config=[1,1,1,1,1,1,1,1,1]
+                #config=[1,1,1,1,1,1,1,1,1]
+                config=[2,2,2,2,2,2,2,2,2]
             elif self.arch == 'scunet-small':
                 dim=32
-                config=[1,1,1,1,1,1,1,1,1]
-            elif self.arch == 'scunet-large':
-                dim=64
+                #config=[1,1,1,1,1,1,1,1,1]
                 config=[2,2,2,2,2,2,2,2,2]
+            elif self.arch == 'scunet-fast':
+                dim=32
+                config=[0,2,2,2,2,2,2,2,0]
+            elif self.arch == 'scunet-fast-large':
+                dim=64
+                config=[0,2,2,2,2,2,2,2,0]
             
 
-            from IsoNet.models.scunet import SCUNet_depth4
-            self.model = SCUNet_depth4(
-                        in_nc=1,
-                        config=config,
-                        dim=dim,
-                        drop_path_rate=drop_rate,
-                        input_resolution=cube_size,
-                        head_dim=16,
-                        window_size=window_size,
-                    )
-            self.model.apply(self.model._init_weights)
+            from IsoNet.models.scunet import SCUNet_depth4,  SCUNet, SCUNet_depth4_from2nd
+            if self.arch in ['scunet-fast', 'scunet-fast-large']:
+                self.model = SCUNet_depth4_from2nd(
+                            in_nc=1,
+                            config=config,
+                            dim=dim,
+                            drop_path_rate=drop_rate,
+                            input_resolution=cube_size,
+                            head_dim=16,
+                            window_size=window_size,
+                        )
+            else:
+                self.model = SCUNet_depth4(
+                            in_nc=1,
+                            config=config,
+                            dim=dim,
+                            drop_path_rate=drop_rate,
+                            input_resolution=cube_size,
+                            head_dim=16,
+                            window_size=window_size,
+                        )            
+                self.model.apply(self.model._init_weights)
 
         else:
             print(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )

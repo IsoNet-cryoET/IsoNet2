@@ -14,7 +14,7 @@ def plot_metrics(metrics, filename):
     #with plt.style.context('Solarize_Light2'):
     keys = []
     for k,v in metrics.items():
-        if len(v)>0:
+        if len(v)>0 and k != 'average_loss':
             x = np.arange(len(v))+1
             plt.plot(x, np.array(v), linewidth=2)
             keys.append(k)

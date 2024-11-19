@@ -12,6 +12,8 @@ from IsoNet.models.masked_loss import masked_loss,simple_loss
 from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
+import shutil
+
 
 # def apply_filter(data, mwshift):
 #     # mwshift [x, y, z]
@@ -98,7 +100,6 @@ def ddp_train(rank, world_size, port_number, model, training_params):
     average_loss_list = []
     average_inside_mw_loss_list = []
     average_outside_mw_loss_list = []
-    average_ssim_loss_list = []
 
     for epoch in range(training_params['epochs']):
         if train_sampler:
@@ -110,7 +111,6 @@ def ddp_train(rank, world_size, port_number, model, training_params):
             average_loss = torch.tensor(0, dtype=torch.float).to(rank)
             average_inside_mw_loss = torch.tensor(0, dtype=torch.float).to(rank)
             average_outside_mw_loss = torch.tensor(0, dtype=torch.float).to(rank)
-            average_ssim_loss = torch.tensor(0, dtype=torch.float).to(rank)
             for i_batch, batch in enumerate(train_loader):  
                 
                 if training_params['method'] in ["n2n", "regular"]:
@@ -182,22 +182,22 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     if training_params["mixed_precision"]:
                         with torch.cuda.amp.autocast():  # Mixed precision forward pass
                             pred_y = model(mw_rotated_subtomos).to(torch.float32)
-                            outside_mw_loss, inside_mw_loss,ssim_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
+                            outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
                             if training_params['mw_weight'] > 0:
-                                loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss + training_params['ssim_weight']*ssim_loss
+                                loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
                             else:
-                                loss =  inside_mw_loss + training_params['ssim_weight']*ssim_loss
+                                loss =  inside_mw_loss
                             # if training_params['gamma'] > 0:
                             #     loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
                             # else:
                             #     loss = simple_loss(pred_y,x2_rot,rotated_mw)
                     else:
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
-                        outside_mw_loss, inside_mw_loss,ssim_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
+                        outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
                         if training_params['mw_weight'] > 0:
-                            loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss + training_params['ssim_weight']*ssim_loss
+                            loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
                         else:
-                            loss =  inside_mw_loss + training_params['ssim_weight']*ssim_loss
+                            loss =  inside_mw_loss
                         # if training_params['gamma'] > 0:
                         #     loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
                         # else:
@@ -216,7 +216,6 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                 loss = loss / training_params['acc_batches']
                 inside_mw_loss = inside_mw_loss / training_params['acc_batches']
                 outside_mw_loss = outside_mw_loss / training_params['acc_batches']
-                ssim_loss = ssim_loss / training_params['acc_batches']
 
                 if training_params['mixed_precision']:
                     scaler.scale(loss).backward()  # Scaled backward pass
@@ -226,7 +225,6 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                 loss_item = loss.item()
                 inside_mw_loss_item = inside_mw_loss.item()
                 outside_mw_loss_item = outside_mw_loss.item()
-                ssim_loss_item  = ssim_loss.item()
             
                               
                 if ( (i_batch+1)%training_params['acc_batches'] == 0 ) or (i_batch+1) == min(len(train_loader), steps_per_epoch_train * training_params['acc_batches']):
@@ -237,12 +235,11 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     else:
                         optimizer.step()
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):
-                   progress_bar.set_postfix({"Loss": loss_item,"inside_mw_loss": inside_mw_loss_item,"outside_mw_loss": outside_mw_loss_item,"SSIM": 1-ssim_loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
+                   progress_bar.set_postfix({"Loss": loss_item,"inside_mw_loss": inside_mw_loss_item,"outside_mw_loss": outside_mw_loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
                    progress_bar.update()
                 average_loss += loss_item
                 average_inside_mw_loss += inside_mw_loss_item
                 average_outside_mw_loss += outside_mw_loss_item
-                average_ssim_loss  += ssim_loss_item
                 
                 if i_batch + 1 >= steps_per_epoch_train*training_params['acc_batches']:
                     break
@@ -254,16 +251,13 @@ def ddp_train(rank, world_size, port_number, model, training_params):
             dist.reduce(average_loss, dst=0)
             dist.reduce(average_inside_mw_loss, dst=0)
             dist.reduce(average_outside_mw_loss, dst=0)
-            dist.reduce(average_ssim_loss, dst=0)
         average_loss /= (world_size * (i_batch + 1))
         average_inside_mw_loss /= (world_size * (i_batch + 1))
         average_outside_mw_loss /= (world_size * (i_batch + 1))
-        average_ssim_loss /= (world_size * (i_batch + 1))
         # else:
         #     average_loss /= (i_batch + 1)
         #     inside_mw_loss /= (world_size * (i_batch + 1))
         #     outside_mw_loss /= (world_size * (i_batch + 1))
-        #     ssim_loss /= (world_size * (i_batch + 1))        
                                       
         
         #dist.reduce(average_loss, dst=0)
@@ -274,18 +268,15 @@ def ddp_train(rank, world_size, port_number, model, training_params):
             average_loss_list.append(average_loss.cpu().numpy())
             average_inside_mw_loss_list.append(average_inside_mw_loss.cpu().numpy())
             average_outside_mw_loss_list.append(average_outside_mw_loss.cpu().numpy())
-            average_ssim_loss_list.append(1-average_ssim_loss.cpu().numpy())
             outmodel_path = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}.pt"
             print(f"Epoch [{epoch+1}/{training_params['epochs']}], Loss:{average_loss:.4f},\
                     in_mw_loss:{average_inside_mw_loss:.4f},\
                     out_mw_loss:{average_outside_mw_loss:.4f},\
-                    SSIM:{1-average_ssim_loss:.4f},\
                     learning_rate:{scheduler.get_last_lr()[0]:.4e}")
 
             metrics = {"average_loss":average_loss_list,
                        "inside_mw_loss":average_inside_mw_loss_list,
-                       "outside_mw_loss":average_outside_mw_loss_list,
-                       "SSIM":average_ssim_loss_list}
+                       "outside_mw_loss":average_outside_mw_loss_list}
             plot_metrics(metrics,f"{training_params['output_dir']}/loss.png")
             if world_size > 1:
                 torch.save({
@@ -303,6 +294,9 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     'metrics': metrics,
                     'cube_size': training_params['cube_size']
                     }, outmodel_path)                
+            if (epoch+1)%training_params['T_max'] == 0:
+                outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_epoch{epoch}.pt"
+                shutil.copy(outmodel_path, outmodel_path_epoch)
     if world_size > 1:
         dist.destroy_process_group()
 

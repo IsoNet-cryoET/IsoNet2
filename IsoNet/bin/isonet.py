@@ -536,7 +536,7 @@ class ISONET:
     def refine(self, 
                    star_file: str,
                    gpuID: str=None,
-                   arch: str='unet-default',
+                   arch: str='unet-medium',
                    ncpus: int=4, 
                    method: str="isonet2-n2n",
                    output_dir: str="isonet_maps",
@@ -552,15 +552,14 @@ class ISONET:
                    T_max: int=10,
                    learning_rate_min:float=3e-4,
                    random_rotation: bool=True, 
-                   mw_weight: float=-1,
-                   ssim_weight: float=0,
-                   apply_mw_x1: bool=False, 
+                   mw_weight: float=100,
+                   apply_mw_x1: bool=True, 
                    compile_model: bool=False,
                    mixed_precision: bool=True,
 
                    correct_CTF: bool=False,
                    isCTFflipped: bool=False,
-                   with_predict: bool=False
+                   with_predict: bool=True
                    ):
         # TODO CS voltage Amplitutide contrast
         '''
@@ -587,7 +586,6 @@ class ISONET:
         print(f"method {method}")
         from IsoNet.models.network import Net
         network = Net(method=method, arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
-
         training_params = {
             "method":method,
             "input_column": input_column,
@@ -602,7 +600,6 @@ class ISONET:
             "learning_rate":learning_rate,
             "cube_size": cube_size,
             "mw_weight": mw_weight,
-            "ssim_weight": ssim_weight,
             "random_rotation":random_rotation,
             'apply_mw_x1':apply_mw_x1,
             'mixed_precision':mixed_precision,
