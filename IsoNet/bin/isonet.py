@@ -115,8 +115,11 @@ class ISONET:
         add_param("None", "rlnTiltMax",60)
 
         #add_param(tilt_file_folder, 'rlnTiltFile')
-        #add_param(coordinate_folder, 'rlnBoxFile')
-        
+        # Causion, number of the box file should be the same with the number of tomograms
+        add_param(coordinate_folder, 'rlnBoxFile', "None")
+        if coordinate_folder not in ["None", None]:
+            number_subtomos = "None"
+            print("the number of subtomogram for each tomogram will be determined by the subtomogram coordinate files")
         add_param("None", 'rlnNumberSubtomo',number_subtomos)
         
         #TODO defocus file folder 
