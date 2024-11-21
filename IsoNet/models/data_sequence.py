@@ -76,12 +76,13 @@ class Train_sets_n2n(Dataset):
             coords = self.create_random_coords(mask.shape, mask, self.n_samples_per_tomo)
             self.coords.append(coords)
 
-            if self.method in ['isonet2','isonet2-n2n']:
-                min_angle, max_angle = row['rlnTiltMin'], row['rlnTiltMax']
-                self.mw_list.append(self._compute_missing_wedge(self.sample_shape[0], min_angle, max_angle))
-                CTF_vol, wiener_vol = self._compute_CTF_vol(row)
-                self.wiener_list.append(wiener_vol)
-                self.CTF_list.append(CTF_vol)
+            # if self.method in ['isonet2','isonet2-n2n']:
+            # compute for all the modes
+            min_angle, max_angle = row['rlnTiltMin'], row['rlnTiltMax']
+            self.mw_list.append(self._compute_missing_wedge(self.sample_shape[0], min_angle, max_angle))
+            CTF_vol, wiener_vol = self._compute_CTF_vol(row)
+            self.wiener_list.append(wiener_vol)
+            self.CTF_list.append(CTF_vol)
 
 
     def _load_statistics_and_mask(self, row, column_name_list):
@@ -180,19 +181,19 @@ class Train_sets_n2n(Dataset):
         tomo_index, coord_index = divmod(idx, self.n_samples_per_tomo)
         z, y, x = self.coords[tomo_index][coord_index]
 
-        if self.method in ['n2n', 'isonet2','isonet2-n2n']:
-            even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
-            odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
+        # if self.method in ['n2n', 'isonet2','isonet2-n2n']:
+        even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
+        odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
 
-            x, y = self.augment(
-                np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...], 
-                np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
-            )
+        x, y = self.augment(
+            np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...], 
+            np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
+        )
 
-            if self.method in ['isonet2','isonet2-n2n']:
-                return x, y, self.mw_list[tomo_index][np.newaxis, ...], \
-                    self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...]
-            return x, y
+        # if self.method in ['isonet2','isonet2-n2n']:
+        return x, y, self.mw_list[tomo_index][np.newaxis, ...], \
+                self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...]
+        # return x, y
         
         # elif self.method == 'spisonet-single':
         #     even_subvolume = self.load_and_normalize(self.tomo_paths, tomo_index, z, y, x, eo_idx=0)
