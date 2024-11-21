@@ -540,7 +540,7 @@
         """
 
         from IsoNet.preprocessing.img_processing import normalize
-        from IsoNet.bin.map_refine import map_refine, map_refine_n2n
+        from IsoNet.backups.map_refine import map_refine, map_refine_n2n
         from IsoNet.util.utils import process_gpuID, mkfolder
         from multiprocessing import cpu_count
         import mrcfile

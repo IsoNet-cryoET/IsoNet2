@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import mrcfile
 from IsoNet.utils.toTile import reform3D
