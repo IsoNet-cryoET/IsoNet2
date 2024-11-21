@@ -72,8 +72,10 @@ class Train_sets_n2n(Dataset):
             self.n_samples_per_tomo=row['rlnNumberSubtomo']
 
             mask = self._load_statistics_and_mask(row, column_name_list)
-
-            coords = self.create_random_coords(mask.shape, mask, self.n_samples_per_tomo)
+            if row['rlnBoxFile'] in [None, "None"]:
+                coords = self.create_random_coords(mask.shape, mask, self.n_samples_per_tomo)
+            else:
+                coords = np.loadtxt(row['rlnBoxFile'])
             self.coords.append(coords)
 
             # if self.method in ['isonet2','isonet2-n2n']:
