@@ -2,8 +2,6 @@ from typing import List
 import torch
 import torch.nn as nn
 
-import logging
-import numpy as np
 class ConvBlock(nn.Module):
     # conv_per_depth fixed to 2
     def __init__(self, in_channels, out_channels, n_conv, kernel_size =3, stride=1, padding=1):

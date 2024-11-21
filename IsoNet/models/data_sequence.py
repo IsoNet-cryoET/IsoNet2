@@ -1,8 +1,6 @@
 import numpy as np
 import torch
 import os
-import torch.nn as nn
-from tqdm import tqdm
 from torch.utils.data.dataset import Dataset
 from IsoNet.utils.fileio import read_mrc
 import starfile
