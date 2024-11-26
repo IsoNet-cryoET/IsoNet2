@@ -115,10 +115,10 @@ class ISONET:
             add_param("None", 'rlnPixelSize', pixel_size)
 
         if defocus_folder in ['None', None]:
-            add_param("None","rlnDefocus", 0)
-            add_param("None","rlnVoltage", voltage)
-            add_param("None","rlnSepherialAbbration", cs)
-            add_param("None", "rlnAmplitituteContrast", ac)
+            add_param("None", "rlnDefocus", 0)
+            add_param("None", "rlnVoltage", voltage)
+            add_param("None", "rlnSphericalAberration", cs)
+            add_param("None", "rlnAmplitudeContrast", ac)
         else:
             #TODO defocus file folder 
             #from IsoNet.utils.fileio import read_defocus_file

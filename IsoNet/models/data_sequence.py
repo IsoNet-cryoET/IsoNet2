@@ -152,11 +152,11 @@ class Train_sets_n2n(Dataset):
         # defocus in Anstron convert to um
         defocus = row['rlnDefocus']/10000.
         from IsoNet.utils.CTF import get_wiener_3d,get_ctf_3d
-        ctf3d = get_ctf_3d(angpix=row['rlnPixelSize'], voltage=300, cs=2.7, defocus=defocus,\
-                                    phaseflipped=self.isCTFflipped, phaseshift=0,length=self.cube_size)
-        wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=300, cs=2.7, defocus=defocus,\
+        ctf3d = get_ctf_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
+                                    phaseflipped=self.isCTFflipped, phaseshift=0, amplitude=row['rlnAmplitudeContrast'],length=self.cube_size)
+        wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
                                   snrfalloff=row['rlnSnrFalloff'], deconvstrength=row['rlnDeconvStrength'], highpassnyquist=0.02, \
-                                    phaseflipped=self.isCTFflipped, phaseshift=0,length=self.cube_size)
+                                    phaseflipped=self.isCTFflipped, phaseshift=0, amplitude=row['rlnAmplitudeContrast'], length=self.cube_size)
         return ctf3d, wiener3d
 
     def random_swap(self, x, y):
