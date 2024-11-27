@@ -31,6 +31,9 @@ class Net:
             self.load(pretrained_model)
         else:
             self.initialize(method, arch,cube_size)
+            self.metrics = {"average_loss":[],
+                       "inside_mw_loss":[],
+                       "outside_mw_loss":[]}
         torch.backends.cudnn.benchmark = True
         
 
@@ -120,8 +123,6 @@ class Net:
         self.port_number = str(find_unused_port())
         logging.info(f"Port number: {self.port_number}")
 
-        self.metrics = {"average_loss":[],
-                        "avg_val_loss":[] }
 
     def load(self, path):
         
@@ -136,13 +137,14 @@ class Net:
         self.metrics = checkpoint['metrics']
 
     def save(self, path):
-        state = self.model.state_dict()
-        torch.save({
-            'arch':self.arch,
-            'method':self.method,
-            'model_state_dict': state,
-            'metrics': self.metrics['metrics'],
-            }, path)
+        pass
+        # state = self.model.state_dict()
+        # torch.save({
+        #     'arch':self.arch,
+        #     'method':self.method,
+        #     'model_state_dict': state,
+        #     'metrics': self.metrics['metrics'],
+        #     }, path)
         
     def load_jit(self, path):
         # TODO
@@ -163,7 +165,7 @@ class Net:
 
         #if os.path.exists(model_path):
         #    os.remove(model_path)
-
+        training_params['metrics'] = self.metrics
         try: 
             # mp.spawn(self.ddp_train, args=(self.world_size, self.port_number, self.model,
             #                            data_path, batch_size, acc_batches, epochs, steps_per_epoch, learning_rate, 
@@ -193,6 +195,7 @@ class Net:
         #     }, training_params['outmodel_path'])
         
     def predict_subtomos(self, settings):
+        # This is legacy
         from IsoNet.utils.fileio import read_mrc,write_mrc
         first_map, pixel_size = read_mrc(settings.mrc_list[0])
         shape = first_map.shape
@@ -223,7 +226,7 @@ class Net:
         return outData
 
     
-    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, output_base=None, wedge=None):
+    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, wedge=None):
         # change edge width from 7 to 5 to reduce computing
         reform_ins = reform3D(data,cube_size,crop_size,5)
         data = reform_ins.pad_and_crop()        
@@ -233,3 +236,40 @@ class Net:
         outData=reform_ins.restore(outData)
         os.remove(tmp_data_path)
         return outData
+    
+
+class DuoNet:
+    def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model1=None, pretrained_model2=None, state="train"):
+        self.net1 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model1, state=state)
+        self.net2 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model2, state=state)
+
+    def load(self, pretrained_model1, pretrained_model2):
+        self.net1.load(pretrained_model1)
+        self.net2.load(pretrained_model2)
+    
+    def train(self, training_params):
+        assert training_params["epochs"] % training_params["T_max"] == 0
+
+        epochs = training_params["epochs"]
+        T_max = 10
+        T_steps = training_params["epochs"] // training_params["T_max"] 
+
+        training_params1 = training_params.copy()
+        training_params1['split'] = "top"
+        training_params1['epochs'] = T_steps
+
+        training_params2 = training_params.copy()
+        training_params2['split'] = "bottom"
+        training_params2['epochs'] = T_steps
+
+        for i in range(T_steps):
+            print(f"training the top half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
+            self.net1.train(training_params1)
+            print(f"training the bottom half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
+            self.net2.train(training_params2)
+
+
+    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, wedge=None):
+        predicted_map1 = self.net1.predict(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, wedge=wedge)
+        predicted_map2 = self.net2.predict(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, wedge=wedge)
+        return predicted_map1, predicted_map2

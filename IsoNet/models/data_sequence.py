@@ -40,7 +40,7 @@ class Train_sets_n2n(Dataset):
     Dataset class to load tomograms and provide subvolumes for n2n and spisonet methods.
     """
 
-    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", isCTFflipped=False):
+    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", isCTFflipped=False, split="full"):
         self.star = starfile.read(tomo_star)
         self.method = method
         self.n_samples_per_tomo = []
@@ -60,6 +60,7 @@ class Train_sets_n2n(Dataset):
         self.n_tomos = len(self.star)
         self.input_column = input_column
         self.isCTFflipped = isCTFflipped
+        self.split = "full"
 
         # Initialize data from starfile
         self._initialize_data()
@@ -124,13 +125,23 @@ class Train_sets_n2n(Dataset):
         size = self.sample_shape[0]
         z_max, y_max, x_max = shape
         half_size = size // 2 + 1 
+        half_y = y_max // 2
+
         mask[0:half_size,:,:] = 0
         mask[z_max-half_size:z_max,:,:] = 0
-        mask[:,0:half_size,:] = 0
-        mask[:,y_max-half_size:y_max,:] = 0
         mask[:,:,0:half_size] = 0
         mask[:,:,x_max-half_size:x_max] = 0
 
+
+        if self.split == "full":
+            mask[:,0:half_size,:] = 0
+            mask[:,y_max-half_size:y_max,:] = 0
+        elif self.split == "top":
+            mask[:,0:half_size,:] = 0
+            mask[:,half_y-half_size:y_max,:] = 0
+        elif self.split == "bottom":
+            mask[:,0:half_y+half_size,:] = 0
+            mask[:,y_max-half_size:y_max,:] = 0
 
         valid_inds = np.where(mask)
 

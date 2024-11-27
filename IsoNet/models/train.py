@@ -96,11 +96,6 @@ def ddp_train(rank, world_size, port_number, model, training_params):
     steps_per_epoch_train = training_params['steps_per_epoch']
     total_steps = min(len(train_loader)//training_params['acc_batches'], training_params['steps_per_epoch'])
 
-
-    average_loss_list = []
-    average_inside_mw_loss_list = []
-    average_outside_mw_loss_list = []
-
     for epoch in range(training_params['epochs']):
         if train_sampler:
             train_sampler.set_epoch(epoch)
@@ -265,25 +260,29 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         #average_loss =  average_loss / dist.get_world_size()
 
         if rank == 0:
-            average_loss_list.append(average_loss.cpu().numpy())
-            average_inside_mw_loss_list.append(average_inside_mw_loss.cpu().numpy())
-            average_outside_mw_loss_list.append(average_outside_mw_loss.cpu().numpy())
+            training_params["metrics"]["average_loss"].append(average_loss.cpu().numpy()) 
+            training_params["metrics"]["inside_mw_loss"].append(average_inside_mw_loss.cpu().numpy()) 
+            training_params["metrics"]["outside_mw_loss"].append(average_outside_mw_loss.cpu().numpy()) 
+
+            # average_loss_list.append(average_loss.cpu().numpy())
+            # average_inside_mw_loss_list.append(average_inside_mw_loss.cpu().numpy())
+            # average_outside_mw_loss_list.append(average_outside_mw_loss.cpu().numpy())
             outmodel_path = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}.pt"
             print(f"Epoch [{epoch+1}/{training_params['epochs']}], Loss:{average_loss:.4f},\
                     in_mw_loss:{average_inside_mw_loss:.4f},\
                     out_mw_loss:{average_outside_mw_loss:.4f},\
                     learning_rate:{scheduler.get_last_lr()[0]:.4e}")
 
-            metrics = {"average_loss":average_loss_list,
-                       "inside_mw_loss":average_inside_mw_loss_list,
-                       "outside_mw_loss":average_outside_mw_loss_list}
-            plot_metrics(metrics,f"{training_params['output_dir']}/loss.png")
+            # metrics = {"average_loss":average_loss_list,
+            #            "inside_mw_loss":average_inside_mw_loss_list,
+            #            "outside_mw_loss":average_outside_mw_loss_list}
+            plot_metrics(training_params["metrics"],f"{training_params['output_dir']}/loss.png")
             if world_size > 1:
                 torch.save({
                     'method':training_params['method'],
                     'arch':training_params['arch'],
                     'model_state_dict': model.module.state_dict(),
-                    'metrics': metrics,
+                    'metrics': training_params["metrics"],
                     'cube_size': training_params['cube_size']
                     }, outmodel_path)
             else:
@@ -291,7 +290,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     'method':training_params['method'],
                     'arch':training_params['arch'],
                     'model_state_dict': model.state_dict(),
-                    'metrics': metrics,
+                    'metrics': training_params["metrics"],
                     'cube_size': training_params['cube_size']
                     }, outmodel_path)                
             if (epoch+1)%training_params['T_max'] == 0:
