@@ -32,10 +32,15 @@ def create_folder(folder, remove=True):
 #     os.makedirs(directory_name)
 #     print(f"Created new empty directory '{directory_name}'.")
 
-def read_mrc(filename):
-    with mrcfile.open(filename, permissive=True) as mrc:
-        data = mrc.data
-        voxel_size = mrc.voxel_size.x
+def read_mrc(filename, inplace=False):
+    if inplace:
+        with mrcfile.mmap(filename, permissive=True) as mrc:
+            data = mrc.data
+            voxel_size = mrc.voxel_size.x
+    else:
+        with mrcfile.open(filename, permissive=True) as mrc:
+            data = mrc.data
+            voxel_size = mrc.voxel_size.x
     return data, voxel_size
 
 def write_mrc(filename, data, voxel_size=1, origin=0):

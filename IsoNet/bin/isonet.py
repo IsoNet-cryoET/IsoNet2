@@ -29,12 +29,14 @@ class ISONET:
     def prepare_star(self, full: str="None",
                      even: str="None",
                      odd: str="None",
-                     tilt_file_folder: str="None",
                      mask_folder: str='None',
                      coordinate_folder: str='None',
                      star_name: str='tomograms.star',
-                     pixel_size = 10.0, 
+                     pixel_size = 'auto', 
                      defocus_folder: str="None",
+                     cs: float=2.7,
+                     voltage: float=300,
+                     ac: float=0.1,
                      create_average: bool=True,
                      number_subtomos = 1000):
         """
@@ -56,14 +58,12 @@ class ISONET:
         """
         import starfile
         import pandas as pd
-        
         if full == "None":
             count_folder = even
         else:
             count_folder = full
         num_tomo = len(os.listdir(count_folder))
         print("number of tomograms", num_tomo)
-
 
         data = []
         label = []
@@ -76,7 +76,10 @@ class ISONET:
                 assert len(files) == num_tomo
                 data.append(files)
             else:
-                data.append([default_val]*num_tomo)
+                if type(default_val) == list:
+                    data.append(default_val)
+                else:
+                    data.append([default_val]*num_tomo)
             label.append(param_name)
 
         def create_average(even, odd, full = "sum_even_odd_tomograms"):
@@ -93,14 +96,35 @@ class ISONET:
 
         if full == "None" and create_average:
             create_average(even, odd)
-
+        
+        # tomograms setup
         add_param(full, 'rlnTomoName')
         add_param(even, 'rlnTomoReconstructedTomogramHalf1')
         add_param(odd, 'rlnTomoReconstructedTomogramHalf2')
 
-        # deconv parameters
-        add_param("None", 'rlnPixelSize',pixel_size)
-        add_param(defocus_folder, 'rlnDefocus',0)
+        # voxel_size
+        if pixel_size in ["auto","None"]:
+            voxel_size_list = []
+            counted_files_names = sorted(os.listdir(count_folder))
+            counted_files = [f"{even}/{item}" for item in counted_files_names]        
+            for i in range(len(counted_files)):
+                _, apix = read_mrc(counted_files[i], inplace = True)
+                voxel_size_list.append(apix)
+            add_param("None", "rlnPixelSize", voxel_size_list)
+        else:           
+            add_param("None", 'rlnPixelSize', pixel_size)
+
+        if defocus_folder in ['None', None]:
+            add_param("None", "rlnDefocus", 0)
+            add_param("None", "rlnVoltage", voltage)
+            add_param("None", "rlnSphericalAberration", cs)
+            add_param("None", "rlnAmplitudeContrast", ac)
+        else:
+            #TODO defocus file folder 
+            #from IsoNet.utils.fileio import read_defocus_file
+            #TODO decide the defocus file format from CTFFIND and GCTF
+            print("read from CTFFIND result not implimented")
+
         add_param("None", "rlnSnrFalloff",1)
         add_param("None", "rlnDeconvStrength",1)
         add_param("None", "rlnDeconvTomoName","None")
@@ -111,17 +135,18 @@ class ISONET:
         add_param("None", "rlnMaskStdPercentage",50)
         add_param(mask_folder, "rlnMaskName","None")
 
+        # tilt angle parameters
         add_param("None", "rlnTiltMin",-60)
         add_param("None", "rlnTiltMax",60)
 
-        #add_param(tilt_file_folder, 'rlnTiltFile')
-        #add_param(coordinate_folder, 'rlnBoxFile')
-        
+        # subtomogram coordinates
+        add_param(coordinate_folder, 'rlnBoxFile', "None")
+        if coordinate_folder not in ["None", None]:
+            number_subtomos = "None"
+            print("the number of subtomogram for each tomogram will be determined by the subtomogram coordinate files")
         add_param("None", 'rlnNumberSubtomo',number_subtomos)
         
-        #TODO defocus file folder 
-        #from IsoNet.utils.fileio import read_defocus_file
-        #TODO decide the defocus file format from CTFFIND and GCTF
+
         
         data = list(map(list, zip(*data)))
         df = pd.DataFrame(data = data, columns = label)
@@ -213,7 +238,6 @@ class ISONET:
                 mask_boundary: str=None,
                 density_percentage: int=None,
                 std_percentage: int=None,
-                use_deconv_tomo:bool=True,
                 z_crop:float=None,
                 tomo_idx=None):
         """
@@ -297,141 +321,6 @@ class ISONET:
             f.write(error_text)
             f.close()
             logging.error(error_text)
-
-    def extract_legacy(self,  
-                star_file: str,
-                input_column: str = "rlnDeconvTomoName",
-                subtomo_folder="subtomos", 
-                subtomo_star = "subtomos.star", 
-                #between_tilts=False, 
-                cube_size = 64,
-                crop_size = None, 
-                tomo_idx = None,
-                uniform_extract=False):
-        
-        from IsoNet.utils.processing import normalize
-        from IsoNet.preprocessing.cubes import extract_with_overlap
-        from IsoNet.preprocessing.cubes import extract_subvolume, create_cube_seeds
-
-        if crop_size is None:
-            crop_size = cube_size + 16
-
-        tomo_star = starfile.read(star_file)
-        tomo_columns = tomo_star.columns.to_list()
-        create_folder(subtomo_folder, remove=True)
-        particle_list = []
-        for i, row in tomo_star.iterrows():
-            if tomo_idx is None or str(row.rlnIndex) in tomo_idx: 
-
-                # wedge 
-                # wedge_path = os.path.join(subtomo_folder, tomo_folder, 'wedge.mrc')
-                # if "rlnTiltFile" in list(df.columns):
-                #     self.psf(size=crop_size, tilt_file=row["rlnTiltFile"], output=wedge_path, between_tilts=between_tilts)
-                # else:
-                #     print(wedge_path)
-                #     self.psf(size=crop_size, output=wedge_path, between_tilts=between_tilts)
-                # if apply_wedge:
-                #     wedge, vs = read_mrc(wedge_path)
-                # else:
-                #     wedge = None
-
-                tomo_name = row[input_column]
-                tomo, _ = read_mrc(tomo_name)
-                tomo = normalize(tomo)
-
-                if "rlnMaskName" in tomo_columns and row["rlnMaskName"] not in [None, "None"]:
-                    mask_file = row["rlnMaskName"]
-                    with mrcfile.open(mask_file,permissive=True) as mrc:
-                        mask=mrc.data
-                else:
-                    mask = np.ones_like(tomo)
-                count_start = len(particle_list)
-                if uniform_extract:
-                    #TODO uniform extract with mask
-                    subtomos_names = extract_with_overlap(tomo, crop_size, cube_size, subtomo_folder, prefix='', wedge=None)
-                else:
-                    n_subtomo_per_tomo = row["rlnNumberSubtomo"]
-                    seeds=create_cube_seeds(tomo, n_subtomo_per_tomo, crop_size, mask)
-                    subtomos_names = extract_subvolume(tomo, seeds, crop_size, subtomo_folder, count_start, wedge=None)
-                
-                
-                for i in range(len(subtomos_names)):
-                    im_name = '{}/subvolume{}_{:0>6d}.mrc'.format(subtomo_folder, '', count_start+i)
-                    particle_list.append([im_name, cube_size, crop_size])
-
-        df = pd.DataFrame(particle_list, columns = ["rlnParticleName", "rlnCubeSize","rlnCropSize"])
-        starfile.write(df, subtomo_star)
-        #extract_list = [df['rlnParticleName'].tolist()]   
-
-        return  #extract_list
-    
-    def refine_legacy(self,
-        subtomo_star: str,
-        gpuID: str = None,
-        iterations: int = None,
-        data_dir: str = None,
-        pretrained_model: str = None,
-        log_level: str = "info",
-        output_dir: str='results',
-        remove_intermediate: bool =False,
-        select_subtomo_number: int = None,
-        ncpus: int = 8,
-        continue_from: str=None,
-        epochs: int = 10,
-        batch_size: int = None,
-        steps_per_epoch: int = None,
-
-        noise_level:  tuple=(0.05,0.10,0.15,0.20),
-        noise_start_iter: tuple=(11,16,21,26),
-        noise_mode: str = None,
-        noise_dir: str = None,
-        learning_rate: float = None,
-        drop_out: float = 0.3,
-        convs_per_depth: int = 3,
-        kernel: tuple = (3,3,3),
-        pool: tuple = None,
-        unet_depth: int = 3,
-        filter_base: int = None,
-        batch_normalization: bool = True,
-        normalize_percentile: bool = True,
-
-    ):
-
-        """
-        \n\n
-        IsoNet.py map_refine half.mrc FSC3D.mrc --mask mask.mrc --limit_res 3.5 [--gpuID] [--ncpus] [--output_dir] [--fsc_file]...
-        :param i: Input half map 1
-        :param aniso_file: 3DFSC file
-        :param mask: Filename of a user-provided mask
-        :param independent: Independently process half1 and half2, this will disable the noise2noise-based denoising but will provide independent maps for gold-standard FSC
-        :param gpuID: The ID of gpu to be used during the training.
-        :param alpha: Ranging from 0 to inf. Weighting between the equivariance loss and consistency loss.
-        :param beta: Ranging from 0 to inf. Weighting of the denoising. Large number means more denoising. 
-        :param limit_res: Important! Resolution limit for IsoNet recovery. Information beyong this limit will not be modified.
-        :param ncpus: Number of cpu.
-        :param output_dir: The name of directory to save output maps
-        :param pretrained_model: The neural network model with ".pt" to continue training or prediction. 
-        :param reference: Retain the low resolution information from the reference in the IsoNet refine process.
-        :param ref_resolution: The limit resolution to keep from the reference. Ususlly  10-20 A resolution. 
-        :param epochs: Number of epochs.
-        :param n_subvolume: Number of subvolumes 
-        :param predict_crop_size: The size of subvolumes, should be larger then the cube_size
-        :param cube_size: Size of cubes for training, should be divisible by 16, e.g. 32, 64, 80.
-        :param batch_size: Size of the minibatch. If None, batch_size will be the max(2 * number_of_gpu,4). batch_size should be divisible by the number of gpu.
-        :param acc_batches: If this value is set to 2 (or more), accumulate gradiant will be used to save memory consumption.  
-        :param learning_rate: learning rate. Default learning rate is 3e-4 while previous IsoNet tomography used 3e-4 as learning rate
-        """
-
-
-        from IsoNet.utils.dict2attr import Arg
-        logging.basicConfig(format='%(asctime)s, %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s'
-            ,datefmt="%H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])   
-        
-        
-        params = Arg(locals())
-        from IsoNet.bin.refine import run
-        run(params)
-        logging.info("Finished")
 
     def predict(self, star_file: str, 
                 model: str, 
@@ -535,16 +424,20 @@ class ISONET:
 
     def refine(self, 
                    star_file: str,
-                   gpuID: str=None,
-                   arch: str='unet-medium',
-                   ncpus: int=4, 
-                   method: str="isonet2-n2n",
                    output_dir: str="isonet_maps",
-                   input_column: str= 'rlnDeconvTomoName',
+
+                   gpuID: str=None,
+                   ncpus: int=4, 
+
+                   method: str="isonet2-n2n",
+                   arch: str='unet-medium',
                    pretrained_model: str=None,
+
                    cube_size: int=80,
-                
                    epochs: int=50,
+
+                   
+                   input_column: str= 'rlnDeconvTomoName',
                    batch_size: int=None, 
                    acc_batches: int=1,
                    loss_func: str = "L2",
@@ -559,9 +452,10 @@ class ISONET:
 
                    correct_CTF: bool=False,
                    isCTFflipped: bool=False,
+
+
                    with_predict: bool=True
                    ):
-        # TODO CS voltage Amplitutide contrast
         '''
         method: n2n isonet2 isonet2-n2n
         arch: unet-default, unet-small, unet-medium, HSFormer, vtunet
@@ -768,6 +662,140 @@ class ISONET:
             mrc.set_data(out_mat)
 
 
+
+    def extract_legacy(self,  
+                star_file: str,
+                input_column: str = "rlnDeconvTomoName",
+                subtomo_folder="subtomos", 
+                subtomo_star = "subtomos.star", 
+                cube_size = 64,
+                crop_size = None, 
+                tomo_idx = None,
+                uniform_extract=False):
+        
+        from IsoNet.utils.processing import normalize
+        from IsoNet.preprocessing.cubes import extract_with_overlap
+        from IsoNet.preprocessing.cubes import extract_subvolume, create_cube_seeds
+
+        if crop_size is None:
+            crop_size = cube_size + 16
+
+        tomo_star = starfile.read(star_file)
+        tomo_columns = tomo_star.columns.to_list()
+        create_folder(subtomo_folder, remove=True)
+        particle_list = []
+        for i, row in tomo_star.iterrows():
+            if tomo_idx is None or str(row.rlnIndex) in tomo_idx: 
+
+                # wedge 
+                # wedge_path = os.path.join(subtomo_folder, tomo_folder, 'wedge.mrc')
+                # if "rlnTiltFile" in list(df.columns):
+                #     self.psf(size=crop_size, tilt_file=row["rlnTiltFile"], output=wedge_path, between_tilts=between_tilts)
+                # else:
+                #     print(wedge_path)
+                #     self.psf(size=crop_size, output=wedge_path, between_tilts=between_tilts)
+                # if apply_wedge:
+                #     wedge, vs = read_mrc(wedge_path)
+                # else:
+                #     wedge = None
+
+                tomo_name = row[input_column]
+                tomo, _ = read_mrc(tomo_name)
+                tomo = normalize(tomo)
+
+                if "rlnMaskName" in tomo_columns and row["rlnMaskName"] not in [None, "None"]:
+                    mask_file = row["rlnMaskName"]
+                    with mrcfile.open(mask_file,permissive=True) as mrc:
+                        mask=mrc.data
+                else:
+                    mask = np.ones_like(tomo)
+                count_start = len(particle_list)
+                if uniform_extract:
+                    #TODO uniform extract with mask
+                    subtomos_names = extract_with_overlap(tomo, crop_size, cube_size, subtomo_folder, prefix='', wedge=None)
+                else:
+                    n_subtomo_per_tomo = row["rlnNumberSubtomo"]
+                    seeds=create_cube_seeds(tomo, n_subtomo_per_tomo, crop_size, mask)
+                    subtomos_names = extract_subvolume(tomo, seeds, crop_size, subtomo_folder, count_start, wedge=None)
+                
+                
+                for i in range(len(subtomos_names)):
+                    im_name = '{}/subvolume{}_{:0>6d}.mrc'.format(subtomo_folder, '', count_start+i)
+                    particle_list.append([im_name, cube_size, crop_size])
+
+        df = pd.DataFrame(particle_list, columns = ["rlnParticleName", "rlnCubeSize","rlnCropSize"])
+        starfile.write(df, subtomo_star)
+        #extract_list = [df['rlnParticleName'].tolist()]   
+
+        return  #extract_list
+    
+    def refine_legacy(self,
+        subtomo_star: str,
+        gpuID: str = None,
+        iterations: int = None,
+        data_dir: str = None,
+        pretrained_model: str = None,
+        log_level: str = "info",
+        output_dir: str='results',
+        remove_intermediate: bool =False,
+        select_subtomo_number: int = None,
+        ncpus: int = 8,
+        continue_from: str=None,
+        epochs: int = 10,
+        batch_size: int = None,
+        steps_per_epoch: int = None,
+
+        noise_level:  tuple=(0.05,0.10,0.15,0.20),
+        noise_start_iter: tuple=(11,16,21,26),
+        noise_mode: str = None,
+        noise_dir: str = None,
+        learning_rate: float = None,
+        drop_out: float = 0.3,
+        convs_per_depth: int = 3,
+        kernel: tuple = (3,3,3),
+        pool: tuple = None,
+        unet_depth: int = 3,
+        filter_base: int = None,
+        batch_normalization: bool = True,
+        normalize_percentile: bool = True,
+
+    ):
+
+        """
+        \n\n
+        IsoNet.py map_refine half.mrc FSC3D.mrc --mask mask.mrc --limit_res 3.5 [--gpuID] [--ncpus] [--output_dir] [--fsc_file]...
+        :param i: Input half map 1
+        :param aniso_file: 3DFSC file
+        :param mask: Filename of a user-provided mask
+        :param independent: Independently process half1 and half2, this will disable the noise2noise-based denoising but will provide independent maps for gold-standard FSC
+        :param gpuID: The ID of gpu to be used during the training.
+        :param alpha: Ranging from 0 to inf. Weighting between the equivariance loss and consistency loss.
+        :param beta: Ranging from 0 to inf. Weighting of the denoising. Large number means more denoising. 
+        :param limit_res: Important! Resolution limit for IsoNet recovery. Information beyong this limit will not be modified.
+        :param ncpus: Number of cpu.
+        :param output_dir: The name of directory to save output maps
+        :param pretrained_model: The neural network model with ".pt" to continue training or prediction. 
+        :param reference: Retain the low resolution information from the reference in the IsoNet refine process.
+        :param ref_resolution: The limit resolution to keep from the reference. Ususlly  10-20 A resolution. 
+        :param epochs: Number of epochs.
+        :param n_subvolume: Number of subvolumes 
+        :param predict_crop_size: The size of subvolumes, should be larger then the cube_size
+        :param cube_size: Size of cubes for training, should be divisible by 16, e.g. 32, 64, 80.
+        :param batch_size: Size of the minibatch. If None, batch_size will be the max(2 * number_of_gpu,4). batch_size should be divisible by the number of gpu.
+        :param acc_batches: If this value is set to 2 (or more), accumulate gradiant will be used to save memory consumption.  
+        :param learning_rate: learning rate. Default learning rate is 3e-4 while previous IsoNet tomography used 3e-4 as learning rate
+        """
+
+
+        from IsoNet.utils.dict2attr import Arg
+        logging.basicConfig(format='%(asctime)s, %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s'
+            ,datefmt="%H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])   
+        
+        
+        params = Arg(locals())
+        from IsoNet.bin.refine import run
+        run(params)
+        logging.info("Finished")
 
 
     def check(self):

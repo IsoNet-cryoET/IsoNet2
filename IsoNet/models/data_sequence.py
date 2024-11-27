@@ -1,8 +1,6 @@
 import numpy as np
 import torch
 import os
-import torch.nn as nn
-from tqdm import tqdm
 from torch.utils.data.dataset import Dataset
 from IsoNet.utils.fileio import read_mrc
 import starfile
@@ -75,16 +73,19 @@ class Train_sets_n2n(Dataset):
             self.n_samples_per_tomo=row['rlnNumberSubtomo']
 
             mask = self._load_statistics_and_mask(row, column_name_list)
-
-            coords = self.create_random_coords(mask.shape, mask, self.n_samples_per_tomo)
+            if row['rlnBoxFile'] in [None, "None"]:
+                coords = self.create_random_coords(mask.shape, mask, self.n_samples_per_tomo)
+            else:
+                coords = np.loadtxt(row['rlnBoxFile'])
             self.coords.append(coords)
 
-            if self.method in ['isonet2','isonet2-n2n']:
-                min_angle, max_angle = row['rlnTiltMin'], row['rlnTiltMax']
-                self.mw_list.append(self._compute_missing_wedge(self.sample_shape[0], min_angle, max_angle))
-                CTF_vol, wiener_vol = self._compute_CTF_vol(row)
-                self.wiener_list.append(wiener_vol)
-                self.CTF_list.append(CTF_vol)
+            # if self.method in ['isonet2','isonet2-n2n']:
+            # compute for all the modes
+            min_angle, max_angle = row['rlnTiltMin'], row['rlnTiltMax']
+            self.mw_list.append(self._compute_missing_wedge(self.sample_shape[0], min_angle, max_angle))
+            CTF_vol, wiener_vol = self._compute_CTF_vol(row)
+            self.wiener_list.append(wiener_vol)
+            self.CTF_list.append(CTF_vol)
 
 
     def _load_statistics_and_mask(self, row, column_name_list):
@@ -162,17 +163,14 @@ class Train_sets_n2n(Dataset):
         # defocus in Anstron convert to um
         defocus = row['rlnDefocus']/10000.
         from IsoNet.utils.CTF import get_wiener_3d,get_ctf_3d
-        ctf3d = get_ctf_3d(angpix=row['rlnPixelSize'], voltage=300, cs=2.7, defocus=defocus,\
-                                    phaseflipped=self.isCTFflipped, phaseshift=0,length=self.cube_size)
-        wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=300, cs=2.7, defocus=defocus,\
+        ctf3d = get_ctf_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
+                                    phaseflipped=self.isCTFflipped, phaseshift=0, amplitude=row['rlnAmplitudeContrast'],length=self.cube_size)
+        wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
                                   snrfalloff=row['rlnSnrFalloff'], deconvstrength=row['rlnDeconvStrength'], highpassnyquist=0.02, \
-                                    phaseflipped=self.isCTFflipped, phaseshift=0,length=self.cube_size)
+                                    phaseflipped=self.isCTFflipped, phaseshift=0, amplitude=row['rlnAmplitudeContrast'], length=self.cube_size)
         return ctf3d, wiener3d
 
-    def augment(self, x, y):
-        """
-        Data augmentation by randomly swapping input and target volumes.
-        """
+    def random_swap(self, x, y):
         if np.random.rand() > 0.5:
             return y, x
         return x, y
@@ -193,19 +191,19 @@ class Train_sets_n2n(Dataset):
         tomo_index, coord_index = divmod(idx, self.n_samples_per_tomo)
         z, y, x = self.coords[tomo_index][coord_index]
 
-        if self.method in ['n2n', 'isonet2','isonet2-n2n']:
-            even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
-            odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
+        # if self.method in ['n2n', 'isonet2','isonet2-n2n']:
+        even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
+        odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
 
-            x, y = self.augment(
-                np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...], 
-                np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
-            )
+        x, y = self.random_swap(
+            np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...], 
+            np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
+        )
 
-            if self.method in ['isonet2','isonet2-n2n']:
-                return x, y, self.mw_list[tomo_index][np.newaxis, ...], \
-                    self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...]
-            return x, y
+        # if self.method in ['isonet2','isonet2-n2n']:
+        return x, y, self.mw_list[tomo_index][np.newaxis, ...], \
+                self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...]
+        # return x, y
         
         # elif self.method == 'spisonet-single':
         #     even_subvolume = self.load_and_normalize(self.tomo_paths, tomo_index, z, y, x, eo_idx=0)
