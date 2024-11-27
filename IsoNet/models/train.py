@@ -8,18 +8,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 from IsoNet.utils.utils import debug_matrix
 import random
-from IsoNet.models.masked_loss import masked_loss,simple_loss
+from IsoNet.models.masked_loss import masked_loss
 from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
 import shutil
 
 
-# def apply_filter(data, mwshift):
-#     # mwshift [x, y, z]
-#     # data [x, y, z]
-#     t1 = mwshift*torch.fft.fftn(data)
-#     return torch.real(torch.fft.ifftn(t1))#.astype(np.float32)
 def rotate_vol(volume, rotation):
     # B, C, Z, Y, X
     new_vol = torch.rot90(volume, rotation[0][1], [rotation[0][0][0]-3,rotation[0][0][1]-3])
@@ -33,23 +28,7 @@ def apply_F_filter_torch(input_map,F_map):
     out =  np.real(out).real
     return out
 
-
-def ddp_train(rank, world_size, port_number, model, training_params):
-    #data_path, batch_size, acc_batches, epochs, steps_per_epoch, learning_rate, mixed_precision, model_path
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = port_number
-    #os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-    
-
-    if world_size > 1:
-        dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
-        torch.cuda.set_device(rank)
-        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        model = model.to(rank)
-        model = DDP(model, device_ids=[rank])
-    else:
-        model = model.to(rank)
-
+def prepare_data_loader(training_params, world_size):
     batch_size_gpu = training_params['batch_size'] // (training_params['acc_batches'] * world_size)
 
     #### preparing data
@@ -60,30 +39,49 @@ def ddp_train(rank, world_size, port_number, model, training_params):
 
     elif training_params['method'] in ['n2n', 'isonet2', 'isonet2-n2n']:
         from IsoNet.models.data_sequence import Train_sets_n2n
-        if rank == 0:
-            print("calculate subtomograms position")
+
         train_dataset = Train_sets_n2n(training_params['star_file'],method=training_params['method'], 
                                        cube_size=training_params['cube_size'], input_column=training_params['input_column'],  isCTFflipped=training_params['input_column'])
         
-
     if world_size > 1:
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
     else:
-        train_sampler = None  # No sampler for single GPU
+        train_sampler = None
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
         num_workers=training_params["ncpus"], pin_memory=True, sampler=train_sampler)
     
+    return train_loader, train_sampler
+
+def ddp_train(rank, world_size, port_number, model, training_params):
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = port_number
+    #os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+    
+    if world_size > 1:
+        dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
+        torch.cuda.set_device(rank)
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+        model = model.to(rank)
+        model = DDP(model, device_ids=[rank])
+    else:
+        model = model.to(rank)
+
     if training_params['compile_model'] == True:
         if torch.__version__ >= "2.0.0":
             GPU_capability = torch.cuda.get_device_capability()
             if GPU_capability[0] >= 7:
                 torch.set_float32_matmul_precision('high')
                 model = torch.compile(model)
+
+
+    if rank == 0:
+        print("calculate subtomograms position")
+    train_loader, train_sampler = prepare_data_loader(training_params, world_size)
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
-
 
     if training_params['loss_func'] == "L2":
         loss_func = nn.MSELoss()
@@ -98,45 +96,46 @@ def ddp_train(rank, world_size, port_number, model, training_params):
 
     for epoch in range(training_params['epochs']):
         if train_sampler:
+            # What is this
             train_sampler.set_epoch(epoch)
         model.train()
+
         with tqdm(total=total_steps, unit="batch", disable=(rank!=0)) as progress_bar:
-            
             # have to convert to tensor because reduce needed it
             average_loss = torch.tensor(0, dtype=torch.float).to(rank)
             average_inside_mw_loss = torch.tensor(0, dtype=torch.float).to(rank)
             average_outside_mw_loss = torch.tensor(0, dtype=torch.float).to(rank)
+
             for i_batch, batch in enumerate(train_loader):  
-                
+                x1, x2, mw, ctf, wiener = batch[0].cuda(), batch[1].cuda(), \
+                                              batch[2].cuda(), batch[3].cuda(), batch[4].cude()
+                optimizer.zero_grad(set_to_none=True)          
+
                 if training_params['method'] in ["n2n", "regular"]:
-                    x1, x2 = batch[0], batch[1]
-                    x1 = x1.cuda()
-                    x2 = x2.cuda()
-                    optimizer.zero_grad(set_to_none=True)          
+
                     if training_params["mixed_precision"]:
                         with torch.cuda.amp.autocast():  # Mixed precision forward pass
                             preds = model(x1)
+                            if training_params['correct_CTF']:
+                                # need to test this
+                                preds = apply_F_filter_torch(preds, ctf)
+                                x2 = apply_F_filter_torch(x2, wiener)   
                             loss = loss_func(x2, preds)    
                     else:                            
                         preds = model(x1)  
+                        if training_params['correct_CTF']:
+                            preds = apply_F_filter_torch(preds, ctf)
+                            x2 = apply_F_filter_torch(x2, wiener)
                         loss = loss_func(x2,preds)
 
                 elif training_params['method'] in ["isonet2",'isonet2-n2n']:
-                    # x [B, C, Z, Y, X]
-                    x1, x2, mw = batch[0].cuda(), batch[1].cuda(), batch[2].cuda()
-
-                    if training_params['correct_CTF']:
-                        ctf =  batch[3].cuda()                       
-                        wiener = batch[4].cuda()
 
                     if training_params['random_rotation'] == True:
-                        rotate = rotate_vol_around_axis_torch
+                        rotate_func = rotate_vol_around_axis_torch
                         rot = sample_rot_axis_and_angle()
                     else:
-                        rotate = rotate_vol
+                        rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
-
-                    optimizer.zero_grad(set_to_none=True)
 
                     std_org = x1.std()
                     mean_org = x1.mean()
@@ -148,7 +147,8 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                                 preds = model(x1)
                         else:
                             preds = model(x1)
-
+                    
+                    # need to confirm whether to float32 is necessary
                     preds = preds.to(torch.float32)
                     if training_params['correct_CTF']:
                         preds = apply_F_filter_torch(preds, ctf)
@@ -158,18 +158,17 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     else:
                         subtomos = apply_F_filter_torch(preds, 1-mw) + x1
 
-                    rotated_subtomo = rotate(subtomos, rot)
+                    rotated_subtomo = rotate_func(subtomos, rot)
                     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-                    rotated_mw = rotate(mw, rot)
-                    x2_rot_0 = rotate(x2, rot)
+                    rotated_mw = rotate_func(mw, rot)
+                    x2_rot_nowiener = rotate_func(x2, rot)
                     
-
                     if training_params['correct_CTF']:
-                        x2_rot = apply_F_filter_torch(x2_rot_0, wiener)
+                        x2_rot = apply_F_filter_torch(x2_rot_nowiener, wiener)
                     else:
-                        x2_rot = x2_rot_0
+                        x2_rot = x2_rot_nowiener
                         
-
+                    # This normalization need to be tested
                     mw_rotated_subtomos = (mw_rotated_subtomos - mw_rotated_subtomos.mean())/mw_rotated_subtomos.std() \
                                                 *std_org + mean_org
                     
@@ -182,10 +181,6 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                                 loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
                             else:
                                 loss =  inside_mw_loss
-                            # if training_params['gamma'] > 0:
-                            #     loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
-                            # else:
-                            #     loss = simple_loss(pred_y,x2_rot,rotated_mw)
                     else:
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
                         outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
@@ -193,10 +188,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                             loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
                         else:
                             loss =  inside_mw_loss
-                        # if training_params['gamma'] > 0:
-                        #     loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, mw_weight=training_params['gamma'])
-                        # else:
-                        #     loss = simple_loss(pred_y,x2_rot,rotated_mw)
+
                     # if rank == np.random.randint(0, world_size):
                     #     debug_matrix(x1, filename='debug_x1.mrc')
                     #     debug_matrix(subtomos, filename='debug_subtomos.mrc')
@@ -216,7 +208,7 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     scaler.scale(loss).backward()  # Scaled backward pass
                 else:
                     loss.backward()  # Normal backward pass
-                #loss.backward()
+
                 loss_item = loss.item()
                 inside_mw_loss_item = inside_mw_loss.item()
                 outside_mw_loss_item = outside_mw_loss.item()
@@ -229,9 +221,11 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                         scaler.update()
                     else:
                         optimizer.step()
+
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):
                    progress_bar.set_postfix({"Loss": loss_item,"inside_mw_loss": inside_mw_loss_item,"outside_mw_loss": outside_mw_loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
                    progress_bar.update()
+
                 average_loss += loss_item
                 average_inside_mw_loss += inside_mw_loss_item
                 average_outside_mw_loss += outside_mw_loss_item
@@ -240,7 +234,6 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     break
         scheduler.step()
 
-        # Normalize loss across GPUs
         if world_size > 1:
             dist.barrier()
             dist.reduce(average_loss, dst=0)
@@ -249,15 +242,6 @@ def ddp_train(rank, world_size, port_number, model, training_params):
         average_loss /= (world_size * (i_batch + 1))
         average_inside_mw_loss /= (world_size * (i_batch + 1))
         average_outside_mw_loss /= (world_size * (i_batch + 1))
-        # else:
-        #     average_loss /= (i_batch + 1)
-        #     inside_mw_loss /= (world_size * (i_batch + 1))
-        #     outside_mw_loss /= (world_size * (i_batch + 1))
-                                      
-        
-        #dist.reduce(average_loss, dst=0)
-
-        #average_loss =  average_loss / dist.get_world_size()
 
         if rank == 0:
             training_params["metrics"]["average_loss"].append(average_loss.cpu().numpy()) 
@@ -286,16 +270,20 @@ def ddp_train(rank, world_size, port_number, model, training_params):
                     'cube_size': training_params['cube_size']
                     }, outmodel_path)
             else:
-                torch.save({
+                model_params = model.state_dict()
+            
+            torch.save({
                     'method':training_params['method'],
                     'arch':training_params['arch'],
                     'model_state_dict': model.state_dict(),
                     'metrics': training_params["metrics"],
                     'cube_size': training_params['cube_size']
-                    }, outmodel_path)                
+                    }, outmodel_path)
+                        
             if (epoch+1)%training_params['T_max'] == 0:
                 outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_epoch{epoch}.pt"
                 shutil.copy(outmodel_path, outmodel_path_epoch)
+
     if world_size > 1:
         dist.destroy_process_group()
 
@@ -327,9 +315,9 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, wedge
                 mw = torch.from_numpy(wedge[np.newaxis,np.newaxis,:,:,:]).to(rank)
                 batch_input = apply_F_filter_torch(batch_input, mw)
             batch_output = model(batch_input).cpu()  # Move output to CPU immediately
-            if rank == 1:
-                debug_matrix(batch_input, filename='debug1_predict1.mrc')
-                debug_matrix(batch_output, filename='debug1_predict2.mrc')
+            # if rank == 1:
+            #     debug_matrix(batch_input, filename='debug1_predict1.mrc')
+            #     debug_matrix(batch_output, filename='debug1_predict2.mrc')
 
             outputs.append(batch_output)
 

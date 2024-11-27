@@ -38,21 +38,21 @@ def get_ctf2d(pixelsize, voltage, cs, defocus, amplitude, phaseshift, bfactor, l
     ramp = np.interp(r, data, ctf).astype(np.float32)
     return ramp
 
-def get_wiener_1d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift, length):
+def get_wiener_1d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift, amplititude, length):
     #data = np.arange(0,1+1/2047.,1/2047.)
     data = np.linspace(0,1,length)
     highpass = np.minimum(np.ones(data.shape[0]), data/highpassnyquist) * np.pi
     highpass = 1-np.cos(highpass)
     eps = 1e-6
     snr = np.exp(-data * snrfalloff * 100 / angpix) * (10**deconvstrength) * highpass + eps
-    ctf = get_ctf1d(pixelsize=angpix, voltage=voltage, cs=cs, defocus=defocus, amplitude=0.1, phaseshift=phaseshift, bfactor=0, length=length)
+    ctf = get_ctf1d(pixelsize=angpix, voltage=voltage, cs=cs, defocus=defocus, amplitude=amplititude, phaseshift=phaseshift, bfactor=0, length=length)
     if phaseflipped:
         ctf = abs(ctf)
     wiener = ctf/(ctf*ctf+1/snr)
     return wiener
 
-def get_wiener_3d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift, length):
-    wiener1d = get_wiener_1d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift, length)
+def get_wiener_3d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift,amplititude, length):
+    wiener1d = get_wiener_1d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift,amplititude, length)
     
 
     s1 = - int(length / 2)
@@ -89,8 +89,8 @@ def get_wiener_3d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, high
     ramp = np.interp(r, np.linspace(0,1,length), wiener1d).astype(np.float32)
     return ramp
 
-def get_ctf_3d(angpix, voltage, cs, defocus, phaseflipped, phaseshift, length):
-    ctf = get_ctf1d(pixelsize=angpix, voltage=voltage, cs=cs, defocus=defocus, amplitude=0.1, phaseshift=phaseshift, bfactor=0, length=length)
+def get_ctf_3d(angpix, voltage, cs, defocus, phaseflipped, phaseshift, amplitude, length):
+    ctf = get_ctf1d(pixelsize=angpix, voltage=voltage, cs=cs, defocus=defocus, amplitude=amplitude, phaseshift=phaseshift, bfactor=0, length=length)
     if phaseflipped:
         ctf = abs(ctf)
 

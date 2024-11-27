@@ -1,8 +1,6 @@
 import logging
-from IsoNet.utils.processing import normalize
 from IsoNet.utils.Fourier import apply_F_filter
 from multiprocessing import Pool
-import numpy as np
 from functools import partial
 from IsoNet.utils.rotations import rotation_list
 from IsoNet.utils.fileio import read_mrc, write_mrc
