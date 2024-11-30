@@ -57,8 +57,8 @@ class Train_sets_n2n(Dataset):
         self.CTF_list = []
         self.n_tomos = len(self.star)
         self.input_column = input_column
-        self.isCTFflipped = isCTFflipped
-        self.split = "full"
+        self.split = split
+
 
         # Initialize data from starfile
         self._initialize_data()
@@ -70,7 +70,10 @@ class Train_sets_n2n(Dataset):
         column_name_list = self.star.columns.tolist()
 
         for _, row in self.star.iterrows():
+            
             self.n_samples_per_tomo=row['rlnNumberSubtomo']
+            if self.split in ["top", "bottom"]:
+                self.n_samples_per_tomo = self.n_samples_per_tomo//2
 
             mask = self._load_statistics_and_mask(row, column_name_list)
             if row['rlnBoxFile'] in [None, "None"]:
@@ -143,7 +146,6 @@ class Train_sets_n2n(Dataset):
         elif self.split == "bottom":
             mask[:,0:half_y+half_size,:] = 0
             mask[:,y_max-half_size:y_max,:] = 0
-
         valid_inds = np.where(mask)
 
         sample_inds = np.random.choice(len(valid_inds[0]), n_samples, replace=(len(valid_inds[0]) < n_samples))
@@ -164,10 +166,10 @@ class Train_sets_n2n(Dataset):
         defocus = row['rlnDefocus']/10000.
         from IsoNet.utils.CTF import get_wiener_3d,get_ctf_3d
         ctf3d = get_ctf_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
-                                    phaseflipped=self.isCTFflipped, phaseshift=0, amplitude=row['rlnAmplitudeContrast'],length=self.cube_size)
+                                    phaseflipped=False, phaseshift=0, amplitude=row['rlnAmplitudeContrast'],length=self.cube_size)
         wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
                                   snrfalloff=row['rlnSnrFalloff'], deconvstrength=row['rlnDeconvStrength'], highpassnyquist=0.02, \
-                                    phaseflipped=self.isCTFflipped, phaseshift=0, amplitude=row['rlnAmplitudeContrast'], length=self.cube_size)
+                                    phaseflipped=False, phaseshift=0, amplitude=row['rlnAmplitudeContrast'], length=self.cube_size)
         return ctf3d, wiener3d
 
     def random_swap(self, x, y):

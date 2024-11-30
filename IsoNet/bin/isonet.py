@@ -125,7 +125,7 @@ class ISONET:
             #TODO decide the defocus file format from CTFFIND and GCTF
             print("read from CTFFIND result not implimented")
 
-        add_param("None", "rlnSnrFalloff",1)
+        add_param("None", "rlnSnrFalloff",0)
         add_param("None", "rlnDeconvStrength",1)
         add_param("None", "rlnDeconvTomoName","None")
 
@@ -324,10 +324,13 @@ class ISONET:
 
     def predict(self, star_file: str, 
                 model: str, 
+                model2: str=None,
                 output_dir: str='./corrected_tomos', 
                 gpuID: str = None, 
                 input_column: str = "rlnDeconvTomoName",
                 apply_mw_x1: bool=False, 
+                correct_CTF: bool=False,
+                isCTFflipped: bool=False,
                 log_level: str="info", 
                 tomo_idx=None):
         """
@@ -353,74 +356,105 @@ class ISONET:
 
         ngpus, gpuID, gpuID_list = parse_gpu(gpuID)
 
-        from IsoNet.models.network import Net
+        from IsoNet.models.network import Net,DuoNet
         from IsoNet.utils.fileio import write_mrc
         import starfile
         import numpy as np
         from IsoNet.utils.processing import normalize
 
         create_folder(output_dir, remove=False)
-        network = Net(pretrained_model=model,state='predict')
         cube_size = network.cube_size
         inner_cube_size = cube_size//3*2
+        
+        network = Net(pretrained_model=model,state='predict')
 
+        if model2 not in ['None', None]:
+            network = DuoNet(pretrained_model1=model, pretrained_model2=model2,state='predict')
 
         star = starfile.read(star_file)
+
         out_column = "rlnCorrectedTomoName"
         if network.method == 'n2n':
             out_column = "rlnDenoisedTomoName"
-
         if out_column not in star.columns:
             star[out_column] = None
 
-        if network.method in ['regular','isonet']:
-            for index, tomo_row in star.iterrows():
-                if apply_mw_x1:
-                    min_angle, max_angle = float(tomo_row['rlnTiltMin']), float(tomo_row['rlnTiltMax'])
-                    from IsoNet.utils.missing_wedge import mw3D
-                    mw = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
+        def normalize_and_predict(network_model, tomo_name, F_mask=None):
+            tomo, _ = read_mrc(tomo_name)
+            tomo = normalize(tomo*-1,percentile=False)
+            outData = network_model.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, \
+                                          F_mask=F_mask).astype(np.float32)
+            if len(outData) == 2:
+                return [x*-1 for x in outData]
+            else:
+                return outData * -1
+        
+        def get_base_filename(tomo_name):
+            file_base_name = os.path.basename(tomo_name)
+            file_name, file_extension = os.path.splitext(file_base_name)
+            file_name = f"{output_dir}/corrected_{network.method}_{network.arch}_{file_name}"
+            return file_name
+        
+        if isCTFflipped == True and correct_CTF == True:
+            print("Do not need to correct_CTF in prediction when tomogram is ctf phase-flipped")
+            print("Setting correct_CTF to False here")
+            print("This is expected, do not need to worry")
+            correct_CTF = False
+
+        for index, tomo_row in star.iterrows():
+            # wedgevolume
+            if apply_mw_x1:
+                min_angle, max_angle = float(tomo_row['rlnTiltMin']), float(tomo_row['rlnTiltMax'])
+                from IsoNet.utils.missing_wedge import mw3D
+                F_mask = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
+            else:
+                F_mask = None
+            
+
+            if correct_CTF:
+                from IsoNet.utils.CTF import get_ctf_3d
+                defocus = tomo_row['rlnDefocus']/10000.
+                ctf3d = get_ctf_3d(angpix=tomo_row['rlnPixelSize'], voltage=tomo_row['rlnVoltage'], \
+                                   cs=tomo_row['rlnSphericalAberration'], defocus=defocus, phaseflipped=False,\
+                                   phaseshift=0, amplitude=tomo_row['rlnAmplitudeContrast'],length=cube_size)
+                ctf3d = np.sign(ctf3d)
+                if F_mask in [None,"None"]:
+                    F_mask = ctf3d
                 else:
-                    mw = None
-                tomo, _ = read_mrc(tomo_row[input_column])
-                tomo = normalize(tomo*-1,percentile=False)
-                outData = network.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, wedge=mw).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
-                file_base_name = os.path.basename(tomo_row[input_column])
-                file_name, file_extension = os.path.splitext(file_base_name)
-                out_file_name = f"{output_dir}/corrected_{network.method}_{network.arch}_{file_name}.mrc"
-                write_mrc(out_file_name, outData*-1)        
-                star.at[index, out_column] = out_file_name
-            starfile.write(star,star_file)
+                    F_mask = ctf3d*F_mask
 
-        if network.method in ['n2n','isonet2-n2n']:
 
-            for index, tomo_row in star.iterrows():
-                if apply_mw_x1:
-                    min_angle, max_angle = float(tomo_row['rlnTiltMin']), float(tomo_row['rlnTiltMax'])
-                    from IsoNet.utils.missing_wedge import mw3D
-                    mw = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
+            if network.method in ['regular']:
+                outData_full = normalize_and_predict(network, tomo_row[input_column],F_mask=F_mask)
+                base_filename = get_base_filename(tomo_row[input_column])
+
+            if network.method in ['n2n','isonet2-n2n','isonet2']:
+                base_filename = get_base_filename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
+
+                if model2 in ['None', None]:
+                    out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
+                    out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
+                    outData_full = (out_half1 + out_half2) * (0.5)
                 else:
-                    mw = None
-                tomo1, _ = read_mrc(tomo_row["rlnTomoReconstructedTomogramHalf1"])
-                tomo1 = normalize(tomo1*-1,percentile=False)
-                outData1 = network.predict_map(tomo1, output_dir,cube_size=inner_cube_size, crop_size=cube_size, wedge=mw).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
+                    out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
+                    out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
+                    
+                    out_file_net1_half1 = f"{base_filename}_net1_half1.mrc"
+                    out_file_net2_half1 = f"{base_filename}_net2_half1.mrc"
+                    out_file_net1_half2 = f"{base_filename}_net1_half2.mrc"
+                    out_file_net2_half2 = f"{base_filename}_net2_half2.mrc"
+                    
+                    write_mrc(out_file_net1_half1, out_half1[0])
+                    write_mrc(out_file_net2_half1, out_half1[1])
+                    write_mrc(out_file_net1_half2, out_half2[0])
+                    write_mrc(out_file_net2_half2, out_half2[1])
 
-                tomo2, _ = read_mrc(tomo_row["rlnTomoReconstructedTomogramHalf2"])
-                tomo2 = normalize(tomo2*-1,percentile=False)
-                outData2 = network.predict_map(tomo2, output_dir,cube_size=inner_cube_size, crop_size=cube_size, wedge=mw).astype(np.float32) #train based on init model and save new one as model_iter{num_iter}.h5
-                
-                outData = (outData1 + outData2) * (-0.5)
-                file_base_name = os.path.basename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
-                file_name, file_extension = os.path.splitext(file_base_name)
-                out_file_name = f"{output_dir}/corrected_{network.method}_{network.arch}_{file_name}.mrc"
-                write_mrc(out_file_name, outData)    
+                    outData_full = (out_half1[0] + out_half1[1] + out_half2[0] + out_half2[1])*0.25
 
-                variance_map = (outData1-outData2)**2
-                out_file_name_variance = f"{output_dir}/variance_{network.method}_{network.arch}_{file_name}.mrc"
-                write_mrc(out_file_name_variance, variance_map)                     
-
-   
-                star.at[index, out_column] = out_file_name
-            starfile.write(star,star_file)            
+            out_file_name = f"{base_filename}.mrc"
+            write_mrc(out_file_name, outData_full)
+            star.at[index, out_column] = out_file_name            
+        starfile.write(star,star_file)
 
     def refine(self, 
                    star_file: str,
@@ -432,6 +466,7 @@ class ISONET:
                    method: str="isonet2-n2n",
                    arch: str='unet-medium',
                    pretrained_model: str=None,
+                   pretrained_model2: str=None,
 
                    cube_size: int=80,
                    epochs: int=50,
@@ -454,7 +489,8 @@ class ISONET:
                    isCTFflipped: bool=False,
 
 
-                   with_predict: bool=True
+                   with_predict: bool=True,
+                   split_halves: bool=False
                    ):
         '''
         method: n2n isonet2 isonet2-n2n
@@ -478,8 +514,7 @@ class ISONET:
         steps_per_epoch = 200000000
 
         print(f"method {method}")
-        from IsoNet.models.network import Net
-        network = Net(method=method, arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
+
         training_params = {
             "method":method,
             "input_column": input_column,
@@ -504,12 +539,25 @@ class ISONET:
             'correct_CTF':correct_CTF,
             "isCTFflipped": isCTFflipped
         }
-
-        network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
+        if split_halves:
+            from IsoNet.models.network import DuoNet
+            network = DuoNet(method=method, arch=arch, cube_size=cube_size, pretrained_model1=pretrained_model, pretrained_model2 = pretrained_model2, state='train')
+            network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5            
+        else:
+            training_params['split'] = "full"
+            from IsoNet.models.network import Net
+            network = Net(method=method, arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
+            network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
+            
         if with_predict:
-            model_file = f"{output_dir}/network_{arch}_{cube_size}.pt"
-            self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID) 
-            #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
+            if split_halves:
+                model_file1 = f"{output_dir}/network_{arch}_{cube_size}_top.pt"
+                model_file2 = f"{output_dir}/network_{arch}_{cube_size}_bottom.pt"
+                self.predict(star_file=star_file, model=model_file1,model2=model_file2, output_dir=output_dir, gpuID=gpuID) 
+            else:
+                model_file = f"{output_dir}/network_{arch}_{cube_size}.pt"
+                self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID) 
+                #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
     def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):
         '''

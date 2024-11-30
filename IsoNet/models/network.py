@@ -154,43 +154,37 @@ class Net:
         model_scripted = torch.jit.script(self.model) # Export to TorchScript
         model_scripted.save(path) # Save
 
-    #def train(self, data_path, output_dir, batch_size=None, outmodel_path='tmp.pt',
-    #          epochs = 10, steps_per_epoch=200, acc_batches =2,
-    #          mixed_precision=False, learning_rate=3e-4):
+
     def train(self, training_params):
 
         self.model.zero_grad()
 
-        #if os.path.exists(model_path):
-        #    os.remove(model_path)
+
         training_params['metrics'] = self.metrics
+
+        #### preparing data
+        # from chatGPT: The DistributedSampler shuffles the indices of the entire dataset, not just the portion assigned to a specific GPU. 
+        if training_params['method'] == 'regular':
+            from IsoNet.models.data_sequence import Train_sets_regular
+            train_dataset = Train_sets_regular(training_params['star_file'])
+
+        elif training_params['method'] in ['n2n', 'isonet2', 'isonet2-n2n']:
+            from IsoNet.models.data_sequence import Train_sets_n2n
+            train_dataset = Train_sets_n2n(training_params['star_file'],method=training_params['method'], 
+                                        cube_size=training_params['cube_size'], input_column=training_params['input_column'],\
+                                        split=training_params['split'])
         try: 
-            # mp.spawn(self.ddp_train, args=(self.world_size, self.port_number, self.model,
-            #                            data_path, batch_size, acc_batches, epochs, steps_per_epoch, learning_rate, 
-            #                            mixed_precision, outmodel_path), nprocs=self.world_size)
-            # mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model,
-            #                            training_params), nprocs=self.world_size)
             if self.world_size > 1:
-                # For multiple GPUs, use DistributedDataParallel and spawn multiple processes
-                mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, training_params), nprocs=self.world_size)
+                mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, train_dataset, training_params), nprocs=self.world_size)
             else:
-                # For single GPU, directly call ddp_train without using DDP
-                ddp_train(0, self.world_size, self.port_number, self.model, training_params)
+                ddp_train(0, self.world_size, self.port_number, self.model, train_dataset, training_params)
 
         except KeyboardInterrupt:
            logging.info('KeyboardInterrupt: Terminating all processes...')
            dist.destroy_process_group() 
            os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
-        self.load(f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}.pt")
-        # checkpoint = torch.load(training_params['outmodel_path'])
-        # self.metrics['average_loss'].extend(checkpoint['average_loss'])
-        # self.model.load_state_dict(checkpoint['model_state_dict'])
-        # torch.save({
-        #     'arch':self.arch,
-        #     'method':self.method,
-        #     'model_state_dict': checkpoint['model_state_dict'],
-        #     'average_loss': self.metrics['average_loss'],
-        #     }, training_params['outmodel_path'])
+        self.load(f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt")
+
         
     def predict_subtomos(self, settings):
         # This is legacy
@@ -214,22 +208,23 @@ class Net:
                                                      -outData[i])
         return outData
 
-    def predict(self, data, tmp_data_path, wedge=None):    
+    def predict(self, data, tmp_data_path, F_mask=None):    
         data = data[:,np.newaxis,:,:].astype(np.float32)
         data = torch.from_numpy(data)
         print('data_shape',data.shape)
-        mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path, wedge), nprocs=self.world_size)
+        mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path,\
+                                     F_mask), nprocs=self.world_size)
         outData = np.load(tmp_data_path)
         outData = outData.squeeze()
         return outData
 
     
-    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, wedge=None):
+    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, F_mask=None):
         # change edge width from 7 to 5 to reduce computing
         reform_ins = reform3D(data,cube_size,crop_size,5)
         data = reform_ins.pad_and_crop()        
         tmp_data_path = f"{output_dir}/tmp.npy"
-        outData = self.predict(data, tmp_data_path=tmp_data_path, wedge=wedge)
+        outData = self.predict(data, tmp_data_path=tmp_data_path, F_mask=F_mask)
         outData = outData.squeeze()
         outData=reform_ins.restore(outData)
         os.remove(tmp_data_path)
@@ -240,25 +235,29 @@ class DuoNet:
     def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model1=None, pretrained_model2=None, state="train"):
         self.net1 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model1, state=state)
         self.net2 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model2, state=state)
+        self.method = method
+        self.arch = arch
 
     def load(self, pretrained_model1, pretrained_model2):
         self.net1.load(pretrained_model1)
         self.net2.load(pretrained_model2)
+        self.method = self.net1.method
+        self.arch = self.net1.arch
     
     def train(self, training_params):
         assert training_params["epochs"] % training_params["T_max"] == 0
 
         epochs = training_params["epochs"]
-        T_max = 10
+        T_max = training_params["T_max"]
         T_steps = training_params["epochs"] // training_params["T_max"] 
 
         training_params1 = training_params.copy()
         training_params1['split'] = "top"
-        training_params1['epochs'] = T_steps
+        training_params1['epochs'] = T_max
 
         training_params2 = training_params.copy()
         training_params2['split'] = "bottom"
-        training_params2['epochs'] = T_steps
+        training_params2['epochs'] = T_max
 
         for i in range(T_steps):
             print(f"training the top half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
@@ -267,7 +266,7 @@ class DuoNet:
             self.net2.train(training_params2)
 
 
-    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, wedge=None):
-        predicted_map1 = self.net1.predict(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, wedge=wedge)
-        predicted_map2 = self.net2.predict(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, wedge=wedge)
-        return predicted_map1, predicted_map2
+    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, F_mask=None):
+        predicted_map1 = self.net1.predict(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
+        predicted_map2 = self.net2.predict(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
+        return [predicted_map1, predicted_map2]
