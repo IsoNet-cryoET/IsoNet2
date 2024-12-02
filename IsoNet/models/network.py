@@ -128,7 +128,6 @@ class Net:
         self.method = checkpoint['method']
         self.arch = checkpoint['arch']
         self.cube_size = checkpoint['cube_size']
-        print(self.arch)
         self.initialize(self.method, self.arch, self.cube_size)
 
         self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -158,8 +157,6 @@ class Net:
     def train(self, training_params):
 
         self.model.zero_grad()
-
-
         training_params['metrics'] = self.metrics
 
         #### preparing data
@@ -237,12 +234,21 @@ class DuoNet:
         self.net2 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model2, state=state)
         self.method = method
         self.arch = arch
+        self.cube_size = cube_size
+        self.state = state
+        if pretrained_model1 not in ["None", None] and pretrained_model1 not in ["None", None]:
+            self.method = self.net1.method
+            self.arch = self.net1.arch
+            self.cube_size = self.net1.cube_size
+            self.state = self.net1.state
 
     def load(self, pretrained_model1, pretrained_model2):
         self.net1.load(pretrained_model1)
         self.net2.load(pretrained_model2)
         self.method = self.net1.method
         self.arch = self.net1.arch
+        self.cube_size = self.net1.cube_size
+        self.state = self.net1.state
     
     def train(self, training_params):
         assert training_params["epochs"] % training_params["T_max"] == 0
@@ -267,6 +273,6 @@ class DuoNet:
 
 
     def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, F_mask=None):
-        predicted_map1 = self.net1.predict(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
-        predicted_map2 = self.net2.predict(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
+        predicted_map1 = self.net1.predict_map(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
+        predicted_map2 = self.net2.predict_map(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
         return [predicted_map1, predicted_map2]

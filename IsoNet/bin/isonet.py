@@ -361,15 +361,13 @@ class ISONET:
         import starfile
         import numpy as np
         from IsoNet.utils.processing import normalize
-
+        if model2 not in ['None', None]:
+            network = DuoNet(pretrained_model1=model, pretrained_model2=model2,state='predict')
+        else:
+            network = Net(pretrained_model=model,state='predict')
         create_folder(output_dir, remove=False)
         cube_size = network.cube_size
         inner_cube_size = cube_size//3*2
-        
-        network = Net(pretrained_model=model,state='predict')
-
-        if model2 not in ['None', None]:
-            network = DuoNet(pretrained_model1=model, pretrained_model2=model2,state='predict')
 
         star = starfile.read(star_file)
 
@@ -383,11 +381,11 @@ class ISONET:
             tomo, _ = read_mrc(tomo_name)
             tomo = normalize(tomo*-1,percentile=False)
             outData = network_model.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, \
-                                          F_mask=F_mask).astype(np.float32)
+                                          F_mask=F_mask)
             if len(outData) == 2:
-                return [x*-1 for x in outData]
+                return [x.astype(np.float32)*-1 for x in outData]
             else:
-                return outData * -1
+                return outData.astype(np.float32) * -1
         
         def get_base_filename(tomo_name):
             file_base_name = os.path.basename(tomo_name)
@@ -410,7 +408,6 @@ class ISONET:
             else:
                 F_mask = None
             
-
             if correct_CTF:
                 from IsoNet.utils.CTF import get_ctf_3d
                 defocus = tomo_row['rlnDefocus']/10000.
@@ -430,14 +427,12 @@ class ISONET:
 
             if network.method in ['n2n','isonet2-n2n','isonet2']:
                 base_filename = get_base_filename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
-
+                out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
+                out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
                 if model2 in ['None', None]:
-                    out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
-                    out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
+
                     outData_full = (out_half1 + out_half2) * (0.5)
                 else:
-                    out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
-                    out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
                     
                     out_file_net1_half1 = f"{base_filename}_net1_half1.mrc"
                     out_file_net2_half1 = f"{base_filename}_net2_half1.mrc"
@@ -450,7 +445,6 @@ class ISONET:
                     write_mrc(out_file_net2_half2, out_half2[1])
 
                     outData_full = (out_half1[0] + out_half1[1] + out_half2[0] + out_half2[1])*0.25
-
             out_file_name = f"{base_filename}.mrc"
             write_mrc(out_file_name, outData_full)
             star.at[index, out_column] = out_file_name            
@@ -548,15 +542,16 @@ class ISONET:
             from IsoNet.models.network import Net
             network = Net(method=method, arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
             network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
-            
         if with_predict:
             if split_halves:
                 model_file1 = f"{output_dir}/network_{arch}_{cube_size}_top.pt"
                 model_file2 = f"{output_dir}/network_{arch}_{cube_size}_bottom.pt"
-                self.predict(star_file=star_file, model=model_file1,model2=model_file2, output_dir=output_dir, gpuID=gpuID) 
+                self.predict(star_file=star_file, model=model_file1, model2=model_file2, output_dir=output_dir, gpuID=gpuID,\
+                                             correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
             else:
-                model_file = f"{output_dir}/network_{arch}_{cube_size}.pt"
-                self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID) 
+                model_file = f"{output_dir}/network_{arch}_{cube_size}_full.pt"
+                self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
+                             correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
     def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):

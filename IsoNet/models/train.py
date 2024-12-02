@@ -57,12 +57,16 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
        
     if world_size > 1:
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
+            num_workers=training_params["ncpus"], pin_memory=True, sampler=train_sampler)
     else:
         train_sampler = None
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
+            num_workers=training_params["ncpus"], pin_memory=True, sampler=train_sampler, shuffle=True)
 
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
-        num_workers=training_params["ncpus"], pin_memory=True, sampler=train_sampler, shuffle=True)
+
 
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
@@ -92,19 +96,17 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             average_outside_mw_loss = torch.tensor(0, dtype=torch.float).to(rank)
 
             for i_batch, batch in enumerate(train_loader):  
+                optimizer.zero_grad(set_to_none=True) 
+
                 x1, x2, mw, ctf, wiener = batch[0].cuda(), batch[1].cuda(), \
                                               batch[2].cuda(), batch[3].cuda(), batch[4].cuda()
-             
+                # print("correct_CTF",training_params['correct_CTF'])
                 if training_params['correct_CTF'] and not training_params["isCTFflipped"]:
                     x1 = apply_F_filter_torch(x1, torch.sign(ctf))
                     x2 = apply_F_filter_torch(x2, wiener)
-                # if rank == np.random.randint(0, world_size):
-                #     debug_matrix(x1, filename='debug_x1_multiplied.mrc')
-                #     debug_matrix(ctf,filename='ctfsign.mrc')
+
                 if training_params['correct_CTF'] and training_params["isCTFflipped"]:
                     x2 = apply_F_filter_torch(x2, torch.abs(wiener))
-
-                optimizer.zero_grad(set_to_none=True)          
 
                 if training_params['method'] in ["n2n", "regular"]:
                     with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
@@ -153,7 +155,18 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         if training_params['mw_weight'] > 0:
                             loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
                         else:
-                            loss =  inside_mw_loss                        
+                            loss =  inside_mw_loss       
+                    # if rank == np.random.randint(0, world_size):
+                    #     debug_matrix(-x1-x2,filename='debug-_x1_x2.mrc')
+                    #     debug_matrix(x1,filename='debug_x1.mrc')
+                    #     debug_matrix(preds,filename='debug_preds.mrc')
+                    #     debug_matrix(x2,filename='debug_x2.mrc')          
+                    #     debug_matrix(subtomos,filename='debug_subtomos.mrc')
+                    #     debug_matrix(rotated_subtomo,filename='debug_rotated_subtomo.mrc')   
+                    #     debug_matrix(mw_rotated_subtomos,filename='debug_mw_rotated_subtomos.mrc')
+                    #     debug_matrix(rotated_mw,filename='rotated_mw.mrc')  
+                    #     debug_matrix(pred_y,filename='debug_pred_y.mrc') 
+                    #     debug_matrix(x2_rot,filename='debug_x2_rot.mrc')          
 
 
 
@@ -225,9 +238,9 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     'cube_size': training_params['cube_size']
                     }, outmodel_path)
                         
-            if (epoch+1)%training_params['T_max'] == 0:
-                outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_epoch{epoch+1}_{training_params['split']}.pt"
-                shutil.copy(outmodel_path, outmodel_path_epoch)
+            # if (epoch+1)%training_params['T_max'] == 0:
+            #     outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_epoch{epoch+1}_{training_params['split']}.pt"
+            #     shutil.copy(outmodel_path, outmodel_path_epoch)
 
     if world_size > 1:
         dist.destroy_process_group()

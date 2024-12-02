@@ -79,9 +79,9 @@ def sample_rot_axis_and_angle():
     
     rot_angle = rotvec.norm()  # This gives the angle in radians
     
-    rot_angle_deg = torch.rad2deg(rot_angle)
+    #rot_angle_deg = torch.rad2deg(rot_angle)
     
-    return [rot_axis, rot_angle_deg]
+    return [rot_axis, rot_angle]
 
 
 def rotation_matrix(axis, angle):
@@ -133,6 +133,6 @@ def rotate_vol_around_axis_torch(volume, rot):
     grid = grid.to(device)
 
     # Use grid_sample to apply the rotation
-    rotated_volume = F.grid_sample(volume, grid, mode='bilinear', padding_mode='reflection', align_corners=True)
+    rotated_volume = F.grid_sample(volume, grid, mode='nearest', padding_mode='reflection', align_corners=True)
 
     return rotated_volume

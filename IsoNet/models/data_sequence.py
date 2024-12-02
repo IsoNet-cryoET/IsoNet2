@@ -146,11 +146,17 @@ class Train_sets_n2n(Dataset):
         elif self.split == "bottom":
             mask[:,0:half_y+half_size,:] = 0
             mask[:,y_max-half_size:y_max,:] = 0
+
+        # debug=True
+        # if debug:
+        #     with mrcfile.new("debug_tomo_mask.mrc", overwrite=True) as mrc:
+        #         mrc.set_data(mask)
         valid_inds = np.where(mask)
 
         sample_inds = np.random.choice(len(valid_inds[0]), n_samples, replace=(len(valid_inds[0]) < n_samples))
         rand_inds = [v[sample_inds] for v in valid_inds]
-        rand_inds = [v - half_size for v in rand_inds]
+        #rand_inds = [v - half_size for v in rand_inds]
+        #print(rand_inds[0].min(),rand_inds[0].max())
 
         return np.stack(rand_inds, -1)
 
@@ -180,8 +186,9 @@ class Train_sets_n2n(Dataset):
     def load_and_normalize(self, tomo_paths, tomo_index, z, y, x, eo_idx):
         """Load and normalize a subvolume from a tomogram."""
         #print(tomo_paths[tomo_index],z, y, x)
+        half_size = self.sample_shape[0]//2
         tomo = mrcfile.mmap(tomo_paths[tomo_index], mode='r', permissive=True)
-        subvolume = tomo.data[z:z + self.sample_shape[0], y:y + self.sample_shape[1], x:x + self.sample_shape[2]]
+        subvolume = tomo.data[z-half_size:z + half_size, y-half_size:y + half_size, x-half_size:x + half_size]
         # the output inverted the contrast
         return (self.mean[tomo_index][eo_idx] - subvolume) / self.std[tomo_index][eo_idx]
 
@@ -192,7 +199,6 @@ class Train_sets_n2n(Dataset):
         """Return a sample of data at a given index."""
         tomo_index, coord_index = divmod(idx, self.n_samples_per_tomo)
         z, y, x = self.coords[tomo_index][coord_index]
-
         # if self.method in ['n2n', 'isonet2','isonet2-n2n']:
         even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
         odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
