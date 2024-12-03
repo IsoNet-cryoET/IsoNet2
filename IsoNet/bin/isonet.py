@@ -531,7 +531,8 @@ class ISONET:
             'learning_rate_min':learning_rate_min,
             'loss_func':loss_func,
             'correct_CTF':correct_CTF,
-            "isCTFflipped": isCTFflipped
+            "isCTFflipped": isCTFflipped,
+            "starting_epoch": 0
         }
         if split_halves:
             from IsoNet.models.network import DuoNet

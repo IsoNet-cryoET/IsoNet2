@@ -268,8 +268,10 @@ class DuoNet:
         for i in range(T_steps):
             print(f"training the top half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
             self.net1.train(training_params1)
+            training_params1["starting_epoch"]+=T_max
             print(f"training the bottom half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
             self.net2.train(training_params2)
+            training_params2["starting_epoch"]+=T_max
 
 
     def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, F_mask=None):

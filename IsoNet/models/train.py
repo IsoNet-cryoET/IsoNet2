@@ -238,9 +238,10 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     'cube_size': training_params['cube_size']
                     }, outmodel_path)
                         
-            # if (epoch+1)%training_params['T_max'] == 0:
-            #     outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_epoch{epoch+1}_{training_params['split']}.pt"
-            #     shutil.copy(outmodel_path, outmodel_path_epoch)
+            if (epoch+1)%training_params['T_max'] == 0:
+                total_epochs = epoch+1+training_params["starting_epoch"]
+                outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_epoch{total_epochs}_{training_params['split']}.pt"
+                shutil.copy(outmodel_path, outmodel_path_epoch)
 
     if world_size > 1:
         dist.destroy_process_group()
