@@ -106,7 +106,7 @@ class ISONET:
         if pixel_size in ["auto","None"]:
             voxel_size_list = []
             counted_files_names = sorted(os.listdir(count_folder))
-            counted_files = [f"{even}/{item}" for item in counted_files_names]        
+            counted_files = [f"{count_folder}/{item}" for item in counted_files_names]        
             for i in range(len(counted_files)):
                 _, apix = read_mrc(counted_files[i], inplace = True)
                 voxel_size_list.append(apix)
@@ -127,7 +127,7 @@ class ISONET:
 
         add_param("None", "rlnSnrFalloff",0)
         add_param("None", "rlnDeconvStrength",1)
-        add_param("None", "rlnDeconvTomoName","None")
+        # add_param("None", "rlnDeconvTomoName","None")
 
         # mask parameters
         add_param("None", "rlnMaskBoundary","None")
@@ -455,7 +455,7 @@ class ISONET:
                    output_dir: str="isonet_maps",
 
                    gpuID: str=None,
-                   ncpus: int=4, 
+                   ncpus: int=16, 
 
                    method: str="isonet2-n2n",
                    arch: str='unet-medium',
@@ -474,7 +474,7 @@ class ISONET:
                    T_max: int=10,
                    learning_rate_min:float=3e-4,
                    random_rotation: bool=True, 
-                   mw_weight: float=100,
+                   mw_weight: float=20,
                    apply_mw_x1: bool=True, 
                    compile_model: bool=False,
                    mixed_precision: bool=True,
@@ -482,6 +482,8 @@ class ISONET:
                    correct_CTF: bool=False,
                    isCTFflipped: bool=False,
 
+                   noise_level: float=0.2, 
+                   noise_mode: str="None",
 
                    with_predict: bool=True,
                    split_halves: bool=False
@@ -499,6 +501,11 @@ class ISONET:
 
         ngpus, gpuID, gpuID_list=parse_gpu(gpuID)
         # print(ngpus, gpuID, gpuID_list)
+        n_workers = ncpus//ngpus
+        if n_workers == 0:
+            n_workers = 1
+        ncpus = ngpus*n_workers
+        print(f"{n_workers} CPU cores per GPU, total {ncpus} CPUs")
 
         if batch_size is None:
             if ngpus == 1:
@@ -508,6 +515,17 @@ class ISONET:
         steps_per_epoch = 200000000
 
         print(f"method {method}")
+        if method == "isonet2":
+            star = starfile.read(star_file)
+            if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
+                print("using rlnTomoName instead of rlnDeconvTomoName")
+                input_column = "rlnTomoName"
+            num_noise_volume = 1000
+            if noise_level > 0:
+                print("generating noise folder")
+                from IsoNet.utils.noise import make_noise_folder
+                noise_dir = f"{output_dir}/noise_volumes"
+                make_noise_folder(noise_dir,noise_mode,cube_size,num_noise_volume,ncpus=ncpus)
 
         training_params = {
             "method":method,
@@ -532,7 +550,8 @@ class ISONET:
             'loss_func':loss_func,
             'correct_CTF':correct_CTF,
             "isCTFflipped": isCTFflipped,
-            "starting_epoch": 0
+            "starting_epoch": 0,
+            "noise_level": noise_level
         }
         if split_halves:
             from IsoNet.models.network import DuoNet

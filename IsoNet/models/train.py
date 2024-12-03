@@ -13,6 +13,7 @@ from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
 import shutil
+from rich.progress import Progress
 
 
 def rotate_vol(volume, rotation):
@@ -49,25 +50,22 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 torch.set_float32_matmul_precision('high')
                 model = torch.compile(model)
 
-
-    if rank == 0:
-        print("calculate subtomograms position")
-
     batch_size_gpu = training_params['batch_size'] // (training_params['acc_batches'] * world_size)
        
+    n_workers = training_params["ncpus"]//world_size
+    if n_workers == 0:
+        n_workers = 1
+        
     if world_size > 1:
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
         train_loader = torch.utils.data.DataLoader(
             train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
-            num_workers=training_params["ncpus"], pin_memory=True, sampler=train_sampler)
+            num_workers=n_workers, pin_memory=True, sampler=train_sampler)
     else:
         train_sampler = None
         train_loader = torch.utils.data.DataLoader(
             train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
-            num_workers=training_params["ncpus"], pin_memory=True, sampler=train_sampler, shuffle=True)
-
-
-
+            num_workers=n_workers, pin_memory=True, sampler=train_sampler, shuffle=True)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
@@ -156,19 +154,6 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
                         else:
                             loss =  inside_mw_loss       
-                    # if rank == np.random.randint(0, world_size):
-                    #     debug_matrix(-x1-x2,filename='debug-_x1_x2.mrc')
-                    #     debug_matrix(x1,filename='debug_x1.mrc')
-                    #     debug_matrix(preds,filename='debug_preds.mrc')
-                    #     debug_matrix(x2,filename='debug_x2.mrc')          
-                    #     debug_matrix(subtomos,filename='debug_subtomos.mrc')
-                    #     debug_matrix(rotated_subtomo,filename='debug_rotated_subtomo.mrc')   
-                    #     debug_matrix(mw_rotated_subtomos,filename='debug_mw_rotated_subtomos.mrc')
-                    #     debug_matrix(rotated_mw,filename='rotated_mw.mrc')  
-                    #     debug_matrix(pred_y,filename='debug_pred_y.mrc') 
-                    #     debug_matrix(x2_rot,filename='debug_x2_rot.mrc')          
-
-
 
                 loss = loss / training_params['acc_batches']
                 inside_mw_loss = inside_mw_loss / training_params['acc_batches']
@@ -193,7 +178,9 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         optimizer.step()
 
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):
-                   progress_bar.set_postfix({"Loss": loss_item,"inside_mw_loss": inside_mw_loss_item,"outside_mw_loss": outside_mw_loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
+                   loss_str = f"Loss: {loss_item:6.4f} | in_mw_loss: {inside_mw_loss_item:6.4f} | out_mw_loss: {outside_mw_loss_item:6.4f}"
+                   progress_bar.set_postfix_str(loss_str)
+                   #progress_bar.set_postfix({"Loss": loss_item,"inside_mw_loss": inside_mw_loss_item,"outside_mw_loss": outside_mw_loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
                    progress_bar.update()
 
                 average_loss += loss_item
@@ -219,10 +206,11 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             training_params["metrics"]["outside_mw_loss"].append(average_outside_mw_loss.cpu().numpy()) 
 
             outmodel_path = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt"
-            print(f"Epoch [{epoch+1}/{training_params['epochs']}], Loss:{average_loss:.4f},\
-                    in_mw_loss:{average_inside_mw_loss:.4f},\
-                    out_mw_loss:{average_outside_mw_loss:.4f},\
-                    learning_rate:{scheduler.get_last_lr()[0]:.4e}")
+            print(f"Epoch [{epoch+1:3d}/{training_params['epochs']:3d}], "
+                f"Loss: {average_loss:6.4f}, "
+                f"in_mw_loss: {average_inside_mw_loss:6.4f}, "
+                f"out_mw_loss: {average_outside_mw_loss:6.4f}, "
+                f"learning_rate: {scheduler.get_last_lr()[0]:.4e}")
 
             plot_metrics(training_params["metrics"],f"{training_params['output_dir']}/loss_{training_params['split']}.png")
             if world_size > 1:
