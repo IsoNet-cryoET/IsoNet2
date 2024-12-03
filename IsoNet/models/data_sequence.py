@@ -5,6 +5,8 @@ from torch.utils.data.dataset import Dataset
 from IsoNet.utils.fileio import read_mrc
 import starfile
 import mrcfile
+from tqdm import tqdm
+import random
 
 class Train_sets_regular(Dataset):
     def __init__(self, paths, shuffle=True):
@@ -38,14 +40,16 @@ class Train_sets_n2n(Dataset):
     Dataset class to load tomograms and provide subvolumes for n2n and spisonet methods.
     """
 
-    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", isCTFflipped=False, split="full"):
+    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", split="full", noise_level=0, noise_dir=None):
         self.star = starfile.read(tomo_star)
         self.method = method
-        self.n_samples_per_tomo = []
-        self.sample_shape = [cube_size, cube_size, cube_size]
+        self.n_tomos = len(self.star)
+        self.input_column = input_column
         self.cube_size = cube_size
+        self.split = split
+        self.noise_level = noise_level
 
-        # Initialize paths, statistics, and coordinates
+        self.n_samples_per_tomo = []
         self.tomo_paths_odd = []
         self.tomo_paths_even = []
         self.tomo_paths = []
@@ -55,37 +59,37 @@ class Train_sets_n2n(Dataset):
         self.mw_list = []
         self.wiener_list = []
         self.CTF_list = []
-        self.n_tomos = len(self.star)
-        self.input_column = input_column
-        self.split = split
 
-
-        # Initialize data from starfile
         self._initialize_data()
-        # Compute total dataset length
         self.length = sum([coords.shape[0] for coords in self.coords])
+        self.cumulative_samples = np.cumsum(self.n_samples_per_tomo)
+
+        if method == "isonet2" and noise_level > 0:
+            noise_files = os.listdir(noise_dir)
+            self.noise_files = [os.path.join(noise_dir, file) for file in noise_files]
 
     def _initialize_data(self):
         """Initialize paths, mean, std, and coordinates from the starfile."""
         column_name_list = self.star.columns.tolist()
 
-        for _, row in self.star.iterrows():
-            
-            self.n_samples_per_tomo=row['rlnNumberSubtomo']
+        # Initialize tqdm progress bar
+        for _, row in tqdm(self.star.iterrows(), total=len(self.star), desc="Preprocess tomograms", ncols=100):
+            n_samples = row['rlnNumberSubtomo']
             if self.split in ["top", "bottom"]:
-                self.n_samples_per_tomo = self.n_samples_per_tomo//2
-
+                n_samples = n_samples // 2
+            self.n_samples_per_tomo.append(n_samples)
+            
             mask = self._load_statistics_and_mask(row, column_name_list)
+            
             if row['rlnBoxFile'] in [None, "None"]:
-                coords = self.create_random_coords(mask.shape, mask, self.n_samples_per_tomo)
+                coords = self.create_random_coords(mask.shape, mask, n_samples)
             else:
                 coords = np.loadtxt(row['rlnBoxFile'])
+            
             self.coords.append(coords)
 
-            # if self.method in ['isonet2','isonet2-n2n']:
-            # compute for all the modes
             min_angle, max_angle = row['rlnTiltMin'], row['rlnTiltMax']
-            self.mw_list.append(self._compute_missing_wedge(self.sample_shape[0], min_angle, max_angle))
+            self.mw_list.append(self._compute_missing_wedge(self.cube_size, min_angle, max_angle))
             CTF_vol, wiener_vol = self._compute_CTF_vol(row)
             self.wiener_list.append(wiener_vol)
             self.CTF_list.append(CTF_vol)
@@ -100,65 +104,59 @@ class Train_sets_n2n(Dataset):
             even_column = self.input_column
             odd_column = self.input_column
 
-        #if self.method in ['isonet2', 'n2n']:
         self.tomo_paths_even.append(row[even_column])
         self.tomo_paths_odd.append(row[odd_column])
-        tomo_data =  mrcfile.mmap(row[even_column], mode='r', permissive=True).data
-        tomo_data2 = mrcfile.mmap(row[odd_column], mode='r', permissive=True).data
-        Z = tomo_data.data.shape[0]
-        mean = [np.mean(tomo_data[Z//2-16:Z//2+16]), np.mean(tomo_data2[Z//2-16:Z//2+16])]
-        std = [np.std(tomo_data[Z//2-16:Z//2+16]), np.std(tomo_data2[Z//2-16:Z//2+16])]
-        # else:
-        #     self.tomo_paths.append(row['rlnTomoName'])
-        #     #tomo_data, _ = read_mrc(row['rlnTomoName'])
-        #     tomo_data =  mrcfile.mmap(row['rlnTomoName'], mode='r', permissive=True).data
-        #     Z = tomo_data.data.shape[0]
-        #     mean = [np.mean(tomo_data[Z//2-16:Z//2+16])]
-        #     std = [np.std(tomo_data[Z//2-16:Z//2+16])]           
+
+        with mrcfile.mmap(row[even_column], mode='r', permissive=True) as tomo_even, \
+             mrcfile.mmap(row[odd_column], mode='r', permissive=True) as tomo_odd:
+            tomo_shape = tomo_even.data.shape
+            Z = tomo_shape[0]
+            mean = [np.mean(tomo_even.data[Z//2-16:Z//2+16]), np.mean(tomo_odd.data[Z//2-16:Z//2+16])]
+            std = [np.std(tomo_even.data[Z//2-16:Z//2+16]), np.std(tomo_odd.data[Z//2-16:Z//2+16])]
 
         self.mean.append(mean)
         self.std.append(std)
-        mask, _ = np.ones_like(tomo_data), 1 if "rlnMaskName" not in column_name_list or row['rlnMaskName']=="None" or \
-                    row['rlnMaskName']==None else read_mrc(row['rlnMaskName'])
-        return mask.copy()
+
+        if "rlnMaskName" not in column_name_list or row.get("rlnMaskName") in [None, "None"]:
+            mask = np.ones(tomo_shape, dtype=np.float32)
+        else:
+            mask, _ = read_mrc(row["rlnMaskName"])
+            mask = mask.copy()
+        return mask
 
     def create_random_coords(self, shape, mask, n_samples):
         """
         Create random coordinates within permissible regions for subvolume extraction.
         """
-        size = self.sample_shape[0]
         z_max, y_max, x_max = shape
-        half_size = size // 2 + 1 
-        half_y = y_max // 2
-
-        mask[0:half_size,:,:] = 0
+        half_size = self.cube_size // 2
+        
+        mask[:half_size,:,:] = 0
         mask[z_max-half_size:z_max,:,:] = 0
-        mask[:,:,0:half_size] = 0
+        mask[:, :half_size, :] = 0
+        mask[:, y_max-half_size:, :] = 0
+        mask[:,:,:half_size] = 0
         mask[:,:,x_max-half_size:x_max] = 0
 
-
-        if self.split == "full":
-            mask[:,0:half_size,:] = 0
-            mask[:,y_max-half_size:y_max,:] = 0
-        elif self.split == "top":
-            mask[:,0:half_size,:] = 0
+        half_y = y_max // 2
+        if self.split == "top":
             mask[:,half_y-half_size:y_max,:] = 0
         elif self.split == "bottom":
             mask[:,0:half_y+half_size,:] = 0
-            mask[:,y_max-half_size:y_max,:] = 0
 
-        # debug=True
-        # if debug:
-        #     with mrcfile.new("debug_tomo_mask.mrc", overwrite=True) as mrc:
-        #         mrc.set_data(mask)
-        valid_inds = np.where(mask)
+        # Flatten the mask and randomly sample indices
 
-        sample_inds = np.random.choice(len(valid_inds[0]), n_samples, replace=(len(valid_inds[0]) < n_samples))
-        rand_inds = [v[sample_inds] for v in valid_inds]
-        #rand_inds = [v - half_size for v in rand_inds]
-        #print(rand_inds[0].min(),rand_inds[0].max())
+        valid_indices = np.flatnonzero(mask)  # Get indices of non-zero elements
+        if len(valid_indices) < n_samples:
+            raise ValueError("Not enough valid positions in the mask to sample.")
+        sampled_indices = valid_indices[np.random.randint(0, len(valid_indices), n_samples)]
+        rand_coords = np.array(np.unravel_index(sampled_indices, shape)).T
+        return rand_coords
 
-        return np.stack(rand_inds, -1)
+        # valid_inds = np.where(mask)
+        # sample_inds = np.random.choice(len(valid_inds[0]), n_samples, replace=(len(valid_inds[0]) < n_samples))
+        # rand_inds = [v[sample_inds] for v in valid_inds]
+        # return np.stack(rand_inds, -1)
 
     def _compute_missing_wedge(self, cube_size, min_angle, max_angle):
         """Compute the missing wedge mask for given tilt angles."""
@@ -185,21 +183,21 @@ class Train_sets_n2n(Dataset):
 
     def load_and_normalize(self, tomo_paths, tomo_index, z, y, x, eo_idx):
         """Load and normalize a subvolume from a tomogram."""
-        #print(tomo_paths[tomo_index],z, y, x)
-        half_size = self.sample_shape[0]//2
-        tomo = mrcfile.mmap(tomo_paths[tomo_index], mode='r', permissive=True)
-        subvolume = tomo.data[z-half_size:z + half_size, y-half_size:y + half_size, x-half_size:x + half_size]
-        # the output inverted the contrast
-        return (self.mean[tomo_index][eo_idx] - subvolume) / self.std[tomo_index][eo_idx]
+        half_size = self.cube_size // 2
+        with mrcfile.mmap(tomo_paths[tomo_index], mode='r', permissive=True) as tomo:
+            subvolume = tomo.data[z-half_size:z+half_size, y-half_size:y+half_size, x-half_size:x+half_size]
+        return (subvolume - self.mean[tomo_index][eo_idx]) / self.std[tomo_index][eo_idx]
 
     def __len__(self):
         return self.length
 
     def __getitem__(self, idx):
         """Return a sample of data at a given index."""
-        tomo_index, coord_index = divmod(idx, self.n_samples_per_tomo)
+        #tomo_index, coord_index = divmod(idx, self.n_samples_per_tomo)
+        tomo_index = np.searchsorted(self.cumulative_samples, idx, side='right')
+        coord_index = idx - (self.cumulative_samples[tomo_index - 1] if tomo_index > 0 else 0)
+
         z, y, x = self.coords[tomo_index][coord_index]
-        # if self.method in ['n2n', 'isonet2','isonet2-n2n']:
         even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
         odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
 
@@ -208,21 +206,17 @@ class Train_sets_n2n(Dataset):
             np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
         )
 
-        # if self.method in ['isonet2','isonet2-n2n']:
+        if self.method == "isonet2" and self.noise_level > 0:
+            noise_file = random.choice(self.noise_files)
+            noise_volume, _ = read_mrc(noise_file)
+            #Noise along y axis is indenpedent, so that the y axis can be permutated.
+            noise_volume = np.transpose(noise_volume, axes=(1,0,2))
+            noise_volume = np.random.permutation(noise_volume)
+            noise_volume = np.transpose(noise_volume, axes=(1,0,2))
+            x += noise_volume * self.noise_level / np.std(noise_volume)
+
         return x, y, self.mw_list[tomo_index][np.newaxis, ...], \
                 self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...]
-        # return x, y
-        
-        # elif self.method == 'spisonet-single':
-        #     even_subvolume = self.load_and_normalize(self.tomo_paths, tomo_index, z, y, x, eo_idx=0)
-        #     x = np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...]
-        #     return x, self.mw_list[tomo_index][np.newaxis, ...]
-
-    def close(self):
-        for even, odd in zip(self.tomo_paths_even, self.tomo_paths_odd):
-            even.close()
-            odd.close()
-
 
 
 

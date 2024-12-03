@@ -6,8 +6,7 @@ from IsoNet.utils.Fourier import apply_F_filter
 import os
 import mrcfile
 from skimage.transform import iradon
-from IsoNet.utils.utils import mkfolder
-from IsoNet.utils.fileio import read_mrc
+from IsoNet.utils.fileio import read_mrc,create_folder
 from IsoNet.utils.missing_wedge import mw3D
 
 def get_noise_level(noise_level_tuple,noise_start_iter_tuple,iterations):
@@ -147,7 +146,7 @@ def simulate_noise(params):
     return iradon_image
 
 def make_noise_folder(noise_folder,noise_filter,cube_size,num_noise=1000,ncpus=1,large_side=1000):
-    mkfolder(noise_folder)
+    create_folder(noise_folder)
     print('generating large noise volume; mode: {}'.format(noise_filter))
     NoiseMap.refresh(large_side, noise_filter, ncpus)
                         
