@@ -420,12 +420,15 @@ class ISONET:
                 else:
                     F_mask = ctf3d*F_mask
 
-
-            if network.method in ['regular']:
+            if network.method in ['regular','isonet2']:
+                star = starfile.read(star_file)
+                if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
+                    print("using rlnTomoName instead of rlnDeconvTomoName")
+                    input_column = "rlnTomoName"
                 outData_full = normalize_and_predict(network, tomo_row[input_column],F_mask=F_mask)
                 base_filename = get_base_filename(tomo_row[input_column])
 
-            if network.method in ['n2n','isonet2-n2n','isonet2']:
+            if network.method in ['n2n','isonet2-n2n']:
                 base_filename = get_base_filename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
                 out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
                 out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
@@ -483,7 +486,7 @@ class ISONET:
                    isCTFflipped: bool=False,
 
                    noise_level: float=0.2, 
-                   noise_mode: str="None",
+                   noise_mode: str="ramp",
 
                    with_predict: bool=True,
                    split_halves: bool=False
@@ -525,6 +528,7 @@ class ISONET:
                 print("generating noise folder")
                 from IsoNet.utils.noise import make_noise_folder
                 noise_dir = f"{output_dir}/noise_volumes"
+                # Note: the angle for this noise generation is range(-90,90,3)
                 make_noise_folder(noise_dir,noise_mode,cube_size,num_noise_volume,ncpus=ncpus)
 
         training_params = {

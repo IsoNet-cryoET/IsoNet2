@@ -55,7 +55,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
     n_workers = training_params["ncpus"]//world_size
     if n_workers == 0:
         n_workers = 1
-        
+
     if world_size > 1:
         train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
         train_loader = torch.utils.data.DataLoader(
@@ -96,8 +96,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             for i_batch, batch in enumerate(train_loader):  
                 optimizer.zero_grad(set_to_none=True) 
 
-                x1, x2, mw, ctf, wiener = batch[0].cuda(), batch[1].cuda(), \
-                                              batch[2].cuda(), batch[3].cuda(), batch[4].cuda()
+                x1, x2, mw, ctf, wiener, noise_vol = batch[0].cuda(), batch[1].cuda(), \
+                                              batch[2].cuda(), batch[3].cuda(), batch[4].cuda(), batch[5].cuda()
                 # print("correct_CTF",training_params['correct_CTF'])
                 if training_params['correct_CTF'] and not training_params["isCTFflipped"]:
                     x1 = apply_F_filter_torch(x1, torch.sign(ctf))
@@ -119,6 +119,10 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     else:
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
+
+                    if training_params['method'] == "isonet2" and training_params["noise_level"]>0:
+                        noise_vol = apply_F_filter_torch(noise_vol, mw)
+                        x1 += noise_vol * training_params["noise_level"] / torch.std(noise_vol)
 
                     std_org = x1.std()
                     mean_org = x1.mean()
@@ -154,6 +158,9 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
                         else:
                             loss =  inside_mw_loss       
+                # if rank == np.random.randint(0, world_size):
+                #     debug_matrix(mw_rotated_subtomos, filename='debug_mw_rotated_subtomos.mrc')
+                #     debug_matrix(x2, filename='debug_x2.mrc')
 
                 loss = loss / training_params['acc_batches']
                 inside_mw_loss = inside_mw_loss / training_params['acc_batches']

@@ -111,7 +111,7 @@ class NoiseMap:
         return NoiseMap.noise_map[start[0]:start[0]+size, start[1]:start[1]+size,start[2]:start[2]+size]
 
 #filters = ['ramp', 'shepp-logan', 'cosine', 'hamming', 'hann']
-angles = np.arange(-60,62,3)
+angles = np.arange(-90,90,3)
 
 def part_iradon_ramp(x):
     return iradon(x, angles, filter_name = 'ramp' )

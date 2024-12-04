@@ -40,14 +40,13 @@ class Train_sets_n2n(Dataset):
     Dataset class to load tomograms and provide subvolumes for n2n and spisonet methods.
     """
 
-    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", split="full", noise_level=0, noise_dir=None):
+    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", split="full", noise_dir=None):
         self.star = starfile.read(tomo_star)
         self.method = method
         self.n_tomos = len(self.star)
         self.input_column = input_column
         self.cube_size = cube_size
         self.split = split
-        self.noise_level = noise_level
 
         self.n_samples_per_tomo = []
         self.tomo_paths_odd = []
@@ -63,8 +62,8 @@ class Train_sets_n2n(Dataset):
         self._initialize_data()
         self.length = sum([coords.shape[0] for coords in self.coords])
         self.cumulative_samples = np.cumsum(self.n_samples_per_tomo)
-
-        if method == "isonet2" and noise_level > 0:
+        self.noise_dir = noise_dir
+        if method == "isonet2" and noise_dir != None:
             noise_files = os.listdir(noise_dir)
             self.noise_files = [os.path.join(noise_dir, file) for file in noise_files]
 
@@ -206,17 +205,18 @@ class Train_sets_n2n(Dataset):
             np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
         )
 
-        if self.method == "isonet2" and self.noise_level > 0:
+        if self.method == "isonet2" and self.noise_dir != None:
             noise_file = random.choice(self.noise_files)
             noise_volume, _ = read_mrc(noise_file)
             #Noise along y axis is indenpedent, so that the y axis can be permutated.
             noise_volume = np.transpose(noise_volume, axes=(1,0,2))
             noise_volume = np.random.permutation(noise_volume)
             noise_volume = np.transpose(noise_volume, axes=(1,0,2))
-            x += noise_volume * self.noise_level / np.std(noise_volume)
+        else:
+            noise_volume = np.array([0], dtype=np.float32)
 
         return x, y, self.mw_list[tomo_index][np.newaxis, ...], \
-                self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...]
+                self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...], noise_volume[np.newaxis, ...]
 
 
 
