@@ -98,13 +98,13 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                 x1, x2, mw, ctf, wiener, noise_vol = batch[0].cuda(), batch[1].cuda(), \
                                               batch[2].cuda(), batch[3].cuda(), batch[4].cuda(), batch[5].cuda()
-                # print("correct_CTF",training_params['correct_CTF'])
-                if training_params['correct_CTF'] and not training_params["isCTFflipped"]:
-                    x1 = apply_F_filter_torch(x1, torch.sign(ctf))
-                    x2 = apply_F_filter_torch(x2, wiener)
 
-                if training_params['correct_CTF'] and training_params["isCTFflipped"]:
-                    x2 = apply_F_filter_torch(x2, torch.abs(wiener))
+                if training_params['correct_CTF']:
+                    if not training_params["isCTFflipped"]:
+                        x1 = apply_F_filter_torch(x1, torch.sign(ctf))
+                        x2 = apply_F_filter_torch(x2, wiener)
+                    else:
+                        x2 = apply_F_filter_torch(x2, torch.abs(wiener))
 
                 if training_params['method'] in ["n2n", "regular"]:
                     with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
@@ -120,12 +120,11 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
 
-                    if training_params['method'] == "isonet2" and training_params["noise_level"]>0:
+                    if training_params['method'] == "isonet2" and training_params["noise_level"] > 0:
                         noise_vol = apply_F_filter_torch(noise_vol, mw)
-                        x1 += noise_vol * training_params["noise_level"] / torch.std(noise_vol)
+                        x1 += noise_vol * training_params["noise_level"] / torch.std(noise_vol) * random.random()
 
-                    std_org = x1.std()
-                    mean_org = x1.mean()
+                    std_org, mean_org = x1.std(), x1.mean()
 
                     # TODO whether need to apply wedge to x1
                     with torch.no_grad():
@@ -154,28 +153,25 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
                         outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
-                        if training_params['mw_weight'] > 0:
-                            loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
-                        else:
-                            loss =  inside_mw_loss       
-                # if rank == np.random.randint(0, world_size):
-                #     debug_matrix(mw_rotated_subtomos, filename='debug_mw_rotated_subtomos.mrc')
-                #     debug_matrix(x2, filename='debug_x2.mrc')
+                        if training_params['method'] in ['isonet2-n2n']: 
+                            if training_params['mw_weight'] > 0:
+                                loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
+                            else:
+                                loss =  inside_mw_loss     
+                        elif training_params['method'] in ['isonet2']:
+                            loss = loss_func(pred_y,rotated_subtomo)
+
+
 
                 loss = loss / training_params['acc_batches']
                 inside_mw_loss = inside_mw_loss / training_params['acc_batches']
                 outside_mw_loss = outside_mw_loss / training_params['acc_batches']
 
                 if training_params['mixed_precision']:
-                    scaler.scale(loss).backward()  # Scaled backward pass
+                    scaler.scale(loss).backward() 
                 else:
-                    loss.backward()  # Normal backward pass
-
-                loss_item = loss.item()
-                inside_mw_loss_item = inside_mw_loss.item()
-                outside_mw_loss_item = outside_mw_loss.item()
-            
-                              
+                    loss.backward()
+                                        
                 if ( (i_batch+1)%training_params['acc_batches'] == 0 ) or (i_batch+1) == min(len(train_loader), steps_per_epoch_train * training_params['acc_batches']):
                     if training_params['mixed_precision']:
                         # Unscale the gradients and apply the optimizer step
@@ -185,17 +181,21 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         optimizer.step()
 
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):
-                   loss_str = f"Loss: {loss_item:6.4f} | in_mw_loss: {inside_mw_loss_item:6.4f} | out_mw_loss: {outside_mw_loss_item:6.4f}"
-                   progress_bar.set_postfix_str(loss_str)
-                   #progress_bar.set_postfix({"Loss": loss_item,"inside_mw_loss": inside_mw_loss_item,"outside_mw_loss": outside_mw_loss_item})#, "t1": time2-time1, "t2": time3-time2, "t3": time4-time3})
-                   progress_bar.update()
+                    loss_str = (
+                        f"Loss: {loss.item():6.4f} | "
+                        f"in_mw_loss: {inside_mw_loss.item():6.4f} | "
+                        f"out_mw_loss: {outside_mw_loss.item():6.4f}"
+                    )
+                    progress_bar.set_postfix_str(loss_str)
+                    progress_bar.update()
 
-                average_loss += loss_item
-                average_inside_mw_loss += inside_mw_loss_item
-                average_outside_mw_loss += outside_mw_loss_item
+                average_loss += loss.item()
+                average_inside_mw_loss += inside_mw_loss.item()
+                average_outside_mw_loss += outside_mw_loss.item()
                 
                 if i_batch + 1 >= steps_per_epoch_train*training_params['acc_batches']:
                     break
+
         scheduler.step()
 
         if world_size > 1:

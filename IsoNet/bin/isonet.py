@@ -635,6 +635,26 @@ class ISONET:
         starfile.write(new_star,out_folder+'.star')        
         print("scale_finished: {}".format(out_folder+'.star'))
 
+    def postprocessing(self, t1, t2, b1, b2):
+        t1, _ = read_mrc(t1)
+        t2, _ = read_mrc(t2)
+        b1, _ = read_mrc(b1)
+        b2, _ = read_mrc(b2)
+        mean = (t1+t2+b1+b2)/4
+        std = np.std([t1,t2,b1,b2], axis=0)
+        write_mrc("std_map.mrc",std)
+        shape = t1.shape
+        mask_top = np.zeros_like(t1)
+        mask_top[:,:shape[1]//2,:] = 1
+        mask_bottom = 1 - mask_top
+
+        half1 = t1*mask_bottom+b1*mask_top
+        half2 = t2*mask_bottom+b2*mask_top
+        write_mrc("half1.mrc",-half1)
+        write_mrc("half2.mrc",-half2)
+
+
+        return 0
     def powerlaw_filtering(self, 
                     h1: str,
                     o: str = "weighting.mrc",
