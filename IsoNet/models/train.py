@@ -26,7 +26,7 @@ def apply_F_filter_torch(input_map,F_map):
     fft_input = torch.fft.fftn(input_map, dim=(-1, -2, -3))
     mw_shift = torch.fft.fftshift(F_map, dim=(-1, -2, -3))
     out = torch.fft.ifftn(mw_shift*fft_input,dim=(-1, -2, -3))
-    out =  np.real(out).real
+    out =  torch.real(out)
     return out
 
 def ddp_train(rank, world_size, port_number, model, train_dataset, training_params):
@@ -120,11 +120,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
 
-                    if training_params['method'] == "isonet2" and training_params["noise_level"] > 0:
-                        noise_vol = apply_F_filter_torch(noise_vol, mw)
-                        x1 += noise_vol * training_params["noise_level"] / torch.std(noise_vol) * random.random()
-
                     std_org, mean_org = x1.std(), x1.mean()
+
 
                     # TODO whether need to apply wedge to x1
                     with torch.no_grad():
@@ -149,7 +146,14 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     # This normalization need to be tested
                     mw_rotated_subtomos = (mw_rotated_subtomos - mw_rotated_subtomos.mean())/mw_rotated_subtomos.std() \
                                                 *std_org + mean_org
+                    # print(mean_org,subtomos.mean(), rotated_subtomo.mean(), mw_rotated_subtomos.mean())
+                    # print(std_org,subtomos.std(),rotated_subtomo.std(),  mw_rotated_subtomos.std())
+
                     
+                    if training_params['method'] == "isonet2" and training_params["noise_level"] > 0:
+                        noise_vol = apply_F_filter_torch(noise_vol, mw)
+                        mw_rotated_subtomos += noise_vol * training_params["noise_level"] / torch.std(noise_vol)# * random.random()
+
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
                         outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)

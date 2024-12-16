@@ -379,7 +379,10 @@ class ISONET:
 
         def normalize_and_predict(network_model, tomo_name, F_mask=None):
             tomo, _ = read_mrc(tomo_name)
-            tomo = normalize(tomo*-1,percentile=False)
+            Z = tomo.shape[0]
+            mean = np.mean(tomo.data[Z//2-16:Z//2+16])
+            std = np.std(tomo.data[Z//2-16:Z//2+16])
+            tomo = (mean-tomo)/std
             outData = network_model.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, \
                                           F_mask=F_mask)
             if len(outData) == 2:
@@ -640,9 +643,7 @@ class ISONET:
         t2, _ = read_mrc(t2)
         b1, _ = read_mrc(b1)
         b2, _ = read_mrc(b2)
-        mean = (t1+t2+b1+b2)/4
-        std = np.std([t1,t2,b1,b2], axis=0)
-        write_mrc("std_map.mrc",std)
+
         shape = t1.shape
         mask_top = np.zeros_like(t1)
         mask_top[:,:shape[1]//2,:] = 1
@@ -650,11 +651,11 @@ class ISONET:
 
         half1 = t1*mask_bottom+b1*mask_top
         half2 = t2*mask_bottom+b2*mask_top
-        write_mrc("half1.mrc",-half1)
-        write_mrc("half2.mrc",-half2)
 
-
+        from IsoNet.utils.processing import FSC
+        print(FSC(half1,half2))
         return 0
+    
     def powerlaw_filtering(self, 
                     h1: str,
                     o: str = "weighting.mrc",
