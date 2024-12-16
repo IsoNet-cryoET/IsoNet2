@@ -18,7 +18,7 @@ def mw2D(dim,missingAngle=[30,30]):
             else:
                 theta=abs(np.arctan(y/x))
 
-            if True:#x**2+y**2<=min(dim/2,dim/2)**2:
+            if x**2+y**2<=(dim/2)**2:
                 if x > 0 and y > 0 and theta < missing[1]:
                     mw[i,j]=1#np.cos(theta)
                 if x < 0 and y < 0 and theta < missing[1]:

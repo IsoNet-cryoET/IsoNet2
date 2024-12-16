@@ -77,7 +77,7 @@ def sample_rot_axis_and_angle():
     
     rot_axis = rotvec / rotvec.norm()
     
-    rot_angle = rotvec.norm()  # This gives the angle in radians
+    rot_angle = torch.rand(1,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')) * 2 * torch.pi #rotvec.norm()  # This gives the angle in radians
     
     #rot_angle_deg = torch.rad2deg(rot_angle)
     
