@@ -328,7 +328,7 @@ class ISONET:
                 output_dir: str='./corrected_tomos', 
                 gpuID: str = None, 
                 input_column: str = "rlnDeconvTomoName",
-                apply_mw_x1: bool=False, 
+                apply_mw_x1: bool=True, 
                 correct_CTF: bool=False,
                 isCTFflipped: bool=False,
                 log_level: str="info", 
@@ -379,16 +379,17 @@ class ISONET:
 
         def normalize_and_predict(network_model, tomo_name, F_mask=None):
             tomo, _ = read_mrc(tomo_name)
+            tomo = normalize(tomo)
             Z = tomo.shape[0]
-            mean = np.mean(tomo.data[Z//2-16:Z//2+16])
-            std = np.std(tomo.data[Z//2-16:Z//2+16])
-            tomo = (mean-tomo)/std
+            # mean = np.mean(tomo.data[Z//2-16:Z//2+16])
+            # std = np.std(tomo.data[Z//2-16:Z//2+16])
+            # tomo = (mean-tomo)/std
             outData = network_model.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, \
                                           F_mask=F_mask)
             if len(outData) == 2:
                 return [x.astype(np.float32)*-1 for x in outData]
             else:
-                return outData.astype(np.float32) * -1
+                return outData.astype(np.float32)# * -1
         
         def get_base_filename(tomo_name):
             file_base_name = os.path.basename(tomo_name)
