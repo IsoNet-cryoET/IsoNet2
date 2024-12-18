@@ -133,6 +133,6 @@ def rotate_vol_around_axis_torch(volume, rot):
     grid = grid.to(device)
 
     # Use grid_sample to apply the rotation
-    rotated_volume = F.grid_sample(volume, grid, mode='nearest', padding_mode='reflection', align_corners=True)
+    rotated_volume = F.grid_sample(volume, grid, mode='bilinear', padding_mode='reflection', align_corners=True)
 
     return rotated_volume
