@@ -15,6 +15,19 @@ import torch.optim.lr_scheduler as lr_scheduler
 import shutil
 from rich.progress import Progress
 
+def normalize_percentage(tensor, percentile=5):
+    original_shape = tensor.shape
+    
+    batch_size = tensor.size(0)
+    flattened_tensor = tensor.view(batch_size, -1)
+    factor = percentile/100.
+    lower_bound = torch.quantile(flattened_tensor, factor, dim=1, keepdim=True)
+    upper_bound = torch.quantile(flattened_tensor, 1-factor, dim=1, keepdim=True)
+
+    normalized_flattened = (flattened_tensor - lower_bound) / (upper_bound - lower_bound)
+    normalized_flattened = normalized_flattened.view(original_shape)
+    return normalized_flattened
+
 
 def rotate_vol(volume, rotation):
     # B, C, Z, Y, X
@@ -74,6 +87,10 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
         loss_func = nn.MSELoss()
     elif  training_params['loss_func']  == "Huber":
         loss_func = nn.HuberLoss()
+    elif training_params['loss_func']  == "L1":
+        loss_func = nn.L1Loss()
+    else:
+        print("loss function should be either L1, L2, Huber")
     
     if training_params['mixed_precision']:
         scaler = torch.cuda.amp.GradScaler()
@@ -144,8 +161,14 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     x2_rot = rotate_func(x2, rot)
 
                     # This normalization need to be tested
-                    mw_rotated_subtomos = (mw_rotated_subtomos - mw_rotated_subtomos.mean())/mw_rotated_subtomos.std() \
+                    # mw_rotated_subtomos = (mw_rotated_subtomos - mw_rotated_subtomos.mean(dim=(-3,-2,-1), keepdim=True))/mw_rotated_subtomos.std(dim=(-3,-2,-1), keepdim=True) \
+                    #                             *std_org + mean_org
+                    mean_new = mw_rotated_subtomos.mean()
+                    std_new = mw_rotated_subtomos.std()
+                    mw_rotated_subtomos = (mw_rotated_subtomos - mean_new)/ std_new\
                                                 *std_org + mean_org
+                    # rotated_subtomo = (rotated_subtomo - mean_new)/ std_new\
+                    #                             *std_org + mean_org
                     # print(mean_org,subtomos.mean(), rotated_subtomo.mean(), mw_rotated_subtomos.mean())
                     # print(std_org,subtomos.std(),rotated_subtomo.std(),  mw_rotated_subtomos.std())
 
@@ -157,15 +180,14 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
                         outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
-                        if training_params['method'] in ['isonet2-n2n']: 
+                        if training_params['method'] in ['isonet2-n2n','isonet2']: 
                             if training_params['mw_weight'] > 0:
                                 loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss
                             else:
-                                loss =  inside_mw_loss     
-                        elif training_params['method'] in ['isonet2']:
-                            loss = loss_func(pred_y,rotated_subtomo)
-
-
+                                if training_params['method'] == 'isonet2':
+                                    loss = loss_func(pred_y,rotated_subtomo)
+                                else:
+                                    loss =  inside_mw_loss                                
 
                 loss = loss / training_params['acc_batches']
                 inside_mw_loss = inside_mw_loss / training_params['acc_batches']
@@ -185,10 +207,18 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         optimizer.step()
 
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):
+                    if i_batch == 0:
+                        display_loss = loss.item()
+                        display_inside_mw_loss = inside_mw_loss.item()
+                        display_outside_mw_los = outside_mw_loss.item()
+                    else:
+                        display_loss = display_loss*0.99 + 0.01*loss.item()
+                        display_inside_mw_loss = display_inside_mw_loss*0.99 + 0.01*inside_mw_loss.item()
+                        display_outside_mw_los = display_outside_mw_los*0.99 + 0.01*outside_mw_loss.item()                        
                     loss_str = (
-                        f"Loss: {loss.item():6.4f} | "
-                        f"in_mw_loss: {inside_mw_loss.item():6.4f} | "
-                        f"out_mw_loss: {outside_mw_loss.item():6.4f}"
+                        f"Loss: {display_loss:6.4f} | "
+                        f"in_mw_loss: {display_inside_mw_loss:6.4f} | "
+                        f"out_mw_loss: {display_outside_mw_los:6.4f}"
                     )
                     progress_bar.set_postfix_str(loss_str)
                     progress_bar.update()
