@@ -14,12 +14,20 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.eslint*
+.editorconfig
 
 # Ignore build output
 dist/
 build/
 out/
+isonet_maps/
+trash/
+EVN
+ODD
 
+.prettier*
+.npmrc
 # Ignore IDE specific files
 .idea/
 .vscode/
@@ -28,7 +36,15 @@ out/
 *.njsproj
 *.sln
 *.sw?
-
+*.star
+*.json
+*~
+sum*
+corrected_tomos
+deconv
+mask
+*.mrc
+log.txt
 # Ignore OS generated files
 .DS_Store
 Thumbs.db

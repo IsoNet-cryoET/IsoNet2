@@ -64,7 +64,9 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
         even_odd_input: true,
         snrfalloff: 0,
         deconvstrength: 1,
-        highpassnyquist: 0.02
+        highpassnyquist: 0.02,
+        only_print: true,
+        inqueue: true
     })
 
     // 处理表单字段变化
@@ -80,11 +82,15 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
         }))
     }
 
-    const handleSubmit = () => {
-        onSubmit(formData) // 调用父组件提供的 onSubmit 函数
-        onClose() // 关闭抽屉
+    const handleSubmit = (signal) => {
+        const updatedFormData = {
+            ...formData,
+            only_print: signal.onlyPrint,
+            inqueue: signal.inqueue
+        }
+        onSubmit(updatedFormData)
+        onClose()
     }
-
     return (
         <Drawer
             anchor="right"
@@ -258,7 +264,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         value={formData.mw_weight}
                         onChange={(e) => handleChange('mw_weight', e.target.value)}
                         fullWidth
-                    />{' '}
+                    />
                     <TextField
                         label="gpuID"
                         type="string"
@@ -292,7 +298,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             />
                         }
                         label="isCTFflipped"
-                    />{' '}
+                    />
                 </Box>
 
                 {!formData.even_odd_input && (
@@ -489,9 +495,27 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={handleSubmit}
+                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: true })}
                 >
-                    Submit
+                    Submit (in queue)
+                </Button>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    fullWidth
+                    sx={{ marginTop: 2 }}
+                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: false })}
+                >
+                    Submit (run immediately)
+                </Button>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    fullWidth
+                    sx={{ marginTop: 2 }}
+                    onClick={() => handleSubmit({ onlyPrint: true, inqueue: true })}
+                >
+                    Print Command
                 </Button>
             </Box>
         </Drawer>

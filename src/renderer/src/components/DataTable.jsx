@@ -15,8 +15,6 @@ import FileOpenIcon from '@mui/icons-material/FileOpen'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 
 const DataTable = ({ jsonData, star_name }) => {
-    console.log('DataTable rendered', jsonData) // Debug log
-
     if (!jsonData || jsonData.length === 0) return null
 
     const [rows, setRows] = useState(flattenData(jsonData))
@@ -25,24 +23,34 @@ const DataTable = ({ jsonData, star_name }) => {
         setRows(flattenData(jsonData))
     }, [jsonData])
 
-    useEffect(() => {
-        convertToJson()
-    }, [rows])
+    // useEffect(() => {
+    //     convertToJson()
+    // }, [rows])
 
     const columns = Object.keys(jsonData[0]).filter((col) => col !== 'index')
 
+    const handleCellBlur = () => {
+        convertToJson()
+    }
     const handleCellChange = (rowIndex, columnName, value) => {
         const updatedRows = [...rows]
         updatedRows[rowIndex][columnName] = value
         setRows(updatedRows)
     }
 
-    const handleOpen = (file) => {
-        console.log('Open:', file)
+    const handleOpen = async (rowIndex, columnName) => {
+        try {
+            const filePath = await api.selectFile('openFile')
+            if (filePath) {
+                handleCellChange(rowIndex, columnName, filePath)
+            }
+        } catch (error) {
+            console.error('Error selecting file:', error)
+        }
     }
 
     const handleView = (file) => {
-        console.log('View:', file)
+        api.view(file)
     }
 
     const convertToJson = () => {
@@ -64,9 +72,23 @@ const DataTable = ({ jsonData, star_name }) => {
             <Table stickyHeader>
                 <TableHead>
                     <TableRow>
-                        {columns.map((col) => (
-                            <TableCell key={col}>{col}</TableCell>
-                        ))}
+                        {columns.map((col) => {
+                            const isString = typeof rows[0][col] === 'string'
+                            return (
+                                <TableCell
+                                    key={col}
+                                    sx={{
+                                        whiteSpace: 'normal',
+                                        wordWrap: 'break-word',
+                                        textAlign: 'center',
+                                        minWidth: isString ? '250px' : '75px', // Adjust width based on content type
+                                        maxWidth: isString ? '250px' : '75px' // Keep the maxWidth consistent
+                                    }}
+                                >
+                                    {col}
+                                </TableCell>
+                            )
+                        })}
                     </TableRow>
                 </TableHead>
                 <TableBody>
@@ -80,11 +102,11 @@ const DataTable = ({ jsonData, star_name }) => {
                                             onChange={(e) =>
                                                 handleCellChange(rowIndex, col, e.target.value)
                                             }
+                                            onBlur={handleCellBlur} // Save on blur
                                             variant="outlined"
                                             size="small"
                                         />
-                                        {(String(row[col])?.endsWith('.mrc') ||
-                                            String(row[col])?.endsWith('.rec')) && (
+                                        {typeof row[col] === 'string' && (
                                             <Box
                                                 display="flex"
                                                 flexDirection="column"
@@ -99,7 +121,7 @@ const DataTable = ({ jsonData, star_name }) => {
                                                 <Button
                                                     size="small"
                                                     color="primary"
-                                                    onClick={() => handleOpen(row[col])}
+                                                    onClick={() => handleOpen(rowIndex, col)}
                                                     sx={{
                                                         padding: 0, // Remove padding
                                                         margin: 0, // Remove margin

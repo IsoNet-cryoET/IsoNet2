@@ -3,11 +3,10 @@ import { renderContent } from './log_handler'
 import { IconButton, Box, Button } from '@mui/material'
 import StopIcon from '@mui/icons-material/Stop'
 import CancelIcon from '@mui/icons-material/Cancel'
-
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 const PageRefine = (props) => {
-    const handleKillPython = () => {
-        console.log('kill here')
-        window.api.killPython()
+    const handleClear = () => {
+        props.setRefineMessages([])
     }
     return (
         <div>
@@ -15,25 +14,14 @@ const PageRefine = (props) => {
                 <Button
                     variant="outlined"
                     color="primary"
-                    startIcon={<CancelIcon />}
-                    onClick={() => handleKillPython()}
+                    startIcon={<CleaningServicesIcon />}
+                    onClick={() => handleClear()}
                     sx={{ height: '56px' }} // Ensure the button has a height
                 >
-                    Kill this process
+                    clear screen
                 </Button>
-                {/* <TextField
-                    label="current star file"
-                    value={props.star_name}
-                    fullWidth
-                    disabled
-                    sx={{ height: '56px' }} // Set the TextField's height to match the button
-                /> */}
             </Box>
-            {/* <IconButton onClick={handleKillPython} sx={{ color: '#14446e' }}>
-                <StopIcon />
-                Kill process
-            </IconButton> */}
-            {renderContent(props.messages, 'refine')}
+            {renderContent(props.refineMessages)}
         </div>
     )
 }

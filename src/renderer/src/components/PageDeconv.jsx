@@ -3,9 +3,9 @@ import { renderContent } from './log_handler'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 import { Box, TextField, Button } from '@mui/material'
 
-const PagePredict = (props) => {
+const PageDeconv = (props) => {
     const handleClear = () => {
-        props.setPredictMessages([])
+        props.setDeconvMessages([])
     }
     return (
         <div>
@@ -20,9 +20,9 @@ const PagePredict = (props) => {
                     clear screen
                 </Button>
             </Box>
-            {renderContent(props.predictMessages)}
+            {renderContent(props.deconvMessages)}
         </div>
     )
 }
 
-export default PagePredict
+export default PageDeconv

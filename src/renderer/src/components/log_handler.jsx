@@ -1,11 +1,11 @@
 import React from 'react'
 import ProgressBar from './ProgressBar'
 
-export const renderContent = (messageList, page, star_name) => {
+export const renderContent = (messageList) => {
     if (!messageList) return null
-
+    // console.log('messageList', messageList)
     return messageList.map((msg) => {
-        if (msg.cmd !== page) return null
+        // if (msg.cmd !== page) return null
 
         if (msg.type === 'bar') {
             return <ProgressBar currentProgress={msg} />
