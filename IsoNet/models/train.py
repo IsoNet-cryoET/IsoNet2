@@ -274,7 +274,9 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             training_params["metrics"]["inside_mw_loss"].append(average_inside_mw_loss.cpu().numpy()) 
             training_params["metrics"]["outside_mw_loss"].append(average_outside_mw_loss.cpu().numpy()) 
 
-            outmodel_path = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt"
+            outmodel_path = f"{training_params['output_dir']}/\
+                network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt"
+            
             print(f"Epoch [{epoch+1:3d}/{training_params['epochs']:3d}], "
                 f"Loss: {average_loss:6.4f}, "
                 f"in_mw_loss: {average_inside_mw_loss:6.4f}, "
@@ -297,7 +299,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         
             if (epoch+1)%training_params['T_max'] == 0:
                 total_epochs = epoch+1+training_params["starting_epoch"]
-                outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_epoch{total_epochs}_{training_params['split']}.pt"
+                outmodel_path_epoch = f"{training_params['output_dir']}/\
+                    network_{training_params['arch']}_{training_params['arch']}_{training_params['cube_size']}_epoch{total_epochs}_{training_params['split']}.pt"
                 shutil.copy(outmodel_path, outmodel_path_epoch)
 
     if world_size > 1:

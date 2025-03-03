@@ -9,7 +9,7 @@ import mrcfile
 import pandas as pd
 import numpy as np
 from IsoNet.utils.fileio import read_mrc, write_mrc, create_folder
-from IsoNet.utils.utils import parse_cpu, parse_gpu
+from IsoNet.utils.utils import parse_params, process_gpuID
 
 class ISONET:
     """
@@ -121,8 +121,8 @@ class ISONET:
         #     #TODO decide the defocus file format from CTFFIND and GCTF
         #     print("read from CTFFIND result not implimented")
 
-        # add_param("None", "rlnSnrFalloff",0)
-        # add_param("None", "rlnDeconvStrength",1)
+        add_param("None", "rlnSnrFalloff",0)
+        add_param("None", "rlnDeconvStrength",1)
         # add_param("None", "rlnDeconvTomoName","None")
 
         # mask parameters
@@ -149,7 +149,7 @@ class ISONET:
         df = pd.DataFrame(data = data, columns = label)
         df.insert(0, 'rlnIndex', np.arange(num_tomo)+1)
         starfile.write(df,star_name)
-        return df
+        return
 
     def deconv(self, star_file: str,
         deconv_folder:str="./deconv",
@@ -352,7 +352,7 @@ class ISONET:
         logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',
         datefmt="%m-%d %H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])
 
-        ngpus, gpuID, gpuID_list = parse_gpu(gpuID)
+        ngpus, gpuID, gpuID_list = process_gpuID(gpuID)
 
         from IsoNet.models.network import Net,DuoNet
         from IsoNet.utils.fileio import write_mrc
@@ -455,6 +455,97 @@ class ISONET:
             star.at[index, out_column] = out_file_name            
         starfile.write(star,star_file)
 
+    def denoise(self, 
+                   star_file: str,
+                   output_dir: str="denoise",
+
+                   gpuID: str=None,
+                   ncpus: int=16, 
+
+                   arch: str='unet-medium',
+                   pretrained_model: str=None,
+                   pretrained_model2: str=None,
+
+                   cube_size: int=80,
+                   epochs: int=50,
+
+                   batch_size: int=None, 
+                   acc_batches: int=1,
+                   loss_func: str = "L2",
+                   learning_rate: float=3e-4,
+                   T_max: int=10,
+                   learning_rate_min:float=3e-4,
+                   compile_model: bool=False,
+                   mixed_precision: bool=True,
+
+                   correct_CTF: bool=False,
+                   isCTFflipped: bool=False,
+
+                   with_predict: bool=True,
+                   split_halves: bool=False
+                   ):
+        '''
+        method: n2n isonet2 isonet2-n2n
+        arch: unet-default, unet-small, unet-medium, HSFormer, vtunet
+        gamma: <=0 normal loss, >0 ddw loss, ddw default 2, 
+        apply_mw_x1: apply missing wedge to subtomograms in the begining. True seems to be better.
+        compile_model: improve the speed of training, sometime error
+        mixed_precision: use mixed precision to reduce VRAM and increase speed
+        loss_func: L2, Huber
+        '''
+        create_folder(output_dir,remove=False)
+        batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus)
+        steps_per_epoch = 200000000
+
+
+        training_params = {
+            "method":'n2n',
+            "input_column": None,
+            "arch": arch,
+            "ncpus": ncpus,
+            "star_file":star_file,
+            "output_dir":output_dir,
+            "batch_size":batch_size,
+            "acc_batches": acc_batches,
+            "epochs": epochs,
+            "steps_per_epoch":steps_per_epoch,
+            "learning_rate":learning_rate,
+            "cube_size": cube_size,
+            "mw_weight": 0,
+            "random_rotation":True,
+            'apply_mw_x1':True,
+            'mixed_precision':mixed_precision,
+            'compile_model':compile_model,
+            'T_max':T_max,
+            'learning_rate_min':learning_rate_min,
+            'loss_func':loss_func,
+            'correct_CTF':correct_CTF,
+            "isCTFflipped": isCTFflipped,
+            "starting_epoch": 0,
+            "noise_level": 0,
+            "correct_between_tilts":False,
+            "start_bt_size":128,
+        }
+        if split_halves:
+            from IsoNet.models.network import DuoNet
+            network = DuoNet(method='n2n', arch=arch, cube_size=cube_size, pretrained_model1=pretrained_model, pretrained_model2 = pretrained_model2, state='train')
+            network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5            
+        else:
+            training_params['split'] = "full"
+            from IsoNet.models.network import Net
+            network = Net(method='n2n', arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
+            network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
+        if with_predict:
+            if split_halves:
+                model_file1 = f"{output_dir}/network_{arch}_{cube_size}_top.pt"
+                model_file2 = f"{output_dir}/network_{arch}_{cube_size}_bottom.pt"
+                self.predict(star_file=star_file, model=model_file1, model2=model_file2, output_dir=output_dir, gpuID=gpuID,\
+                                             correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
+            else:
+                model_file = f"{output_dir}/network_{arch}_{cube_size}_full.pt"
+                self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
+                             correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
+                #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
     def refine(self, 
                    star_file: str,
                    output_dir: str="isonet_maps",

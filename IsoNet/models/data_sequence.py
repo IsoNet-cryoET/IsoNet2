@@ -81,7 +81,7 @@ class Train_sets_n2n(Dataset):
             
             mask = self._load_statistics_and_mask(row, column_name_list)
             
-            if row['rlnBoxFile'] in [None, "None"]:
+            if 'rlnBoxFile' not in row or row['rlnBoxFile'] in [None, "None"]:
                 coords = self.create_random_coords(mask.shape, mask, n_samples)
             else:
                 coords = np.loadtxt(row['rlnBoxFile'])
@@ -89,6 +89,9 @@ class Train_sets_n2n(Dataset):
             self.coords.append(coords)
 
             min_angle, max_angle, tilt_step = row['rlnTiltMin'], row['rlnTiltMax'], row['rlnTiltStep']
+            
+            # force tilt step
+            tilt_step = None
             if tilt_step not in ["None", None]:
                 start_dim = self.start_bt_size/tilt_step
             else:
