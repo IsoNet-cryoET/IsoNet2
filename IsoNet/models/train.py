@@ -13,7 +13,6 @@ from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
 import shutil
-from rich.progress import Progress
 
 def normalize_percentage(tensor, percentile=5):
     original_shape = tensor.shape
@@ -113,8 +112,11 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             for i_batch, batch in enumerate(train_loader):  
                 optimizer.zero_grad(set_to_none=True) 
 
-                x1, x2, mw, ctf, wiener, noise_vol = batch[0].cuda(), batch[1].cuda(), \
+                if len(batch) == 5:
+                    x1, x2, mw, ctf, wiener, noise_vol = batch[0].cuda(), batch[1].cuda(), \
                                               batch[2].cuda(), batch[3].cuda(), batch[4].cuda(), batch[5].cuda()
+                else:
+                    x1, x2 = batch[0].cuda(), batch[1].cuda()  
 
                 if training_params['correct_CTF']:
                     if not training_params["isCTFflipped"]:
@@ -274,8 +276,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             training_params["metrics"]["inside_mw_loss"].append(average_inside_mw_loss.cpu().numpy()) 
             training_params["metrics"]["outside_mw_loss"].append(average_outside_mw_loss.cpu().numpy()) 
 
-            outmodel_path = f"{training_params['output_dir']}/\
-                network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt"
+            outmodel_path = f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt"
             
             print(f"Epoch [{epoch+1:3d}/{training_params['epochs']:3d}], "
                 f"Loss: {average_loss:6.4f}, "
@@ -299,8 +300,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         
             if (epoch+1)%training_params['T_max'] == 0:
                 total_epochs = epoch+1+training_params["starting_epoch"]
-                outmodel_path_epoch = f"{training_params['output_dir']}/\
-                    network_{training_params['arch']}_{training_params['arch']}_{training_params['cube_size']}_epoch{total_epochs}_{training_params['split']}.pt"
+                outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_epoch{total_epochs}_{training_params['split']}.pt"
                 shutil.copy(outmodel_path, outmodel_path_epoch)
 
     if world_size > 1:

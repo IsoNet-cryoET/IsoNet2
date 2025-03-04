@@ -54,17 +54,19 @@ def process_ncpus(ncpus):
         logging.info("requested number of cpus is more than the number of the cpu cores in the system")
         logging.info(f"setting ncpus to {cpu_system}")
         ncpus = cpu_system
-        # n_workers = ncpus//ngpus
-        # if n_workers == 0:
-        #     n_workers = 1
-        # ncpus = ngpus*n_workers
-        # print(f"{n_workers} CPU cores per GPU, total {ncpus} CPUs")
+
     return ncpus
 
-def parse_params(batch_size_in, gpuID_in, ncpus_in):
+def parse_params(batch_size_in, gpuID_in, ncpus_in, fit_ncpus_to_ngpus= False):
     ngpus, gpuID, gpuID_list = process_gpuID(gpuID_in)
     batch_size = process_batch_size(batch_size_in, ngpus)
     ncpus = process_ncpus(ncpus_in)
+    if fit_ncpus_to_ngpus:
+        n_workers = ncpus//ngpus
+        if n_workers == 0:
+            n_workers = 1
+        ncpus = ngpus*n_workers
+        print(f"{n_workers} CPU cores per GPU, total {ncpus} CPUs")
     return batch_size, ngpus, ncpus
 
 

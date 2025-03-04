@@ -6,7 +6,6 @@ from IsoNet.utils.dict2attr import check_parse
 from fire import core
 import starfile
 import mrcfile
-import pandas as pd
 import numpy as np
 from IsoNet.utils.fileio import read_mrc, write_mrc, create_folder
 from IsoNet.utils.utils import parse_params, process_gpuID
@@ -537,15 +536,23 @@ class ISONET:
             network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
         if with_predict:
             if split_halves:
-                model_file1 = f"{output_dir}/network_{arch}_{cube_size}_top.pt"
-                model_file2 = f"{output_dir}/network_{arch}_{cube_size}_bottom.pt"
+                if epochs == 0:
+                    model_file1 = pretrained_model
+                    model_file2 = pretrained_model2
+                else:
+                    model_file1 = f"{output_dir}/network_n2n_{arch}_{cube_size}_top.pt"
+                    model_file2 = f"{output_dir}/network_n2n_{arch}_{cube_size}_bottom.pt"
                 self.predict(star_file=star_file, model=model_file1, model2=model_file2, output_dir=output_dir, gpuID=gpuID,\
                                              correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
             else:
-                model_file = f"{output_dir}/network_{arch}_{cube_size}_full.pt"
+                if epochs == 0:
+                    model_file = pretrained_model
+                else:
+                    model_file = f"{output_dir}/network_n2n_{arch}_{cube_size}_full.pt"
                 self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
                              correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
+
     def refine(self, 
                    star_file: str,
                    output_dir: str="isonet_maps",
@@ -597,28 +604,15 @@ class ISONET:
         loss_func: L2, Huber
         '''
         create_folder(output_dir,remove=False)
-
-        ngpus, gpuID, gpuID_list=parse_gpu(gpuID)
-        # print(ngpus, gpuID, gpuID_list)
-        n_workers = ncpus//ngpus
-        if n_workers == 0:
-            n_workers = 1
-        ncpus = ngpus*n_workers
-        print(f"{n_workers} CPU cores per GPU, total {ncpus} CPUs")
-
-        if batch_size is None:
-            if ngpus == 1:
-                batch_size = 4
-            else:
-                batch_size = 2 * len(gpuID_list)
+        batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
         steps_per_epoch = 200000000
-
-        print(f"method {method}")
+        
         if method == "isonet2":
             star = starfile.read(star_file)
             if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
                 print("using rlnTomoName instead of rlnDeconvTomoName")
                 input_column = "rlnTomoName"
+
         num_noise_volume = 1000
         if noise_level > 0:
             print("generating noise folder")
@@ -666,15 +660,92 @@ class ISONET:
             network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
         if with_predict:
             if split_halves:
-                model_file1 = f"{output_dir}/network_{arch}_{cube_size}_top.pt"
-                model_file2 = f"{output_dir}/network_{arch}_{cube_size}_bottom.pt"
+                model_file1 = f"{output_dir}/network_{method}_{arch}_{cube_size}_top.pt"
+                model_file2 = f"{output_dir}/network_{method}_{arch}_{cube_size}_bottom.pt"
                 self.predict(star_file=star_file, model=model_file1, model2=model_file2, output_dir=output_dir, gpuID=gpuID,\
                                              correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
             else:
-                model_file = f"{output_dir}/network_{arch}_{cube_size}_full.pt"
+                model_file = f"{output_dir}/network_{method}_{arch}_{cube_size}_full.pt"
                 self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
                              correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
+
+    def refine_v1(self,
+        star_file: str,
+        arch: str="unet-medium",
+        gpuID: str = None,
+        iterations: int = 30,
+        data_dir: str = None,
+        pretrained_model: str = None,
+        log_level: str = "info",
+        output_dir: str='results',
+        remove_intermediate: bool =False,
+        select_subtomo_number: int = None,
+        ncpus: int = 16,
+        continue_from: str=None,
+        epochs: int = 10,
+        batch_size: int = None,
+        steps_per_epoch: int = None,
+        cube_size = 64,
+        crop_size = None, 
+        tomo_idx = None,
+        split_halves: bool=False,
+
+
+        noise_level:  tuple=(0.05,0.10,0.15,0.20),
+        noise_start_iter: tuple=(11,16,21,26),
+        noise_mode: str = 'noFilter',
+        noise_dir: str = None,
+
+        learning_rate: float = 3e-4,
+        normalize_percentile: bool = True,
+
+    ):
+
+        """
+        \n\n
+        IsoNet.py map_refine half.mrc FSC3D.mrc --mask mask.mrc --limit_res 3.5 [--gpuID] [--ncpus] [--output_dir] [--fsc_file]...
+        :param i: Input half map 1
+        :param aniso_file: 3DFSC file
+        :param mask: Filename of a user-provided mask
+        :param independent: Independently process half1 and half2, this will disable the noise2noise-based denoising but will provide independent maps for gold-standard FSC
+        :param gpuID: The ID of gpu to be used during the training.
+        :param alpha: Ranging from 0 to inf. Weighting between the equivariance loss and consistency loss.
+        :param beta: Ranging from 0 to inf. Weighting of the denoising. Large number means more denoising. 
+        :param limit_res: Important! Resolution limit for IsoNet recovery. Information beyong this limit will not be modified.
+        :param ncpus: Number of cpu.
+        :param output_dir: The name of directory to save output maps
+        :param pretrained_model: The neural network model with ".pt" to continue training or prediction. 
+        :param reference: Retain the low resolution information from the reference in the IsoNet refine process.
+        :param ref_resolution: The limit resolution to keep from the reference. Ususlly  10-20 A resolution. 
+        :param epochs: Number of epochs.
+        :param n_subvolume: Number of subvolumes 
+        :param predict_crop_size: The size of subvolumes, should be larger then the cube_size
+        :param cube_size: Size of cubes for training, should be divisible by 16, e.g. 32, 64, 80.
+        :param batch_size: Size of the minibatch. If None, batch_size will be the max(2 * number_of_gpu,4). batch_size should be divisible by the number of gpu.
+        :param acc_batches: If this value is set to 2 (or more), accumulate gradiant will be used to save memory consumption.  
+        :param learning_rate: learning rate. Default learning rate is 3e-4 while previous IsoNet tomography used 3e-4 as learning rate
+        """
+
+
+        from IsoNet.utils.utils import parse_params
+        from IsoNet.utils.dict2attr import load_args_from_json, filter_dict
+        params=filter_dict(locals())
+        print(params)
+        if params['continue_from'] is not None:
+            logging.info('\n######Isonet Continues Refining######\n')
+            params = load_args_from_json(params.continue_from)
+
+        params["batch_size"], params["ngpus"], params["ncpus"] = parse_params(batch_size, gpuID, ncpus)
+        params["crop_size"] = params.get("crop_size") or params["cube_size"] + 16
+
+        params["data_dir"] = params.get("data_dir") or f'{params["output_dir"]}/data'
+        params["steps_per_epoch"] = params.get("steps_per_epoch") or 200
+        params["noise_dir"] = params.get("noise_dir") or f'{params["output_dir"]}/training_noise'
+        params["log_level"] = params.get("log_level") or "info"
+
+        from IsoNet.bin.refine import run
+        run(params)
 
 
     def simulate_noise_F(self, size=128, tilt_step=3, repeats=1000, ncpus=51):
@@ -699,6 +770,24 @@ class ISONET:
              mrc.set_data(result)
         return result
 
+    def postprocessing(self, t1, t2, b1, b2):
+        t1, _ = read_mrc(t1)
+        t2, _ = read_mrc(t2)
+        b1, _ = read_mrc(b1)
+        b2, _ = read_mrc(b2)
+
+        shape = t1.shape
+        mask_top = np.zeros_like(t1)
+        mask_top[:,:shape[1]//2,:] = 1
+        mask_bottom = 1 - mask_top
+
+        half1 = t1*mask_bottom+b1*mask_top
+        half2 = t2*mask_bottom+b2*mask_top
+
+        from IsoNet.utils.processing import FSC
+        print(FSC(half1,half2))
+        return 0
+    
     def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):
         '''
         This function rescale the tomograms to a given pixelsize
@@ -756,24 +845,6 @@ class ISONET:
         starfile.write(new_star,out_folder+'.star')        
         print("scale_finished: {}".format(out_folder+'.star'))
 
-    def postprocessing(self, t1, t2, b1, b2):
-        t1, _ = read_mrc(t1)
-        t2, _ = read_mrc(t2)
-        b1, _ = read_mrc(b1)
-        b2, _ = read_mrc(b2)
-
-        shape = t1.shape
-        mask_top = np.zeros_like(t1)
-        mask_top[:,:shape[1]//2,:] = 1
-        mask_bottom = 1 - mask_top
-
-        half1 = t1*mask_bottom+b1*mask_top
-        half2 = t2*mask_bottom+b2*mask_top
-
-        from IsoNet.utils.processing import FSC
-        print(FSC(half1,half2))
-        return 0
-    
     def powerlaw_filtering(self, 
                     h1: str,
                     o: str = "weighting.mrc",
@@ -866,143 +937,7 @@ class ISONET:
         import mrcfile
         with mrcfile.new(output, overwrite=True) as mrc:
             mrc.set_data(out_mat)
-
-
-
-    def extract_legacy(self,  
-                star_file: str,
-                input_column: str = "rlnDeconvTomoName",
-                subtomo_folder="subtomos", 
-                subtomo_star = "subtomos.star", 
-                cube_size = 64,
-                crop_size = None, 
-                tomo_idx = None,
-                uniform_extract=False):
-        
-        from IsoNet.utils.processing import normalize
-        from IsoNet.preprocessing.cubes import extract_with_overlap
-        from IsoNet.preprocessing.cubes import extract_subvolume, create_cube_seeds
-
-        if crop_size is None:
-            crop_size = cube_size + 16
-
-        tomo_star = starfile.read(star_file)
-        tomo_columns = tomo_star.columns.to_list()
-        create_folder(subtomo_folder, remove=True)
-        particle_list = []
-        for i, row in tomo_star.iterrows():
-            if tomo_idx is None or str(row.rlnIndex) in tomo_idx: 
-
-                # wedge 
-                # wedge_path = os.path.join(subtomo_folder, tomo_folder, 'wedge.mrc')
-                # if "rlnTiltFile" in list(df.columns):
-                #     self.psf(size=crop_size, tilt_file=row["rlnTiltFile"], output=wedge_path, between_tilts=between_tilts)
-                # else:
-                #     print(wedge_path)
-                #     self.psf(size=crop_size, output=wedge_path, between_tilts=between_tilts)
-                # if apply_wedge:
-                #     wedge, vs = read_mrc(wedge_path)
-                # else:
-                #     wedge = None
-
-                tomo_name = row[input_column]
-                tomo, _ = read_mrc(tomo_name)
-                tomo = normalize(tomo)
-
-                if "rlnMaskName" in tomo_columns and row["rlnMaskName"] not in [None, "None"]:
-                    mask_file = row["rlnMaskName"]
-                    with mrcfile.open(mask_file,permissive=True) as mrc:
-                        mask=mrc.data
-                else:
-                    mask = np.ones_like(tomo)
-                count_start = len(particle_list)
-                if uniform_extract:
-                    #TODO uniform extract with mask
-                    subtomos_names = extract_with_overlap(tomo, crop_size, cube_size, subtomo_folder, prefix='', wedge=None)
-                else:
-                    n_subtomo_per_tomo = row["rlnNumberSubtomo"]
-                    seeds=create_cube_seeds(tomo, n_subtomo_per_tomo, crop_size, mask)
-                    subtomos_names = extract_subvolume(tomo, seeds, crop_size, subtomo_folder, count_start, wedge=None)
-                
-                
-                for i in range(len(subtomos_names)):
-                    im_name = '{}/subvolume{}_{:0>6d}.mrc'.format(subtomo_folder, '', count_start+i)
-                    particle_list.append([im_name, cube_size, crop_size])
-
-        df = pd.DataFrame(particle_list, columns = ["rlnParticleName", "rlnCubeSize","rlnCropSize"])
-        starfile.write(df, subtomo_star)
-        #extract_list = [df['rlnParticleName'].tolist()]   
-
-        return  #extract_list
-    
-    def refine_legacy(self,
-        subtomo_star: str,
-        gpuID: str = None,
-        iterations: int = None,
-        data_dir: str = None,
-        pretrained_model: str = None,
-        log_level: str = "info",
-        output_dir: str='results',
-        remove_intermediate: bool =False,
-        select_subtomo_number: int = None,
-        ncpus: int = 8,
-        continue_from: str=None,
-        epochs: int = 10,
-        batch_size: int = None,
-        steps_per_epoch: int = None,
-
-        noise_level:  tuple=(0.05,0.10,0.15,0.20),
-        noise_start_iter: tuple=(11,16,21,26),
-        noise_mode: str = None,
-        noise_dir: str = None,
-        learning_rate: float = None,
-        drop_out: float = 0.3,
-        convs_per_depth: int = 3,
-        kernel: tuple = (3,3,3),
-        pool: tuple = None,
-        unet_depth: int = 3,
-        filter_base: int = None,
-        batch_normalization: bool = True,
-        normalize_percentile: bool = True,
-
-    ):
-
-        """
-        \n\n
-        IsoNet.py map_refine half.mrc FSC3D.mrc --mask mask.mrc --limit_res 3.5 [--gpuID] [--ncpus] [--output_dir] [--fsc_file]...
-        :param i: Input half map 1
-        :param aniso_file: 3DFSC file
-        :param mask: Filename of a user-provided mask
-        :param independent: Independently process half1 and half2, this will disable the noise2noise-based denoising but will provide independent maps for gold-standard FSC
-        :param gpuID: The ID of gpu to be used during the training.
-        :param alpha: Ranging from 0 to inf. Weighting between the equivariance loss and consistency loss.
-        :param beta: Ranging from 0 to inf. Weighting of the denoising. Large number means more denoising. 
-        :param limit_res: Important! Resolution limit for IsoNet recovery. Information beyong this limit will not be modified.
-        :param ncpus: Number of cpu.
-        :param output_dir: The name of directory to save output maps
-        :param pretrained_model: The neural network model with ".pt" to continue training or prediction. 
-        :param reference: Retain the low resolution information from the reference in the IsoNet refine process.
-        :param ref_resolution: The limit resolution to keep from the reference. Ususlly  10-20 A resolution. 
-        :param epochs: Number of epochs.
-        :param n_subvolume: Number of subvolumes 
-        :param predict_crop_size: The size of subvolumes, should be larger then the cube_size
-        :param cube_size: Size of cubes for training, should be divisible by 16, e.g. 32, 64, 80.
-        :param batch_size: Size of the minibatch. If None, batch_size will be the max(2 * number_of_gpu,4). batch_size should be divisible by the number of gpu.
-        :param acc_batches: If this value is set to 2 (or more), accumulate gradiant will be used to save memory consumption.  
-        :param learning_rate: learning rate. Default learning rate is 3e-4 while previous IsoNet tomography used 3e-4 as learning rate
-        """
-
-
-        from IsoNet.utils.dict2attr import Arg
-        logging.basicConfig(format='%(asctime)s, %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s'
-            ,datefmt="%H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])   
-        
-        
-        params = Arg(locals())
-        from IsoNet.bin.refine import run
-        run(params)
-        logging.info("Finished")
-
+   
 
     def check(self):
         logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',

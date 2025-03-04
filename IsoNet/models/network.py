@@ -16,11 +16,8 @@ def find_unused_port():
     return port
 import torch
 
-# Assuming 'model' is your PyTorch model
 def get_num_parameters(model):
     return sum(p.numel() for p in model.parameters())
-
-
 
 class Net:
     def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model=None, state="train"):
@@ -40,7 +37,6 @@ class Net:
         self.arch = arch
         self.method = method
         self.cube_size = cube_size
-
         if self.arch == 'unet-large':
             from .unet import Unet
             self.model = Unet(filter_base = 64,unet_depth=4, add_last=True)
@@ -122,7 +118,7 @@ class Net:
 
 
     def load(self, path):
-        
+        print(path)
         checkpoint = torch.load(path)
         self.method = checkpoint['method']
         self.arch = checkpoint['arch']
@@ -162,7 +158,7 @@ class Net:
         # from chatGPT: The DistributedSampler shuffles the indices of the entire dataset, not just the portion assigned to a specific GPU. 
         if training_params['method'] == 'regular':
             from IsoNet.models.data_sequence import Train_sets_regular
-            train_dataset = Train_sets_regular(training_params['star_file'])
+            train_dataset = Train_sets_regular(training_params['data_path'])
 
         elif training_params['method'] in ['n2n', 'isonet2', 'isonet2-n2n']:
             if training_params["noise_level"] > 0:
@@ -184,28 +180,28 @@ class Net:
            logging.info('KeyboardInterrupt: Terminating all processes...')
            dist.destroy_process_group() 
            os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
-        self.load(f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt")
+        self.load(f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt")
 
         
     def predict_subtomos(self, settings):
         # This is legacy
         from IsoNet.utils.fileio import read_mrc,write_mrc
-        first_map, pixel_size = read_mrc(settings.mrc_list[0])
+        first_map, pixel_size = read_mrc(settings['mrc_list'][0])
         shape = first_map.shape
-        data = np.zeros((len(settings.mrc_list),shape[0], shape[1], shape[2]), dtype=np.float32)
-        for i, file_name in enumerate(settings.mrc_list):
+        data = np.zeros((len(settings['mrc_list']),shape[0], shape[1], shape[2]), dtype=np.float32)
+        for i, file_name in enumerate(settings['mrc_list']):
             subtomo, _ = read_mrc(file_name)
             data[i] = subtomo
-        tmp_data_path = f"{settings.output_dir}/tmp.npy"
+        tmp_data_path = f"{settings['output_dir']}/tmp.npy"
         outData = self.predict(data, tmp_data_path=tmp_data_path)
         os.remove(tmp_data_path)
 
-        for i, file_name in enumerate(settings.mrc_list):
+        for i, file_name in enumerate(settings['mrc_list']):
             root_name = os.path.splitext(os.path.basename(file_name))[0]
 
-            write_mrc('{}/{}_iter{:0>2d}.mrc'.format(settings.output_dir,
+            write_mrc('{}/{}_iter{:0>2d}.mrc'.format(settings['output_dir'],
                                                      root_name,
-                                                     settings.iter_count-1), 
+                                                     settings['iter_count']-1), 
                                                      -outData[i])
         return outData
 

@@ -111,10 +111,6 @@ class Train_sets_n2n(Dataset):
 
     def create_random_coords(self, z, y, x, mask, n_samples):
         #TODO need careful analysis on this. To understand whether it start with the center or corner
-
-        # Inspired by isonet preprocessing.cubes:create_cube_seeds()
-        
-        # Get permissible locations based on extraction_shape and sample_shape
         slices = tuple([slice(z[0],z[1]-self.sample_shape[2]),
                        slice(y[0],y[1]-self.sample_shape[1]),
                        slice(x[0],x[1]-self.sample_shape[0])])

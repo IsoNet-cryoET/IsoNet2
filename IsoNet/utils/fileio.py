@@ -19,19 +19,6 @@ def create_folder(folder, remove=True):
         else:
             logging.info(f"The {folder} folder already exists, outputs will write into this folder")
 
-
-
-# def create_folder(directory_name):
-#     if os.path.exists(directory_name):
-#         new_name = directory_name + '~'
-#         if os.path.exists(new_name):
-#             shutil.rmtree(new_name)
-#         shutil.move(directory_name, new_name)
-#         print(f"Directory '{directory_name}' already existed. Renamed to '{new_name}'.")
-    
-#     os.makedirs(directory_name)
-#     print(f"Created new empty directory '{directory_name}'.")
-
 def read_mrc(filename, inplace=False):
     if inplace:
         with mrcfile.mmap(filename, permissive=True) as mrc:
