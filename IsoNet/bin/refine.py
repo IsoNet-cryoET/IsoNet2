@@ -38,7 +38,6 @@ def run(params):
         ###  2. prediction if network found ###
         ###  3. prepare training data ###
         ###  4. training and save model file ###
-        print(current_iter)
         for num_iter in range(current_iter, params["iterations"] + 1):        
             logging.info("Start Iteration{}!".format(num_iter))
 

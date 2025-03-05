@@ -5,8 +5,7 @@ import logging
 
 import mrcfile
 def debug_matrix(mat, filename='debug.mrc'):
-    print(mat.type())
-    out_mat = mat.cpu().numpy().squeeze()
+    out_mat = mat.detach().cpu().numpy().squeeze()
     with mrcfile.new(filename, overwrite=True) as mrc:
         mrc.set_data(out_mat)
 

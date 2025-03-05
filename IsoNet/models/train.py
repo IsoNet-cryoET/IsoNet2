@@ -18,7 +18,7 @@ def normalize_percentage(tensor, percentile=5):
     original_shape = tensor.shape
     
     batch_size = tensor.size(0)
-    flattened_tensor = tensor.view(batch_size, -1)
+    flattened_tensor = tensor.reshape(batch_size, -1)
     factor = percentile/100.
     lower_bound = torch.quantile(flattened_tensor, factor, dim=1, keepdim=True)
     upper_bound = torch.quantile(flattened_tensor, 1-factor, dim=1, keepdim=True)
@@ -46,14 +46,29 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
     os.environ["MASTER_PORT"] = port_number
     #os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
     
+    batch_size_gpu = training_params['batch_size'] // (training_params['acc_batches'] * world_size)
+       
+    n_workers = training_params["ncpus"]//world_size
+    if n_workers == 0:
+        n_workers = 1
+
+
     if world_size > 1:
         dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
         torch.cuda.set_device(rank)
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = model.to(rank)
         model = DDP(model, device_ids=[rank])
+        train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
+            num_workers=n_workers, pin_memory=True, sampler=train_sampler)
     else:
         model = model.to(rank)
+        train_sampler = None
+        train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
+            num_workers=n_workers, pin_memory=True, sampler=train_sampler, shuffle=True)
 
     if training_params['compile_model'] == True:
         if torch.__version__ >= "2.0.0":
@@ -61,23 +76,6 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             if GPU_capability[0] >= 7:
                 torch.set_float32_matmul_precision('high')
                 model = torch.compile(model)
-
-    batch_size_gpu = training_params['batch_size'] // (training_params['acc_batches'] * world_size)
-       
-    n_workers = training_params["ncpus"]//world_size
-    if n_workers == 0:
-        n_workers = 1
-
-    if world_size > 1:
-        train_sampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
-            num_workers=n_workers, pin_memory=True, sampler=train_sampler)
-    else:
-        train_sampler = None
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset, batch_size=batch_size_gpu, persistent_workers=True,
-            num_workers=n_workers, pin_memory=True, sampler=train_sampler, shuffle=True)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
@@ -99,7 +97,6 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
     for epoch in range(training_params['epochs']):
         if train_sampler:
-            # What is this
             train_sampler.set_epoch(epoch)
         model.train()
 
@@ -111,14 +108,13 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
             for i_batch, batch in enumerate(train_loader):  
                 optimizer.zero_grad(set_to_none=True) 
-
-                if len(batch) == 5:
+                if len(batch) == 6:
                     x1, x2, mw, ctf, wiener, noise_vol = batch[0].cuda(), batch[1].cuda(), \
                                               batch[2].cuda(), batch[3].cuda(), batch[4].cuda(), batch[5].cuda()
                 else:
                     x1, x2 = batch[0].cuda(), batch[1].cuda()  
 
-                if training_params['correct_CTF']:
+                if training_params.get('correct_CTF'):
                     if not training_params["isCTFflipped"]:
                         x1 = apply_F_filter_torch(x1, torch.sign(ctf))
                         x2 = apply_F_filter_torch(x2, wiener)
@@ -144,7 +140,9 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     std_org, mean_org = x1.std(), x1.mean()
                     # x1 = apply_F_filter_torch(x1, mw)
-                    # x1 = normalize_percentage(x1)
+                    x1 = normalize_percentage(x1)
+                    x2 = normalize_percentage(x2)
+
 
                     # TODO whether need to apply wedge to x1
                     with torch.no_grad():
@@ -169,7 +167,10 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     # subtomos =  normalize_percentage(subtomos)
 
                     rotated_subtomo = rotate_func(subtomos, rot)
+                    # print(rotated_subtomo.shape)
+                    # rotated_subtomo = normalize_percentage(rotated_subtomo)
                     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+                    # print(mw_rotated_subtomos.shape)
                     rotated_mw = rotate_func(mw, rot)
                     x2_rot = rotate_func(x2, rot)
 
@@ -178,10 +179,15 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     # This normalization need to be tested
                     # mw_rotated_subtomos = (mw_rotated_subtomos - mw_rotated_subtomos.mean(dim=(-3,-2,-1), keepdim=True))/mw_rotated_subtomos.std(dim=(-3,-2,-1), keepdim=True) \
                     #                             *std_org + mean_org
-                    mean_new = mw_rotated_subtomos.mean()
-                    std_new = mw_rotated_subtomos.std()
-                    mw_rotated_subtomos = (mw_rotated_subtomos - mean_new)/ std_new\
-                                                *std_org + mean_org
+                    # mw_rotated_subtomos = normalize_percentage(mw_rotated_subtomos)
+                    input_mean, input_std = mw_rotated_subtomos.mean(), mw_rotated_subtomos.std(dim=(-3,-2,-1)).mean()
+                    # if rank == np.random.randint(0, world_size):
+                    #     mean_new = mw_rotated_subtomos.mean()
+                    #     std_new = mw_rotated_subtomos.std()
+                    #     print(mean_new,std_new)
+                    #     print(mean_org, std_org)
+                    # mw_rotated_subtomos = (mw_rotated_subtomos - mean_new)/ std_new\
+                    #                             *std_org + mean_org
                     # rotated_subtomo = (rotated_subtomo - mean_new)/ std_new\
                     #                             *std_org + mean_org
                     # print(mean_org,subtomos.mean(), rotated_subtomo.mean(), mw_rotated_subtomos.mean())
@@ -194,15 +200,16 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
-                        # if rank == np.random.randint(0, world_size):
-                        #     debug_matrix(preds, filename='debug_preds.mrc')
-                        #     debug_matrix(pred_y, filename='debug_pred_y.mrc')
-                        #     debug_matrix(x1, filename='debug_x1.mrc')
-                        #     debug_matrix(subtomos, filename='debug_subtomos.mrc')
-                        #     debug_matrix(rotated_subtomo, filename='debug_rotated_subtomo.mrc')
-                        #     debug_matrix(mw_rotated_subtomos, filename='debug_mw_rotated_subtomos.mrc')
-                        #     debug_matrix(mw, filename='debug_mw.mrc')
-                        #     debug_matrix(rotated_mw, filename='debug_rotated_mw.mrc')
+                        if rank == np.random.randint(0, world_size) and i_batch%10 == 0 :
+                            debug_matrix(preds, filename='debug_preds.mrc')
+                            debug_matrix(pred_y, filename='debug_pred_y.mrc')
+                            debug_matrix(x1, filename='debug_x1.mrc')
+                            debug_matrix(x2_rot, filename='debug_rot_x2.mrc')
+                            debug_matrix(subtomos, filename='debug_subtomos.mrc')
+                            debug_matrix(rotated_subtomo, filename='debug_rotated_subtomo.mrc')
+                            debug_matrix(mw_rotated_subtomos, filename='debug_mw_rotated_subtomos.mrc')
+                            debug_matrix(mw, filename='debug_mw.mrc')
+                            debug_matrix(rotated_mw, filename='debug_rotated_mw.mrc')
                         outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
                         if training_params['method'] in ['isonet2-n2n','isonet2']: 
                             if training_params['mw_weight'] > 0:
