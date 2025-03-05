@@ -376,11 +376,11 @@ class ISONET:
 
         def normalize_and_predict(network_model, tomo_name, F_mask=None):
             tomo, _ = read_mrc(tomo_name)
-            # tomo = normalize(tomo*-1)
-            Z = tomo.shape[0]
-            mean = np.mean(tomo.data[Z//2-16:Z//2+16])
-            std = np.std(tomo.data[Z//2-16:Z//2+16])
-            tomo = (mean-tomo)/std
+            tomo = normalize(tomo*-1)
+            # Z = tomo.shape[0]
+            # mean = np.mean(tomo.data[Z//2-16:Z//2+16])
+            # std = np.std(tomo.data[Z//2-16:Z//2+16])
+            # tomo = (mean-tomo)/std
             outData = network_model.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, \
                                           F_mask=F_mask)
             if len(outData) == 2:
@@ -731,7 +731,6 @@ class ISONET:
         from IsoNet.utils.utils import parse_params
         from IsoNet.utils.dict2attr import load_args_from_json, filter_dict
         params=filter_dict(locals())
-        print(params)
         if params['continue_from'] is not None:
             logging.info('\n######Isonet Continues Refining######\n')
             params = load_args_from_json(params.continue_from)
@@ -946,9 +945,8 @@ class ISONET:
         from IsoNet.bin.predict import predict
         from IsoNet.bin.refine import run
         import skimage
-        import PyQt5
         import tqdm
-        logging.info('IsoNet --version 1.0 alpha installed')
+        logging.info('IsoNet --version 2.0 alpha installed')
         logging.info(f"checking gpu speed")
         from IsoNet.bin.verify import verify
         fp16, fp32 = verify()
@@ -965,13 +963,6 @@ class ISONET:
 def Display(lines, out):
     text = "\n".join(lines) + "\n"
     out.write(text)
-
-def pool_process(p_func,chunks_list,ncpu):
-    from multiprocessing import Pool
-    with Pool(ncpu,maxtasksperchild=1000) as p:
-        # results = p.map(partial_func,chunks_gpu_num_list,chunksize=1)
-        results = list(p.map(p_func,chunks_list))
-    # return results
 
 def main():
     core.Display = Display
