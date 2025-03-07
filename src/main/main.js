@@ -20,7 +20,8 @@ function createWindow() {
         },
         webPreferences: {
             preload: join(__dirname, '../preload/preload.js'),
-            sandbox: false
+            sandbox: false,
+            devTools: true
         }
     })
 

@@ -13,6 +13,8 @@ function toCommand(data) {
                 value = 'True'
             } else if (value === false) {
                 value = 'False'
+            } else if (value === null) {
+                value = 'None'
             }
 
             if (key === 'command') {
@@ -115,7 +117,7 @@ function runProcess(processItem, callback) {
     })
 
     processItem.event.sender.send('python-running', { cmd: processItem.cmd, output: 'running' })
-    const logStream = fs.createWriteStream(processItem.output_dir + '/log.txt', { flags: 'a' })
+    const logStream = fs.createWriteStream(processItem.output_dir + '-log.txt', { flags: 'a' })
     logStream.write(`Command: isonet.py ${processItem.result}\n`)
     // logStream.write(`[STDOUT] ${output}`) // Write stdout to log.txt
     pythonProcess.stdout.on('data', (data) => {

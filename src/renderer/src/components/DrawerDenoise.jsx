@@ -19,7 +19,7 @@ import {
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 
-const DrawerRefine = ({ open, onClose, onSubmit }) => {
+const DrawerDenoise = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
         command: 'refine',
         star_file: 'tomograms.star',
@@ -531,4 +531,4 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
     )
 }
 
-export default DrawerRefine
+export default DrawerDenoise

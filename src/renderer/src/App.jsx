@@ -11,6 +11,7 @@ import {
     CircularProgress
 } from '@mui/material'
 import DrawerRefine from './components/DrawerRefine'
+import DrawerDenoise from './components/DrawerDenoise'
 import DrawerPredict from './components/DrawerPredict'
 import DrawerDeconv from './components/DrawerDeconv'
 import DrawerMask from './components/DrawerMask'
@@ -103,7 +104,29 @@ const App = () => {
         }
         setMaskDrawerOpen(false)
     }
+    window.api.onPythonRunning((data) => {
+        setRunningProcesses((prevState) => {
+            if (data.cmd in prevState) {
+                return {
+                    ...prevState,
+                    [data.cmd]: true
+                }
+            }
+            return prevState
+        })
+    })
 
+    window.api.onPythonClosed((data) => {
+        setRunningProcesses((prevState) => {
+            if (data.cmd in prevState) {
+                return {
+                    ...prevState,
+                    [data.cmd]: false
+                }
+            }
+            return prevState
+        })
+    })
     useEffect(() => {
         const handleIncomingMessage = (data) => {
             let newMsg = processMessage(data)
@@ -121,30 +144,6 @@ const App = () => {
         }
         window.api.onPythonStderr(handleIncomingMessage)
         window.api.onPythonStdout(handleIncomingMessage)
-
-        window.api.onPythonRunning((data) => {
-            setRunningProcesses((prevState) => {
-                if (data.cmd in prevState) {
-                    return {
-                        ...prevState,
-                        [data.cmd]: true
-                    }
-                }
-                return prevState
-            })
-        })
-
-        window.api.onPythonClosed((data) => {
-            setRunningProcesses((prevState) => {
-                if (data.cmd in prevState) {
-                    return {
-                        ...prevState,
-                        [data.cmd]: false
-                    }
-                }
-                return prevState
-            })
-        })
 
         // // Cleanup listeners on unmount
         // return () => {
