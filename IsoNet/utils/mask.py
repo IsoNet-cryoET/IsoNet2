@@ -15,7 +15,6 @@ def stdmask(tomo,side=10,threshold=60):
     from scipy.signal import convolve
     tomosq = tomo**2
     ones = np.ones(tomo.shape).astype(np.float32)
-    eps = 0.001
     kernel = np.ones((2*side+1, 2*side+1, 2*side+1)).astype(np.float32)
     s = convolve(tomo, kernel, mode="same")
     s2 = convolve(tomosq, kernel, mode="same")
@@ -24,7 +23,7 @@ def stdmask(tomo,side=10,threshold=60):
     out = out / ns
     out = (s2 - out)
     out = out / ns
-    out = out + eps
+    out[out<0] = 0
     out = np.sqrt(out)
     out  = out>np.percentile(out, 100-threshold)
     return out.astype(np.uint8)

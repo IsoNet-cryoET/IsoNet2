@@ -33,7 +33,6 @@ class Net:
             torch.backends.cudnn.benchmark = True    
     
     def initialize(self, method='regular', arch = 'unet-medium', cube_size = 96):
-        
         self.arch = arch
         self.method = method
         self.cube_size = cube_size

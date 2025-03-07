@@ -46,7 +46,31 @@ def simple_loss(model_output, target, rot_mw_mask,loss_func='L2'):
     else:
         print("loss name is not correct")
 
-        
+def masked_loss2(model_output, target, rot_mw_mask, mw_mask, mw_weight=2.0, loss_func=None):
+    """
+    The self-supervised per-sample loss function for denoising and missing wedge reconstruction.
+    """
+    outside_mw_mask = rot_mw_mask * mw_mask
+    outside_mw_loss = (
+        apply_fourier_mask_to_tomo(
+            tomo=target - model_output, mask=outside_mw_mask, output="real"
+        )
+        .abs()
+        .pow(2)
+        .mean()
+    )
+    inside_mw_mask = rot_mw_mask * (torch.ones_like(mw_mask) - mw_mask)
+    inside_mw_loss = (
+        apply_fourier_mask_to_tomo(
+            tomo=target - model_output, mask=inside_mw_mask, output="real"
+        )
+        .abs()
+        .pow(2)
+        .mean()
+    )
+    #loss = outside_mw_loss + mw_weight * inside_mw_loss
+    #return loss
+    return outside_mw_loss,inside_mw_loss
 
 def masked_loss(model_output, target, rot_mw_mask, mw_mask, loss_func=None):
     # This is essence of deepdewedge

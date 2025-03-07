@@ -40,7 +40,9 @@ class Train_sets_n2n(Dataset):
     Dataset class to load tomograms and provide subvolumes for n2n and spisonet methods.
     """
 
-    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", split="full", noise_dir=None, start_bt_size=48):
+    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", 
+                 split="full", noise_dir=None,correct_between_tilts=False, start_bt_size=48,
+                 snrfalloff=0, deconvstrength=1, highpassnyquist=0.02):
         self.star = starfile.read(tomo_star)
         self.method = method
         self.n_tomos = len(self.star)
@@ -59,6 +61,11 @@ class Train_sets_n2n(Dataset):
         self.wiener_list = []
         self.CTF_list = []
         self.start_bt_size=start_bt_size
+        self.correct_between_tilts = correct_between_tilts
+        self.snrfalloff=snrfalloff
+        self.deconvstrength=deconvstrength
+        self.highpassnyquist=highpassnyquist
+
 
         self._initialize_data()
         self.length = sum([coords.shape[0] for coords in self.coords])
@@ -89,9 +96,8 @@ class Train_sets_n2n(Dataset):
             self.coords.append(coords)
 
             min_angle, max_angle, tilt_step = row['rlnTiltMin'], row['rlnTiltMax'], row['rlnTiltStep']
-            
-            # force tilt step
-            tilt_step = None
+            if not self.correct_between_tilts:
+                tilt_step = None
             if tilt_step not in ["None", None]:
                 start_dim = self.start_bt_size/tilt_step
             else:
@@ -179,7 +185,7 @@ class Train_sets_n2n(Dataset):
         ctf3d = get_ctf_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
                                     phaseflipped=False, phaseshift=0, amplitude=row['rlnAmplitudeContrast'],length=self.cube_size)
         wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
-                                  snrfalloff=row['rlnSnrFalloff'], deconvstrength=row['rlnDeconvStrength'], highpassnyquist=0.02, \
+                                  snrfalloff=self.snrfalloff, deconvstrength=self.deconvstrength, highpassnyquist=self.highpassnyquist, \
                                     phaseflipped=False, phaseshift=0, amplitude=row['rlnAmplitudeContrast'], length=self.cube_size)
         return ctf3d, wiener3d
 

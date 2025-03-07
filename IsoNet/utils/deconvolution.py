@@ -191,7 +191,7 @@ def deconv_one(tomo, out_tomo, voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.
     os.mkdir('./deconv_temp')
 
 
-    root_name = os.path.splitext(os.path.basename(tomo))[0]
+    # root_name = os.path.splitext(os.path.basename(tomo))[0]
     logging.info('deconv: {}| pixel: {}| defocus: {}| snrfalloff:{}| deconvstrength:{}'.format(tomo, pixel_size, defocus ,snrfalloff, deconvstrength))
     if chunk_size is None:
         tom_deconv_tomo(tomo,out_tomo,pixel_size, voltage, cs, defocus,snrfalloff,deconvstrength,highpassnyquist,phaseflipped=False, phaseshift=0,ncpu=ncpu)
