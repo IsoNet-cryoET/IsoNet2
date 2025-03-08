@@ -26,14 +26,14 @@ const PagePrepare = (props) => {
         })
     }, [])
     const handleClear = () => {
-        props.setPrepareMessages([])
+        props.setMessages((prev) => ({ ...prev, prepare: [] }))
     }
     const handleFileSelect = async (property) => {
         try {
             const filePath = await api.selectFile(property)
             props.setStarName(filePath) // Update the state
 
-            props.setPrepareMessages(() => [])
+            props.setMessages((prev) => ({ ...prev, prepare: [] }))
             await api.run({
                 command: 'star2json',
                 json_file: '.to_node.json',
@@ -73,7 +73,7 @@ const PagePrepare = (props) => {
                 </Button>
             </Box>
             <DataTable jsonData={JsonData} star_name={props.starName} />
-            {renderContent(props.prepareMessages)}
+            {renderContent(props.messages.prepare)}
         </div>
     )
 }

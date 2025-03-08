@@ -3,7 +3,6 @@ import ProgressBar from './ProgressBar'
 
 export const renderContent = (messageList) => {
     if (!messageList) return null
-    // console.log('messageList', messageList)
     return messageList.map((msg) => {
         // if (msg.cmd !== page) return null
 
