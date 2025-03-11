@@ -44,7 +44,11 @@ def get_cubes(inp, settings):
     iw_data, _ = read_mrc(origional_subtomo)
     ow_data, _ = read_mrc(current_subtomo)
 
+    iw_data = normalize(-iw_data)
+    ow_data = normalize(-ow_data)
+
     orig_data = apply_F_filter(ow_data, 1 - wedge_data) + apply_F_filter(iw_data, wedge_data)
+    orig_data = normalize(orig_data)
 
     rotated_data = rotate_cubes(orig_data)
     
@@ -134,6 +138,7 @@ from IsoNet.utils.fileio import create_folder
 from IsoNet.utils.processing import normalize
 from IsoNet.preprocessing.cubes import create_cube_seeds, extract_subvolume, extract_with_overlap
 import mrcfile
+import tqdm
 def extract(star_file: str,
             input_column: str = "rlnDeconvTomoName",
             subtomo_dir="subtomos", 
@@ -149,12 +154,13 @@ def extract(star_file: str,
     tomo_columns = tomo_star.columns.to_list()
     create_folder(subtomo_dir, remove=True)
     particle_list = []
-    for i, row in tomo_star.iterrows():
+    for i, row in tqdm.tqdm(tomo_star.iterrows(), total=len(tomo_star), desc="Extracting subtomograms"):
+    # for i, row in tomo_star.iterrows():
         if tomo_idx is None or str(row.rlnIndex) in tomo_idx: 
 
             tomo_name = row[input_column]
             tomo, _ = read_mrc(tomo_name)
-            tomo = normalize(tomo)
+            tomo = -normalize(-tomo)
 
             if "rlnMaskName" in tomo_columns and row["rlnMaskName"] not in [None, "None"]:
                 mask_file = row["rlnMaskName"]

@@ -103,13 +103,20 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             for i_batch, batch in enumerate(train_loader):  
                 optimizer.zero_grad(set_to_none=True) 
                 x1, x2, mw, ctf, wiener, noise_vol = process_batch(batch)
+                x1 = normalize_percentage(x1)
+                x2 = normalize_percentage(x2)
 
-                if training_params.get('correct_CTF'):
-                    if not training_params["isCTFflipped"]:
-                        x1 = apply_F_filter_torch(x1, torch.sign(ctf))
-                        x2 = apply_F_filter_torch(x2, wiener)
-                    else:
-                        x2 = apply_F_filter_torch(x2, torch.abs(wiener))
+                if 'CTF_mode' in training_params and training_params['CTF_mode'] not in [None, "None"]:
+                    if training_params['CTF_mode'] == "phase_only":
+                        if not training_params["isCTFflipped"]:
+                            x1 = apply_F_filter_torch(x1, torch.sign(ctf))
+                            x2 = apply_F_filter_torch(x2, torch.sign(ctf))
+                    elif training_params['CTF_mode'] in ["amplititude", 'wiener']:
+                        if not training_params["isCTFflipped"]:
+                            x1 = apply_F_filter_torch(x1, torch.sign(ctf))
+                            x2 = apply_F_filter_torch(x2, torch.abs(wiener))
+                        else:
+                            x2 = apply_F_filter_torch(x2,wiener)
 
                 if training_params['method'] in ["n2n", "regular"]:
                     with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
@@ -127,8 +134,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
 
-                    x1 = normalize_percentage(x1)
-                    x2 = normalize_percentage(x2)
+
                     x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
 
                     with torch.no_grad():
@@ -136,7 +142,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             preds = model(x1)
                     preds = preds.to(torch.float32)
 
-                    if training_params['correct_CTF']:
+                    if 'CTF_mode' in training_params and training_params['CTF_mode'] not in [None, "None"]:
                         preds = apply_F_filter_torch(preds, torch.abs(ctf))
 
                     if training_params['apply_mw_x1']:
@@ -157,16 +163,16 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
-                        if rank == np.random.randint(0, world_size) and i_batch%10 == 0 :
-                            debug_matrix(preds, filename='debug_preds.mrc')
-                            debug_matrix(pred_y, filename='debug_pred_y.mrc')
-                            debug_matrix(x1, filename='debug_x1.mrc')
-                            debug_matrix(x2_rot, filename='debug_rot_x2.mrc')
-                            debug_matrix(subtomos, filename='debug_subtomos.mrc')
-                            debug_matrix(rotated_subtomo, filename='debug_rotated_subtomo.mrc')
-                            debug_matrix(mw_rotated_subtomos, filename='debug_mw_rotated_subtomos.mrc')
-                            debug_matrix(mw, filename='debug_mw.mrc')
-                            debug_matrix(rotated_mw, filename='debug_rotated_mw.mrc')
+                        # if rank == np.random.randint(0, world_size) and i_batch%10 == 0 :
+                        #     debug_matrix(preds, filename='debug_preds.mrc')
+                        #     debug_matrix(pred_y, filename='debug_pred_y.mrc')
+                        #     debug_matrix(x1, filename='debug_x1.mrc')
+                        #     debug_matrix(x2_rot, filename='debug_rot_x2.mrc')
+                        #     debug_matrix(subtomos, filename='debug_subtomos.mrc')
+                        #     debug_matrix(rotated_subtomo, filename='debug_rotated_subtomo.mrc')
+                        #     debug_matrix(mw_rotated_subtomos, filename='debug_mw_rotated_subtomos.mrc')
+                        #     debug_matrix(mw, filename='debug_mw.mrc')
+                        #     debug_matrix(rotated_mw, filename='debug_rotated_mw.mrc')
 
                         if training_params['method'] ==  'isonet2':
                             loss = loss_func(pred_y,rotated_subtomo)

@@ -15,14 +15,13 @@ def run(params):
         datefmt="%m-%d %H:%M:%S",level=logging.INFO,handlers=[logging.StreamHandler(sys.stdout)])
     try:
         logging.info('\n######Isonet starts refining######\n')
-        subtomo_dir = params["output_dir"] + "/subtomos"
 
         ### Extract first
         params["mrc_list"] = extract(params["star_file"],
-            input_column = "rlnDeconvTomoName",
-            subtomo_dir = subtomo_dir, 
-            cube_size = 64,
-            crop_size = None, 
+            input_column = params["input_column"],
+            subtomo_dir = params["output_dir"] + "/subtomos", 
+            cube_size = params["cube_size"],
+            crop_size = params["crop_size"], 
             tomo_idx = None,
             uniform_extract=False)
 

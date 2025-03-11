@@ -190,7 +190,7 @@ class Net:
         data = np.zeros((len(settings['mrc_list']),shape[0], shape[1], shape[2]), dtype=np.float32)
         for i, file_name in enumerate(settings['mrc_list']):
             subtomo, _ = read_mrc(file_name)
-            data[i] = subtomo
+            data[i] = -subtomo
         tmp_data_path = f"{settings['output_dir']}/tmp.npy"
         outData = self.predict(data, tmp_data_path=tmp_data_path)
         os.remove(tmp_data_path)

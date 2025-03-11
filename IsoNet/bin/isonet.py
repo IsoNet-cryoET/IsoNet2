@@ -9,7 +9,8 @@ import mrcfile
 import numpy as np
 from IsoNet.utils.fileio import read_mrc, write_mrc, create_folder
 from IsoNet.utils.utils import parse_params, process_gpuID
-
+import tqdm
+import pandas as pd
 class ISONET:
     """
     ISONET: Train on tomograms and restore missing-wedge\n
@@ -121,8 +122,8 @@ class ISONET:
         #     #TODO decide the defocus file format from CTFFIND and GCTF
         #     print("read from CTFFIND result not implimented")
 
-        add_param("None", "rlnSnrFalloff",0)
-        add_param("None", "rlnDeconvStrength",1)
+        # add_param("None", "rlnSnrFalloff",0)
+        # add_param("None", "rlnDeconvStrength",1)
         # add_param("None", "rlnDeconvTomoName","None")
 
         # mask parameters
@@ -203,14 +204,11 @@ class ISONET:
         new_star = star.copy()
 
         print('\n###### Isonet ctf deconvolve starts ######\n')
-        if tomo_idx not in ['None',None,'all','All']:
-            tomo_idx = idx2list(tomo_idx)
-            total = len(tomo_idx)
-        else: 
-            total = len(star)
-        with tqdm.tqdm(total=total, desc="deconv") as progress_bar:
+        tomo_idx = idx2list(tomo_idx, list(star.rlnIndex))
+
+        with tqdm.tqdm(total=len(tomo_idx), desc="deconv") as progress_bar:
             for i, it in star.iterrows():
-                if tomo_idx in ['None', None, 'all', 'All'] or str(it.rlnIndex) in tomo_idx:
+                if str(it.rlnIndex) in tomo_idx:
                     tomo_file = it[input_column]
                     
                     # Update progress bar description
@@ -292,27 +290,14 @@ class ISONET:
             
         star = starfile.read(star_file)
         new_star = star.copy()
+        tomo_idx = idx2list(tomo_idx, list(star.rlnIndex))
 
-        if tomo_idx not in ['None',None,'all','All']:
-            tomo_idx = idx2list(tomo_idx)
-            total = len(tomo_idx)
-        else: 
-            total = len(star)
-
-        if not 'rlnMaskDensityPercentage' in new_star.columns:
-            new_star['rlnMaskDensityPercentage'] = 50
-            new_star['rlnMaskStdPercentage'] = 50
-            new_star['rlnMaskName'] = 'None'
         if not input_column in new_star.columns:
             input_column = "rlnTomoName",
 
-        with tqdm.tqdm(total=total, desc="make mask") as progress_bar:
+        with tqdm.tqdm(total=len(tomo_idx), desc="make mask") as progress_bar:
             for i, it in star.iterrows():
-                if tomo_idx in ['None', None, 'all', 'All'] or str(it.rlnIndex) in tomo_idx:
-                    if density_percentage is not None:
-                        new_star.loc[i,'rlnMaskDensityPercentage'] = density_percentage
-                    if std_percentage is not None:
-                        new_star.loc[i,'rlnMaskStdPercentage'] = std_percentage
+                if str(it.rlnIndex) in tomo_idx:
                     tomo_file = it[input_column]
                     if tomo_file == "None":
                         logging.info(f"using rlnTomoName instead of {input_column}")
@@ -327,7 +312,7 @@ class ISONET:
                         # logging.info('make_mask: {}| dir_to_save: {}| window_scale: {}'.format(tomo_file,
                         # output_dir, patch_size))
                         logging.info('make_mask: {}| dir_to_save: {}| percentage: {}| window_scale: {}'.format(tomo_file,
-                        output_dir, it.rlnMaskDensityPercentage, patch_size))
+                        output_dir, density_percentage, patch_size))
                         
                         #if mask_boundary is None:
                         if "rlnMaskBoundary" in star.columns.tolist() and it.rlnMaskBoundary not in [None, "None"]:
@@ -340,8 +325,8 @@ class ISONET:
                                 mask_out_name,
                                 mask_boundary=mask_boundary,
                                 side=patch_size,
-                                density_percentage=it.rlnMaskDensityPercentage,
-                                std_percentage=it.rlnMaskStdPercentage,
+                                density_percentage=density_percentage,
+                                std_percentage=std_percentage,
                                 surface = z_crop)
 
                         new_star.loc[i,'rlnMaskName']=mask_out_name
@@ -405,6 +390,9 @@ class ISONET:
         out_column = "rlnCorrectedTomoName"
         if network.method == 'n2n':
             out_column = "rlnDenoisedTomoName"
+            # out_column1 = "rlnDenoisedTomoHalf1"
+            # out_column2 = "rlnDenoisedTomoHalf2"
+
         if out_column not in star.columns:
             star[out_column] = None
 
@@ -472,7 +460,6 @@ class ISONET:
                     out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
                     out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
                     if model2 in ['None', None]:
-
                         outData_full = (out_half1 + out_half2) * (0.5)
                     else:
                         
@@ -507,6 +494,8 @@ class ISONET:
                    cube_size: int=80,
                    epochs: int=50,
 
+                   input_column: str = 'rlnTomoReconstructedTomogramHalf',
+
                    batch_size: int=None, 
                    acc_batches: int=1,
                    loss_func: str = "L2",
@@ -516,8 +505,12 @@ class ISONET:
                    compile_model: bool=False,
                    mixed_precision: bool=True,
 
-                   correct_CTF: bool=False,
+                   CTF_mode: str="None",
                    isCTFflipped: bool=False,
+
+                   snrfalloff: float=0,
+                   deconvstrength: float=1,
+                   highpassnyquist:float=0.02,
 
                    with_predict: bool=True,
                    split_halves: bool=False
@@ -534,7 +527,10 @@ class ISONET:
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus)
         steps_per_epoch = 200000000
-
+        if CTF_mode not in ["None", None]:
+            correct_CTF = True
+        else:
+            correct_CTF = False
 
         training_params = {
             "method":'n2n',
@@ -557,12 +553,15 @@ class ISONET:
             'T_max':T_max,
             'learning_rate_min':learning_rate_min,
             'loss_func':loss_func,
-            'correct_CTF':correct_CTF,
+            'CTF_mode':CTF_mode,
             "isCTFflipped": isCTFflipped,
             "starting_epoch": 0,
             "noise_level": 0,
             "correct_between_tilts":False,
             "start_bt_size":128,
+            'snrfalloff':snrfalloff,
+            "deconvstrength": deconvstrength,
+            "highpassnyquist":highpassnyquist
         }
         if split_halves:
             from IsoNet.models.network import DuoNet
@@ -621,7 +620,7 @@ class ISONET:
                    compile_model: bool=False,
                    mixed_precision: bool=True,
 
-                   correct_CTF: bool=False,
+                   CTF_mode: str="None",
                    isCTFflipped: bool=False,
 
                    correct_between_tilts: bool=True,
@@ -650,6 +649,11 @@ class ISONET:
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
         steps_per_epoch = 200000000
+        
+        if CTF_mode not in ["None", None]:
+            correct_CTF = True
+        else:
+            correct_CTF = False
         
         if method == "isonet2":
             star = starfile.read(star_file)
@@ -686,7 +690,7 @@ class ISONET:
             'T_max':T_max,
             'learning_rate_min':learning_rate_min,
             'loss_func':loss_func,
-            'correct_CTF':correct_CTF,
+            'CTF_mode':CTF_mode,
             "isCTFflipped": isCTFflipped,
             "starting_epoch": 0,
             "noise_level": noise_level,
@@ -719,33 +723,47 @@ class ISONET:
 
     def refine_v1(self,
         star_file: str,
-        arch: str="unet-medium",
-        gpuID: str = None,
-        iterations: int = 30,
-        data_dir: str = None,
-        pretrained_model: str = None,
-        log_level: str = "info",
         output_dir: str='results',
-        remove_intermediate: bool =False,
-        select_subtomo_number: int = None,
+
+        gpuID: str = None,
         ncpus: int = 16,
+
+        arch: str="unet-medium",
+        pretrained_model: str = None,
+
+        cube_size = 80,
+
+        input_column: str= 'rlnDeconvTomoName',
+        batch_size: int = None,
+        loss_func: str= 'L2',
+        learning_rate: float = 3e-4,
+        T_max: int =  10,
+        learning_rate_min: float = 3e-4,
+        compile_model: bool = False,
+        mixed_precision: bool = True,
+
+        iterations: int = 30,
         continue_from: str=None,
         epochs: int = 10,
-        batch_size: int = None,
-        steps_per_epoch: int = None,
-        cube_size = 64,
-        crop_size = None, 
-        tomo_idx = None,
-        split_halves: bool=False,
 
-
-        noise_level:  tuple=(0.05,0.10,0.15,0.20),
-        noise_start_iter: tuple=(11,16,21,26),
+        noise_level:  tuple = (0.05,0.1,0.15,0.2),
         noise_mode: str = 'noFilter',
-        noise_dir: str = None,
+        noise_start_iter: tuple = (10,15,20,25),
 
-        learning_rate: float = 3e-4,
+        with_predict: bool = True,
+
+        # temporarily fixed parameters
         normalize_percentile: bool = True,
+        select_subtomo_number: int = None,
+        noise_dir: str = None,
+        split_halves: bool=False,
+        data_dir: str = None,
+        log_level: str = "info",
+        remove_intermediate: bool =False,
+        steps_per_epoch: int = None,
+        tomo_idx = None,
+        crop_size = None, 
+        random_rotation: bool =  False,
 
     ):
 
@@ -783,15 +801,24 @@ class ISONET:
             params = load_args_from_json(params.continue_from)
 
         params["batch_size"], params["ngpus"], params["ncpus"] = parse_params(batch_size, gpuID, ncpus)
-        params["crop_size"] = params.get("crop_size") or params["cube_size"] + 16
+        # params["crop_size"] = params.get("crop_size") or params["cube_size"] + 16
+        params["crop_size"] = params.get("cube_size")
 
         params["data_dir"] = params.get("data_dir") or f'{params["output_dir"]}/data'
         params["steps_per_epoch"] = params.get("steps_per_epoch") or 200
         params["noise_dir"] = params.get("noise_dir") or f'{params["output_dir"]}/training_noise'
         params["log_level"] = params.get("log_level") or "info"
 
+        if type(params["noise_level"]) not in [tuple, list]:
+            params["noise_level"] = [params["noise_level"]]
+        if type(params["noise_start_iter"]) not in [tuple, list]:
+            params["noise_start_iter"] = [params["noise_start_iter"]]
+
         from IsoNet.bin.refine import run
         run(params)
+
+        # if with_predict:
+            # self.predict(star_file, params['])
 
 
     def simulate_noise_F(self, size=128, tilt_step=3, repeats=1000, ncpus=51):
