@@ -1,0 +1,1594 @@
+#!/usr/bin/env python
+
+#############################################################################
+#                                                                           #
+# FSC calculation and map postprocessing tools                              #
+#                                                                           #
+# (C) focus-em.org, GNU Public License.                                     #
+#                                                                           #
+# Created..........: 09/09/2016                                             #
+# Last Modification: 13/09/2019                                             #
+# Author...........: Ricardo Righetto (ricardo.righetto@unibas.ch)          #
+# Author FCC.......: Robb McLeod                                            #
+#																			                                      #
+# This script is distributed with the FOCUS package:						            #
+# http://www.focus-em.org													                          #
+# http://github.com/C-CINA/focus                                            #
+# Reference: Biyani et al., JSB 2017                                        #
+# 																			                                    #
+# It uses ioMRC from the Python-MRCZ libraries                              #
+# (mrcz is also available from pip)                                         #
+# http://github.com/em-MRCZ/Python-MRCZ 									                  #
+# Reference: McLeod et al., bioRxiv 2017 / JSB 2017                         #
+# 																			                                    #
+# Some of the tools here provided are inspired on the relion_postprocess    #
+# and relion_mask_create programs											                      #
+# http://www2.mrc-lmb.cam.ac.uk/relion 										                  #
+# Reference: Scheres, JMB 2012												                      #
+#																			                                      #
+# Single-Particle Wiener filter application is based on FREALIGN:			      #
+# http://grigoriefflab.janelia.org/frealign 								                #
+# Reference: Sindelar & Grigorieff, JSB 2012								                #
+# 																			                                    #
+# Auto-masking tools including flood-filling approach are based on EMAN2:	  #
+# http://blake.bcm.edu/emanwiki/EMAN2										                    #
+# Reference: Tang et al., JSB 2007		 									                    #
+#																			                                      #
+# High-Resolution Noise Substitution:										                    #
+# Reference: Chen et al., Ultramicroscopy 2013								              #
+# 																			                                    #
+# Additional reference for FSC weighting and map sharpening: 				        #
+# Reference: Rosenthal & Henderson, JMB 2003								                #
+# 																			                                    #
+# Primary reference for the FSC:											                      #
+# Harauz & van Heel, Optik 1986												                      #
+#																			                                      #
+# Reference detailing 3-Sigma and 1/2-bit criteria:							            #
+# van Heel & Schatz, JSB 2005												                        #
+#																			                                      #
+#############################################################################
+
+import sys
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from focustools import util
+from mrcz import ioMRC
+from optparse import OptionParser
+from packaging import version
+import numexpr as ne
+
+if version.parse(ioMRC.__version__) < version.parse("0.5.1"):
+
+  print("\nPlease update your MRCZ module to a version >= 0.5.1!")
+  print("e.g. run 'pip install mrcz --upgrade'")
+  sys.exit(1)
+
+
+def main():
+
+    progname = os.path.basename(sys.argv[0])
+    usage = progname + """ <half-map1> [<half-map2>] [options]
+
+	Given two unmasked and unfiltered reconstructions from random halves of your dataset, calculates FSC curves between them and applies additional postprocessing filters.
+	Can also be used for only generating masks or only applying filters, with the --mask_only and/or --skip_fsc options respectively.
+
+	Output:
+
+			-FSC plot(s) in PNG format
+			-Text file containing description of FSC and filters applied (_data.fsc)
+			-Generated mask (if any), masked and unmasked postprocessed maps in MRC format.
+
+	See postprocess.py --help for all options.
+
+	For reporting bugs and requesting features, please refer to:
+
+	http://www.focus-em.org
+	http://github.com/C-CINA/focus
+
+	"""
+
+    parser = OptionParser(usage)
+
+    parser.add_option("--out", metavar="postprocess", type="string",
+                      default='postprocess', help="Output rootname.")
+
+    parser.add_option("--angpix", metavar=1.0, type="float",
+                      help="Pixel size in Angstroems")
+
+    parser.add_option("--fsc_threshold", metavar=0.143, default=0.143, type="float",
+                      help="Display the resolution at which the FSC curve crosses this value.")
+
+    parser.add_option("--lowpass", metavar='"auto"', default='auto',
+                      help="Resolution (in Angstroems) at which to low-pass filter the final map. A negative value will skip low-pass filtering. Default ('auto') is to low-pass at resolution determined from FSC threshold.")
+
+    parser.add_option("--highpass", metavar='"auto"', default='auto',
+                      help="Resolution (in Angstroems) at which to high-pass filter the final map. Useful to to attenuate artefacts such as background ramps (e.g. high-pass at 2/3 of the box size). A negative value will skip high-pass filtering (default).")
+
+    parser.add_option("--mask", metavar="MyMask.mrc", type="string",
+                      help="A file containing the mask to be applied to the half-maps before calculating the FSC. Can be combined with other masking options.")
+
+    parser.add_option("--force_mask", action="store_true",
+                      help="Force using this mask file even if it has strange properties such as values outside the range [0,1].", default=False)
+
+    parser.add_option("--mask_radius", metavar=0.5, default=None, type="float",
+                      help="Creates a soft spherical mask. This is the radius of such mask, in pixels or fraction of the box size. Can be combined with other masking options.")
+
+    parser.add_option("--mask_edge_width", metavar=6.0, default=None, type="float",
+                      help="This is the width of the cosine edge to soften the outer shells of the spherical mask, in pixels or fraction of the box size.")
+
+    parser.add_option("--mask_center", metavar="0,0,0", default=None, type="string",
+                      help="Three numbers describing where the center of the spherical mask should be placed within the 3D box (in pixels). Default is the middle of the box: 0,0,0. Can be positive or negative.")
+
+    parser.add_option("--mask_only", action="store_true",
+                      help="Only perform masking operations and write out the mask, nothing else. In this case a single map can be provided.", default=False)
+
+    parser.add_option("--crop_size", metavar="0,0,0", default=None, type="string", help="Three numbers describing a new box size for cropping the 3D volumes prior to any other calculation. The outputs will have this box size. Useful for processing 2D crystal data, i.e. selecting only a single protein (e.g. a single oligomer) while preventing correlations introduced by masking within a large box. Numbers must be integer and positive. See also option --crop_center.")
+
+    parser.add_option("--crop_center", metavar="0,0,0", default=None, type="string",
+                      help="Three numbers describing where the origin for cropping the 3D volumes prior to any other calculation. This will be the center of the new volumes. Default is the middle of the box: (0,0,0). Can be positive or negative.")
+
+    parser.add_option("--clamp_input", action="store_true",
+                      help="CAUTION! EXPERIMENTAL OPTION: replace all negative densities of input maps with zeros.", default=False)
+
+    parser.add_option("--clamp_output", action="store_true",
+                      help="CAUTION! EXPERIMENTAL OPTION: replace all negative densities of the output map with zeros. Probably less risky than --clamp_input.", default=False)
+
+    parser.add_option("--skip_fsc", action="store_true",
+                      help="Skip all FSC calculations, only do masking and filtering stuff.", default=False)
+
+    parser.add_option("--mw", metavar=1000.0, type="float", help="Molecular mass in kDa of particle or helical segment comprised within the mask. Needed to calculate volume-normalized Single-Particle Wiener filter (Sindelar & Grigorieff, JSB 2012). If not specified, will do conventional FSC weighting on the final map (Rosenthal & Henderson, JMB 2003).")
+
+    parser.add_option("--mw_ignore", metavar=0.0, type="float", default=0.0, help="CAUTION! EXPERIMENTAL OPTION: Molecular mass in kDa present within the mask that needs to be ignored. Needed to calculate an adaptation of the volume-normalized Single-Particle Wiener filter (Sindelar & Grigorieff, JSB 2012). Only used if --mw is also specified. May be useful if your particles are extracted from 2D crystals.")
+
+    parser.add_option("--skip_fsc_weighting", action="store_true",
+                      help="Do NOT apply FSC weighting (Rosenthal & Henderson, JMB 2003) to the final map, nor the Single-Particle Wiener filter (Sindelar & Grigorieff, JSB 2012).", default=False)
+
+    parser.add_option("--apply_fsc2", action="store_true",
+                      help="CAUTION! EXPERIMENTAL OPTION: Apply the square of the FSC curve as a filter. Probably should be used together with the --skip_fsc_weighting option.", default=False)
+
+    parser.add_option("--gaussian", action="store_true",
+                      help="Apply a Gaussian (instead of cosine-edge) low-pass filter to the map, with cutoffs defined by --highpass and --lowpass.", default=False)
+
+    parser.add_option("--cosine", action="store_true", help="Apply a cosine-edge low-pass filter to the final map, with cutoffs defined by --highpass and --lowpass. This is the default. The width of the cosine edge can be specified with the option --edge_width.", default=True)
+
+    parser.add_option("--cosine_edge_width", metavar=3.0, type="float",
+                      help="Width of the cosine-edge filter (in Fourier pixels). The cutoff frequency will have a weight of 0.5, with corresponding weighting above and below following the cosine falloff. If set to zero, becomes a top-hat filter with weighting of 1.0 at the cutoff frequency.", default=3.0)
+
+    parser.add_option("--tophat", action="store_true",
+                      help="Apply a top-hat low-pass filter to the final map. Equivalent to specifying --cosine with --cosine_edge_width=0.", default=False)
+
+    parser.add_option("--mtf", type="string",
+                      help="File containing the detector MTF for sharpening of the final map.")
+
+    parser.add_option("--auto_bfac", metavar="10.0,0.0", default=None, type="string", help="Estimate B-factor automatically using information in this resolution range, in Angstroems (lowres,highres). This works based on the Guinier plot, which should ideally be a straight line from ~10.0 A and beyond (Rosenthal & Henderson, JMB 2003).'If you set lowres and/or maxres to -1, these values will be calculated automatically. MTF and FSC weighting information are employed, if not ommitted.")
+
+    parser.add_option("--adhoc_bfac", metavar=0.0, type="float",
+                      help="Apply an ad-hoc B-factor to the map (in Angstroems^2). Can be positive (smoothing) or negative (sharpening).", default=0.0)
+
+    parser.add_option("--whiten", action="store_true", help="Whiten the final map (that is, makes the radial Amplitude Spectrum equal to 1.0 across all frequencies). Should normally be used in combination with the option --gaussian and --skip_fsc_weighting, and also --highpass in some cases. If using this option, B-factor and MTF sharpening become meaningless.", default=False)
+
+    parser.add_option("--whiten_amps", action="store_true", help="Whiten the radial Amplitude Spectrum instead of the radial Power Spectrum (Amplitudes^2). Whitening amplitudes seems to give a slightly more peaky (sharp) map as measured by kurtosis, but the results are visually almost identical. Only valid if using option --whiten above.", default=False)
+
+    parser.add_option("--randomize_below_fsc", metavar=0.8, type="float", default=None,
+                      help="If provided, will randomize phases for all Fourier shells beyond the point where the FSC drops below this value, to assess correlations introduced by the mask by High-Resolution Noise Substitution (Chen et al, Ultramicroscopy 2013). Be aware that this procedure may introduce a 'dip' in the FSC curves at the corresponding resolution value, but that is normal.")
+
+    parser.add_option("--randomize_beyond", metavar=10, type="float", default=None,
+                      help="If provided, will randomize phases for all Fourier shells beyond this resolution shell, to assess correlations introduced by the mask by High-Resolution Noise Substitution (Chen et al, Ultramicroscopy 2013). Be aware that this procedure may introduce a 'dip' in the FSC curves at the corresponding resolution value, but that is normal.")
+
+    parser.add_option("--random_seed", metavar=123456789, type="int", default=123456789,
+                      help="Choose the random seed for High-Resolution Noise Substitution (see option --randomize_below_fsc above)")
+
+    # parser.add_option("--evaluate_spw_random", action="store_true", default=False, help="If both --mw and --randomize_below_fsc are provided, will evalute the performance of the Single-Particle Wiener filter (Sindelar & Grigorieff, JSB 2012) on the phase-randomized maps. Useful to assess how much artifacts (e.g. ringing) are being amplified by this filter.") # HIGHLY EXPERIMENTAL, PROBABLY SHOULDN'T BE USED
+
+    parser.add_option("--cone_aperture", metavar=90.0, type="float",
+                      help="If data contains a missing cone, use this option to exclude it from FSC calculations. A missing cone may introduce artificially high correlations in the FSC. The cone aperture (2*Theta) is given in degrees.")
+
+    parser.add_option("--xy_only", action="store_true", default=False,
+                      help="Evaluate resolution along the XY plane only. Incompatible with masking options, but you can apply a mask to half-maps prior to using this option.")
+
+    parser.add_option("--xz_only", action="store_true", default=False,
+                      help="Evaluate resolution along the XZ plane only. Incompatible with masking options, but you can apply a mask to half-maps prior to using this option.")
+
+    parser.add_option("--yz_only", action="store_true", default=False,
+                      help="Evaluate aresolution along the YZ plane only. Incompatible with masking options, but you can apply a mask to half-maps prior to using this option.")
+
+    parser.add_option("--flip_x", action="store_true", default=False,
+                      help="Invert handedness of input volumes along the X axis.")
+
+    parser.add_option("--flip_y", action="store_true", default=False,
+                      help="Invert handedness of input volumes along the Y axis.")
+
+    parser.add_option("--flip_z", action="store_true", default=False,
+                      help="Invert handedness of input volumes along the Z axis.")
+
+
+    parser.add_option("--resample", metavar=1.0, type="float",
+                      help="Resample the final result in Fourier space to this pixel size (in Angstroems) in order to make the volume larger or smaller.")
+
+    parser.add_option("--fsc_sigma", metavar=3.0, type="float", default=None,
+                      help="Show the Sigma curve (standard deviations above random noise) on the FSC plots. Default is the 3-Sigma curve (van Heel, Ultramicroscopy 1987).")
+
+    parser.add_option("--fsc_halfbit", action="store_true", default=False,
+                      help="Show the 1/2-bit criterion curve on the FSC plots (van Heel & Schatz, JSB 2005).")
+
+    parser.add_option("--nsym", metavar=1, type="int", default=1,
+                      help="Number of asymmetric units present in the volume, used for estimation of the (3)-Sigma and 1/2-bit criterion curves (van Heel & Schatz, JSB 2005).")
+
+    parser.add_option("--ptcl_diameter", metavar=100.0, type="float", default=100.0,
+                      help="The approximate diameter of the particle (along its longest axis), used for estimation of the (3)-Sigma and 1/2-bit criterion curves (van Heel & Schatz, JSB 2005).")
+
+    parser.add_option("--interp_fsc", action="store_true", default=False,
+                      help="Report resolution using linear interpolation of the FSC to find threshold (or curve) crossing (Zivanov, Nakane & Scheres, IUCrJ 2019).")
+
+    parser.add_option("--real_space_correlation", action="store_true", default=False,
+                      help="Calculate the real space correlation between the input maps. Can be combined with all the other options (masking, cropping, etc).")
+
+    parser.add_option("--dpi", metavar=300, type="int", default=300,
+                      help="Resolution of the PNG files to be saved with the FSC curves (dots per inch).")
+
+    parser.add_option("--svg", action="store_true", default=False,
+                      help="Save figures in SVG format instead of PNG.")
+
+    parser.add_option("--transparent", action="store_true",
+                      default=False, help="Save figures with transparent background.")
+
+    parser.add_option("--xml", action="store_true", default=False,
+                      help="Save FSC curves also in XML format for EMDB deposition.")
+
+    (options, args) = parser.parse_args()
+
+    command = ' '.join(sys.argv)
+
+
+
+    if options.cosine_edge_width != None and options.cosine_edge_width < 0.0:
+
+        print('\nCosine edge width cannot be negative!')
+        sys.exit(1)
+
+
+
+    if options.randomize_below_fsc != None and (options.randomize_below_fsc < -1.0 or options.randomize_below_fsc > 1.0):
+
+        print(
+            '\nFSC values for phase-randomization must be in the range [-1,1]!')
+        sys.exit(1)
+
+    if options.cone_aperture != None:
+
+        options.cone_aperture = float(options.cone_aperture) / 2
+
+    if options.tophat:
+
+        options.gaussian = False
+        options.cosine = True
+        options.cosine_edge_width = 0.0
+
+    if options.mask_center == None:
+
+        mask_center = [0, 0, 0]
+
+    else:
+
+        mask_center = np.array(map(int, options.mask_center.split(',')))
+
+    if options.crop_center == None:
+
+        crop_center = [0, 0, 0]
+
+    else:
+
+        crop_center = np.array(list(map(int, options.crop_center.split(','))))
+
+
+    if options.resample != None and options.resample <= 0.0:
+
+        print('Resampling pixel size must be greater than zero! options.resample = %f A' %
+              options.resample)
+        sys.exit(1)
+
+    if options.skip_fsc and options.lowpass == "auto":
+
+        options.lowpass = -1
+        options.skip_fsc_weighting = True
+        options.apply_fsc2 = False
+
+    if options.fsc_sigma != None:
+
+        if options.nsym != None:
+
+            if options.nsym <= 0.0:
+
+                print(
+                    'Number of asymmetric units must be greater than zero! options.nsym = %f A' % options.nsym)
+                sys.exit(1)
+
+        else:
+
+            options.nsym = 1
+
+    if options.ptcl_diameter <= 0.0:
+
+        print('Particle diameter must be greater than zero! options.ptcl_diameter = %f A' %
+              options.ptcl_diameter)
+        sys.exit(1)
+
+    if options.svg:
+
+        ext = '.svg'
+
+    else:
+
+        ext = '.png'
+
+    if options.interp_fsc:
+
+        fsc_interp = True
+
+    else:
+
+        fsc_interp = False
+
+    # Read in the two maps:
+    sys.stdout = open(os.devnull, "w")  # Suppress output
+    map1 = ioMRC.readMRC(args[0])[0]
+    if len(args) > 1:
+        map2 = ioMRC.readMRC(args[1])[0]
+    else:
+        map2 = map1
+    sys.stdout = sys.__stdout__
+
+    if np.any(map1.shape != map2.shape):
+
+        print('Input maps must be the same size!')
+        sys.exit(1)
+
+    if options.flip_x:
+
+        print('\nFlipping input maps along X')
+
+        map1 = map1[:, :, ::-1]
+        map2 = map2[:, :, ::-1]
+
+    if options.flip_y:
+
+        print('\nFlipping input maps along Y')
+
+        map1 = map1[:, ::-1, :]
+        map2 = map2[:, ::-1, :]
+
+    if options.flip_z:
+
+        print('\nFlipping input maps along Z')
+
+        map1 = map1[::-1, :, :]
+        map2 = map2[::-1, :, :]
+
+    if options.clamp_input:
+
+        print('\nNegative values of input maps will be clamped to zero!')
+
+        map1[map1 < 0] = 0.0
+        map2[map2 < 0] = 0.0
+
+    if options.crop_size != None:
+
+        crop_size = np.array(list(map(float, options.crop_size.split(','))))
+
+        print('\nCropping input half-maps to size [%d, %d, %d] with center at [%d, %d, %d]...' % (
+            crop_size[0], crop_size[1], crop_size[2], crop_center[0], crop_center[1], crop_center[2]))
+
+        map1 = util.Resize(map1, newsize=crop_size, xyz=crop_center)
+        sys.stdout = open(os.devnull, "w")  # Suppress output
+        ioMRC.writeMRC(map1, options.out + '_map1-cropped.mrc',
+                       dtype='float32', pixelsize=options.angpix, quickStats=False)
+        sys.stdout = sys.__stdout__
+
+        map2 = util.Resize(map2, newsize=crop_size, xyz=crop_center)
+        sys.stdout = open(os.devnull, "w")  # Suppress output
+        ioMRC.writeMRC(map2, options.out + '_map2-cropped.mrc',
+                       dtype='float32', pixelsize=options.angpix, quickStats=False)
+        sys.stdout = sys.__stdout__
+
+    if options.real_space_correlation:
+
+        rsc = util.CrossCorrelation(map1, map2)
+        print('\nReal space correlation = %.6f' % (rsc))
+        print('\nDone!')
+
+        sys.exit(0)
+
+    # We check if there is a mask file and if not, should we create one?
+    if options.mask != None:
+
+        sys.stdout = open(os.devnull, "w")  # Suppress output
+        maskfile = ioMRC.readMRC(options.mask)[0]
+        sys.stdout = sys.__stdout__
+
+    else:
+
+        maskfile = np.ones( map1.shape )
+
+    mask = maskfile
+
+    if options.mask_radius != None or options.mask_edge_width != None:
+
+        if options.mask_radius == None:
+
+            options.mask_radius = 0.5
+
+        if options.mask_edge_width == None:
+
+            options.mask_edge_width = 6.0
+
+        masksphere = util.SoftMask(
+            map1.shape, radius=options.mask_radius, width=options.mask_edge_width, xyz=mask_center)
+
+        ne.evaluate( "mask * masksphere", out=mask)
+
+    # Resolution range to estimate B-factor:
+    if options.auto_bfac != None:
+
+        resrange = options.auto_bfac.split(',')
+        minres = float(resrange[0])
+        maxres = float(resrange[1])
+
+    if options.xy_only:
+
+        print('Maps will be evaluated along the XY plane only (FRC instead of FSC!)...')
+
+        map1 = map1.sum(axis=0)
+        map2 = map2.sum(axis=0)
+
+        options.out = options.out + '-xy'
+
+    elif options.xz_only:
+
+        print('Maps will be evaluated along the XZ plane only (FRC instead of FSC!)...')
+
+        map1 = map1.sum(axis=1)
+        map2 = map2.sum(axis=1)
+
+        options.out = options.out + '-xz'
+
+    elif options.yz_only:
+
+        print('Maps will be evaluated along the YZ plane only (FRC instead of FSC!)...')
+
+        map1 = map1.sum(axis=2)
+        map2 = map2.sum(axis=2)
+
+        options.out = options.out + '-yz'
+
+    # For cubic volumes this is just half the box size + 1.
+    NSAM = util.GetNumberOfFourierSamples( map1.shape )
+
+    freq = util.GetFreqArray( NSAM, options.angpix )
+
+    freq[0] = 1.0 / 999  # Just to avoid dividing by zero later
+    freq2 = ne.evaluate( "freq * freq" )
+
+    if options.fsc_sigma != None:
+
+        print('\nCalculating %.1f-Sigma curve for a particle of linear size %.3f A inside a box of linear size %.3f (D/L = %.3f) and %d-fold symmetry... ' %
+              (options.fsc_sigma, options.ptcl_diameter, np.max(map1.shape) * options.angpix, options.ptcl_diameter / (np.max(map1.shape) * options.angpix), options.nsym))
+        sigma_curve = util.SigmaCurve(map1.shape, sigma=options.fsc_sigma, nsym=options.nsym,
+                                      D=options.ptcl_diameter, L=np.max(map1.shape) * options.angpix, count=False)
+        # print( sigma_curve[:NSAM].shape )
+
+    if options.fsc_halfbit:
+
+        print('\nCalculating 1/2-bit curve for a particle of linear size %.3f A inside a box of linear size %.3f (D/L = %.3f) and %d-fold symmetry... ' %
+              (options.ptcl_diameter, np.max(map1.shape) * options.angpix, options.ptcl_diameter / (np.max(map1.shape) * options.angpix), options.nsym))
+        halfbit_curve = util.HalfBitCurve(map1.shape, nsym=options.nsym, D=options.ptcl_diameter, L=np.max(
+            map1.shape) * options.angpix, count=False)
+
+    # Start creating the matrix that will be written to an output file
+    dat = np.append(1.0 / freq, freq, axis=1)
+    # Header of the output file describing the data columns
+    head = 'Res       \t1/Res     \t'
+
+    if not options.skip_fsc:
+
+        print('\nCalculating unmasked FSC...')
+
+        if options.cone_aperture == None:
+
+            fsc = util.FCC(map1, map2)
+
+        else:
+
+            # l = NSAM/2 + 1
+            # if np.mod(NSAM, 2):
+
+            # 	freq[1:] = np.arange( float(l) ) / (NSAM - 1)
+
+            # else:
+
+            # 	freq[1:] = np.arange( float(l) ) / NSAM
+
+            fsc = util.FCC(
+                map1, map2, [options.cone_aperture], invertCone=True)
+
+        # if options.three_sigma:
+
+        # 	three_sigma_curve = 3.0 / np.sqrt( np.reshape(fscmat[:,2], (l, 1)) )
+
+        # dat = np.append( dat, util.VoxelsPerShell( map1.shape )[:NSAM].reshape( (NSAM, 1) ),  axis=1)
+        # head += 'VoxelsPerShell     \t'
+
+        if options.fsc_sigma:
+
+            dat = np.append(dat, sigma_curve[:NSAM].reshape(
+                (NSAM, 1)), axis=1)  # Append the unmasked FSC
+            head += '%.1f-Sigma\t' % (options.fsc_sigma)
+
+            # Just to avoid disturbing the scaling of the plot
+            sigma_curve[sigma_curve > 1.0] = 1.0
+
+        if options.fsc_halfbit:
+
+            dat = np.append(dat, halfbit_curve[:NSAM].reshape(
+                (NSAM, 1)), axis=1)  # Append the unmasked FSC
+            head += '1/2-bit\t'
+
+            # Just to avoid disturbing the scaling of the plot
+            halfbit_curve[halfbit_curve > 1.0] = 1.0
+
+        if options.fsc_halfbit:
+
+            res = util.ResolutionAtThreshold(
+                freq[2:], fsc[2:NSAM], halfbit_curve[2:NSAM], fsc_interp)
+            print('FSC >= 1/2-bit curve until to %.3f A (unmasked)' % (res))
+
+        elif options.fsc_sigma != None:
+
+            res = util.ResolutionAtThreshold(
+                freq[2:], fsc[2:NSAM], sigma_curve[2:NSAM], fsc_interp)
+            print('FSC >= %.1f-Sigma curve until %.3f A (unmasked)' %
+                  (options.fsc_sigma, res))
+
+        else:
+
+            res = util.ResolutionAtThreshold(
+                freq[1:], fsc[1:NSAM], options.fsc_threshold, fsc_interp)
+            print('FSC >= %.3f until %.3f A (unmasked)' %
+                  (options.fsc_threshold, res))
+
+        print('Area under FSC (unmasked): %.3f' % fsc[1:NSAM].sum())
+
+        # Plot
+        plt.figure()
+        if options.fsc_sigma != None and options.fsc_halfbit:
+
+            # print( dat.shape )
+            # print NSAM
+
+            plt.plot(freq[1:], fsc[1:NSAM], freq[1:],
+                     sigma_curve[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+            plt.legend(['FSC', '%.1f-Sigma' % (options.fsc_sigma), '1/2-bit'])
+
+        elif options.fsc_sigma != None:
+
+            plt.plot(freq[1:], fsc[1:NSAM], freq[1:], sigma_curve[1:NSAM])
+            plt.legend(['FSC', '%.1f-Sigma' % (options.fsc_sigma)])
+
+        elif options.fsc_halfbit:
+
+            plt.plot(freq[1:], fsc[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+            plt.legend(['FSC', '1/2-bit'])
+
+        else:
+
+            plt.plot(freq[1:], fsc[1:NSAM])
+
+        plt.title('Fourier Shell Correlation - unmasked')
+        plt.ylabel('FSC')
+        plt.xlabel(r'Spatial frequency (1/$\rm \AA$)')
+        plt.minorticks_on()
+        ax = plt.gca()
+        ax.set_yticks([options.fsc_threshold], minor=True)
+        ax.set_yticklabels([str(options.fsc_threshold)], minor=True)
+
+        plt.grid(b=True, which='both')
+        plt.savefig(options.out + '_fsc-unmasked' + ext,
+                    dpi=options.dpi, transparent=options.transparent)
+        plt.close()
+
+        dat = np.append(dat, fsc[:NSAM], axis=1)  # Append the unmasked FSC
+        head += 'FSC-unmasked\t'
+        if options.xml:
+          util.Fsc2Xml( options.out+'_fsc-unmasked.xml', freq, fsc[:NSAM] )
+
+
+        # Now we go to the mask-related operations which are activated if a mask or MW are specified. If only
+        if options.mask != None or options.mw != None:
+
+            if options.mask == None:  # If MW is specified but no mask, we issue a warning:
+
+                print(
+                    '\nWARNING: You specified MW without a mask. This may produce inaccurate results!')
+
+                # rmin = np.float( np.min( map1.shape ) ) / 2.0
+                # mask = util.SoftMask( map1.shape, radius = rmin - 4.0, width = 6.0 )
+                mask = np.ones(map1.shape, dtype='float')
+
+                sys.stdout = open(os.devnull, "w")  # Suppress output
+                ioMRC.writeMRC(mask, options.out + '-mask.mrc', dtype='float32',
+                               pixelsize=options.angpix, quickStats=False)
+                sys.stdout = sys.__stdout__
+
+                options.mask = options.out + '-mask.mrc'
+
+            if options.force_mask == False:
+
+                if (mask.min() < -0.001 or mask.max() > 1.001):
+
+                    print('\nMask values not in range [0,1]! Min: %.6f, Max: %.6f' % (
+                        mask.min(), mask.max()))
+                    sys.exit(1)
+
+            else:
+
+                print(
+                    '\nWARNING: You are forcing a mask that may have strange properties. Use at your own risk!!!')
+
+            map1masked = ne.evaluate( "map1 * mask" )
+            map2masked = ne.evaluate( "map2 * mask" )
+
+            print('\nCalculating masked FSC...')
+
+            if options.cone_aperture == None:
+
+                fsc_mask = util.FCC(map1masked, map2masked)
+
+            else:
+
+                fsc_mask = util.FCC(map1masked, map2masked, [
+                                    options.cone_aperture], invertCone=True)
+
+            if options.fsc_halfbit:
+
+                res_mask = util.ResolutionAtThreshold(
+                    freq[2:], fsc_mask[2:NSAM], halfbit_curve[2:NSAM], fsc_interp)
+                print('FSC >= 1/2-bit curve until to %.3f A (masked)' %
+                      (res_mask))
+
+            elif options.fsc_sigma != None:
+
+                res_mask = util.ResolutionAtThreshold(
+                    freq[2:], fsc_mask[2:NSAM], sigma_curve[2:NSAM], fsc_interp)
+                print('FSC >= %.1f-Sigma curve until %.3f A (masked)' %
+                      (options.fsc_sigma, res_mask))
+
+            else:
+
+                res_mask = util.ResolutionAtThreshold(
+                    freq[1:], fsc_mask[1:NSAM], options.fsc_threshold, fsc_interp)
+                print('FSC >= %.3f until %.3f A (masked)' %
+                      (options.fsc_threshold, res_mask))
+
+            print('Area under FSC (masked): %.3f' % fsc_mask[1:NSAM].sum())
+
+            # Append the masked FSC
+            dat = np.append(dat, fsc_mask[:NSAM], axis=1)
+            head += 'FSC-masked\t'
+            if options.xml:
+              util.Fsc2Xml( options.out+'_fsc-masked.xml', freq, fsc_mask[:NSAM] )
+
+            if options.randomize_below_fsc == None and options.randomize_beyond == None:
+
+                # Plot
+                plt.figure()
+
+                if options.fsc_sigma != None and options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc_mask[1:NSAM], freq[1:],
+                             sigma_curve[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['FSC', '%.1f-Sigma' %
+                                (options.fsc_sigma), '1/2-bit'])
+
+                elif options.fsc_sigma != None:
+
+                    plt.plot(freq[1:], fsc_mask[1:NSAM],
+                             freq[1:], sigma_curve[1:NSAM])
+                    plt.legend(['FSC', '%.1f-Sigma' % (options.fsc_sigma)])
+
+                elif options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc_mask[1:NSAM],
+                             freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['FSC', '1/2-bit'])
+
+                else:
+
+                    plt.plot(freq[1:], fsc_mask[1:NSAM])
+
+                plt.title('Fourier Shell Correlation - masked')
+                plt.ylabel('FSC')
+                plt.xlabel(r'Spatial frequency (1/$\rm \AA$)')
+                plt.minorticks_on()
+                ax = plt.gca()
+                ax.set_yticks([options.fsc_threshold], minor=True)
+                ax.set_yticklabels([str(options.fsc_threshold)], minor=True)
+
+                plt.grid(b=True, which='both')
+                plt.savefig(options.out + '_fsc-masked' + ext,
+                            dpi=options.dpi, transparent=options.transparent)
+                plt.close()
+
+            else:
+
+                if options.randomize_beyond == None:
+
+                  rand_res = util.ResolutionAtThreshold(
+                      freq[1:], fsc[1:NSAM], options.randomize_below_fsc, fsc_interp)
+
+                else:
+
+                  rand_res = options.randomize_beyond
+
+                print('\nRandomizing phases beyond %.3f A...\n' % rand_res)
+                rand_freq = 1.0 / rand_res
+                
+                # We have to enforce the random seed otherwise different runs would not be comparable
+                map1randphase = util.HighResolutionNoiseSubstitution(
+                    map1, apix=options.angpix, lp=rand_res, random_seed=options.random_seed )
+
+                # Cannot use same random seed for both maps!!!
+                map2randphase = util.HighResolutionNoiseSubstitution(
+                    map2, apix=options.angpix, lp=rand_res, random_seed=options.random_seed + 1 )
+
+                # We mask the phase-randomized maps:
+                map1randphasemasked = ne.evaluate( "map1randphase * mask" )
+                map2randphasemasked = ne.evaluate( "map2randphase * mask" )
+
+                print('\nCalculating masked FSC for phase-randomized maps...')
+
+                if options.cone_aperture == None:
+
+                    fsc_mask_rnd = util.FCC(
+                        map1randphasemasked, map2randphasemasked)
+
+                else:
+
+                    fsc_mask_rnd = util.FCC(map1randphasemasked, map2randphasemasked, [
+                                            options.cone_aperture], invertCone=True)
+
+                # We compute FSCtrue following (Chen et al, Ultramicroscopy 2013). For masked maps this will correct the FSC for eventual refinement overfitting, including from the mask:
+
+                # fsc_mask_true[freq >= rand_freq] = (fsc_mask[freq >= rand_freq] - fsc_mask_rnd[freq >= rand_freq]) / (1 - fsc_mask_rnd[freq >= rand_freq])
+                fsc_mask_true = ((fsc_mask - fsc_mask_rnd) /
+                                 (1.0 - fsc_mask_rnd))
+                fsc_mask_true[:NSAM][freq <
+                                     rand_freq] = fsc_mask[:NSAM][freq < rand_freq]
+                fsc_mask_true = np.nan_to_num(fsc_mask_true)
+
+                if options.fsc_halfbit:
+
+                    res_mask_true = util.ResolutionAtThreshold(
+                        freq[2:], fsc_mask_true[2:NSAM], halfbit_curve[2:NSAM], fsc_interp)
+                    print(
+                        'FSC >= 1/2-bit curve until to %.3f A (masked - true)' % (res_mask_true))
+
+                elif options.fsc_sigma != None:
+
+                    res_mask_true = util.ResolutionAtThreshold(
+                        freq[2:], fsc_mask_true[2:NSAM], sigma_curve[2:NSAM], fsc_interp)
+                    print('FSC >= %.1f-Sigma curve until %.3f A (masked - true)' %
+                          (options.fsc_sigma, res_mask_true))
+
+                else:
+
+                    res_mask_true = util.ResolutionAtThreshold(
+                        freq[1:], fsc_mask_true[1:NSAM], options.fsc_threshold, fsc_interp)
+                    print('FSC >= %.3f until %.3f A (masked - true)' %
+                          (options.fsc_threshold, res_mask_true))
+
+                print('Area under FSC (masked - true): %.3f' %
+                      fsc_mask_true[1:NSAM].sum())
+
+                # Append the true masked FSC
+                dat = np.append(dat, fsc_mask_true[:NSAM], axis=1)
+                head += 'FSC-masked_true\t'
+                if options.xml:
+                  util.Fsc2Xml( options.out+'_fsc-masked_true.xml', freq, fsc_mask_true[:NSAM] )
+
+
+                # Plot
+                plt.figure()
+                if options.fsc_sigma != None and options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc_mask[1:NSAM], freq[1:], fsc_mask_rnd[1:NSAM], freq[1:],
+                             fsc_mask_true[1:NSAM], freq[1:], sigma_curve[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['FSC', 'FSC - phase randomized', 'FSC - true',
+                                '%.1f-Sigma' % (options.fsc_sigma), '1/2-bit'])
+
+                elif options.fsc_sigma != None:
+
+                    plt.plot(freq[1:], fsc_mask[1:NSAM], freq[1:], fsc_mask_rnd[1:NSAM],
+                             freq[1:], fsc_mask_true[1:NSAM], freq[1:], sigma_curve[1:NSAM])
+                    plt.legend(['FSC', 'FSC - phase randomized',
+                                'FSC - true', '%.1f-Sigma' % (options.fsc_sigma)])
+
+                elif options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc_mask[1:NSAM], freq[1:], fsc_mask_rnd[1:NSAM],
+                             freq[1:], fsc_mask_true[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['FSC', 'FSC - phase randomized',
+                                'FSC - true', '1/2-bit'])
+
+                else:
+
+                    plt.plot(freq[1:], fsc_mask[1:NSAM], freq[1:],
+                             fsc_mask_rnd[1:NSAM], freq[1:], fsc_mask_true[1:NSAM])
+                    plt.legend(['FSC', 'FSC - phase randomized', 'FSC - true'])
+
+                plt.title('Fourier Shell Correlation - masked')
+                plt.ylabel('FSC')
+                plt.xlabel(r'Spatial frequency (1/$\rm \AA$)')
+                plt.minorticks_on()
+                ax = plt.gca()
+                ax.set_yticks([options.fsc_threshold], minor=True)
+                ax.set_yticklabels([str(options.fsc_threshold)], minor=True)
+
+                plt.grid(b=True, which='both')
+                plt.savefig(options.out + '_fsc-masked_true' + ext,
+                            dpi=options.dpi, transparent=options.transparent)
+                plt.close()
+
+                res_mask = res_mask_true
+
+            if options.mw == None and options.randomize_below_fsc == None:
+
+                # Plot
+                plt.figure()
+                if options.fsc_sigma != None and options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM],
+                             freq[1:], sigma_curve[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['unmasked', 'masked', '%.1f-Sigma' %
+                                (options.fsc_sigma), '1/2-bit'])
+
+                elif options.fsc_sigma != None:
+
+                    plt.plot(freq[1:], fsc[1:NSAM], freq[1:],
+                             fsc_mask[1:NSAM], freq[1:], sigma_curve[1:NSAM])
+                    plt.legend(['unmasked', 'masked', '%.1f-Sigma' %
+                                (options.fsc_sigma)])
+
+                elif options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc[1:NSAM], freq[1:],
+                             fsc_mask[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['unmasked', 'masked', '1/2-bit'])
+
+                else:
+
+                    plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM])
+                    plt.legend(['unmasked', 'masked'])
+
+                # plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM])
+                plt.title('Fourier Shell Correlation')
+                plt.ylabel('FSC')
+                plt.xlabel(r'Spatial frequency (1/$\rm \AA$)')
+                plt.minorticks_on()
+                ax = plt.gca()
+                ax.set_yticks([options.fsc_threshold], minor=True)
+                ax.set_yticklabels([str(options.fsc_threshold)], minor=True)
+
+                plt.grid(b=True, which='both')
+                plt.savefig(options.out + '_fsc' + ext,
+                            dpi=options.dpi, transparent=options.transparent)
+                plt.close()
+
+            elif options.mw == None and options.randomize_below_fsc != None:
+
+                # Plot
+                plt.figure()
+                if options.fsc_sigma != None and options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask_true[1:NSAM],
+                             freq[1:], sigma_curve[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['unmasked', 'masked - true',
+                                '%.1f-Sigma' % (options.fsc_sigma), '1/2-bit'])
+
+                elif options.fsc_sigma != None:
+
+                    plt.plot(freq[1:], fsc[1:NSAM], freq[1:],
+                             fsc_mask_true[1:NSAM], freq[1:], sigma_curve[1:NSAM])
+                    plt.legend(['unmasked', 'masked - true',
+                                '%.1f-Sigma' % (options.fsc_sigma)])
+
+                elif options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc[1:NSAM], freq[1:],
+                             fsc_mask_true[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['unmasked', 'masked - true', '1/2-bit'])
+
+                else:
+
+                    plt.plot(freq[1:], fsc[1:NSAM],
+                             freq[1:], fsc_mask_true[1:NSAM])
+                    plt.legend(['unmasked', 'masked - true'])
+
+                # plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask_true[1:NSAM])
+                plt.title('Fourier Shell Correlation')
+                plt.ylabel('FSC')
+                plt.xlabel(r'Spatial frequency (1/$\rm \AA$)')
+                plt.minorticks_on()
+                ax = plt.gca()
+                ax.set_yticks([options.fsc_threshold], minor=True)
+                ax.set_yticklabels([str(options.fsc_threshold)], minor=True)
+
+                plt.grid(b=True, which='both')
+                plt.savefig(options.out + '_fsc' + ext,
+                            dpi=options.dpi, transparent=options.transparent)
+                plt.close()
+
+            if options.mw != None:
+
+                DALT = 0.81  # Da/A^3
+
+                # Estimate fraction of volume occupied by the molecule:
+                fpart = 1000.0 * options.mw / DALT / \
+                    (options.angpix * 2 * NSAM)**3
+
+                fignore = 1000.0 * options.mw_ignore / \
+                    DALT / (options.angpix * 2 * NSAM)**3
+
+                # Fraction of the volume occupied by the mask:
+                maskvoxsum = ne.evaluate( "sum(mask * mask)" )
+                # fmask = maskvoxsum / (2*NSAM)**3
+                fmask = maskvoxsum / np.prod(mask.shape)
+
+                print('\nCalculating Single-Particle Wiener filter...')
+                print('\nFraction of particle within the volume (Fpart): %.6f' % fpart)
+                print('Fraction of mask within the volume (Fmask): %.6f' % fmask)
+                if options.mw_ignore > 0.0:
+
+                    print(
+                        'Fraction of densities to be ignored within the volume (Fignore): %.6f' % fignore)
+                    print('Fpart/(Fmask-Fignore) ratio: %.6f' %
+                          (fpart / (fmask - fignore)))
+
+                    if (fpart / (fmask - fignore)) >= 1.0:
+
+                        print(
+                            '\nWARNING: Your particle occupies a volume bigger than the mask. Mask is probably too tight or even too small!')
+
+                else:
+
+                    print('Fpart/Fmask ratio: %.6f' % (fpart / fmask))
+
+                    if (fpart / fmask) >= 1.0:
+
+                        print(
+                            '\nWARNING: Your particle occupies a volume bigger than the mask. Mask is probably too tight or even too small!')
+
+                # Let's do Single-Particle Wiener filtering following (Sindelar & Grigorieff, 2012):
+
+                if options.randomize_below_fsc == None:
+
+                    fsc_spw = fsc_mask / \
+                        (fsc_mask + (fpart / (fmask - fignore)) * (1.0 - fsc_mask))
+
+                else:
+
+                    fsc_spw = fsc_mask_true / \
+                        (fsc_mask_true + (fpart / (fmask - fignore))
+                         * (1.0 - fsc_mask_true))
+
+                if options.fsc_halfbit:
+
+                    res_spw = util.ResolutionAtThreshold(
+                        freq[2:], fsc_spw[2:NSAM], halfbit_curve[2:NSAM], fsc_interp)
+                    print(
+                        'FSC >= 1/2-bit curve until to %.3f A (volume-normalized)' % (res_spw))
+
+                elif options.fsc_sigma != None:
+
+                    res_spw = util.ResolutionAtThreshold(
+                        freq[2:], fsc_spw[2:NSAM], sigma_curve[2:NSAM], fsc_interp)
+                    print('FSC >= %.1f-Sigma curve until %.3f A (volume-normalized)' %
+                          (options.fsc_sigma, res_spw))
+
+                else:
+
+                    res_spw = util.ResolutionAtThreshold(
+                        freq[1:], fsc_spw[1:NSAM], options.fsc_threshold, fsc_interp)
+                    print('FSC >= %.3f until %.3f A (volume-normalized)' %
+                          (options.fsc_threshold, res_spw))
+
+                print('Area under FSC (volume-normalized): %.3f' %
+                      fsc_spw[1:NSAM].sum())
+
+                # Append the FSC-SPW
+                dat = np.append(dat, fsc_spw[:NSAM], axis=1)
+                head += 'FSC-SPW   \t'
+                if options.xml:
+                  util.Fsc2Xml( options.out+'_fsc-spw.xml', freq, fsc_spw[:NSAM] )
+
+                # Plot
+                plt.figure()
+                if options.fsc_sigma != None and options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc_spw[1:NSAM], freq[1:],
+                             sigma_curve[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['FSC-SPW', '%.1f-Sigma' %
+                                (options.fsc_sigma), '1/2-bit'])
+
+                elif options.fsc_sigma != None:
+
+                    plt.plot(freq[1:], fsc_spw[1:NSAM],
+                             freq[1:], sigma_curve[1:NSAM])
+                    plt.legend(['FSC-SPW', 'masked - true',
+                                '%.1f-Sigma' % (options.fsc_sigma)])
+
+                elif options.fsc_halfbit:
+
+                    plt.plot(freq[1:], fsc_spw[1:NSAM],
+                             freq[1:], halfbit_curve[1:NSAM])
+                    plt.legend(['FSC-SPW', 'masked - true', '1/2-bit'])
+
+                else:
+
+                    plt.plot(freq[1:], fsc_spw[1:NSAM])
+
+                plt.title(
+                    'Fourier Shell Correlation - Single-Particle Wiener filter')
+                plt.ylabel('FSC')
+                plt.xlabel(r'Spatial frequency (1/$\rm \AA$)')
+                plt.minorticks_on()
+                ax = plt.gca()
+                ax.set_yticks([options.fsc_threshold], minor=True)
+                ax.set_yticklabels([str(options.fsc_threshold)], minor=True)
+
+                plt.grid(b=True, which='both')
+                plt.savefig(options.out + '_fsc-spw' + ext,
+                            dpi=options.dpi, transparent=options.transparent)
+                plt.close()
+
+                if options.randomize_below_fsc != None:
+
+                    # Plot
+                    plt.figure()
+                    if options.fsc_sigma != None and options.fsc_halfbit:
+
+                        plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM], freq[1:], fsc_spw[1:NSAM], freq[1:],
+                                 fsc_mask_true[1:NSAM], freq[1:], sigma_curve[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                        plt.legend(['unmasked', 'masked', 'masked - SPW', 'masked - true',
+                                    '%.1f-Sigma' % (options.fsc_sigma), '1/2-bit'])
+
+                    elif options.fsc_sigma != None:
+
+                        plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM], freq[1:],
+                                 fsc_spw[1:NSAM], freq[1:], fsc_mask_true[1:NSAM], freq[1:], sigma_curve[1:NSAM])
+                        plt.legend(['unmasked', 'masked', 'masked - SPW',
+                                    'masked - true', '%.1f-Sigma' % (options.fsc_sigma)])
+
+                    elif options.fsc_halfbit:
+
+                        plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM], freq[1:],
+                                 fsc_spw[1:NSAM], freq[1:], fsc_mask_true[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                        plt.legend(
+                            ['unmasked', 'masked', 'masked - SPW', 'masked - true', '1/2-bit'])
+
+                    else:
+
+                        plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM],
+                                 freq[1:], fsc_spw[1:NSAM], freq[1:], fsc_mask_true[1:NSAM])
+                        plt.legend(
+                            ['unmasked', 'masked', 'masked - SPW', 'masked - true'])
+
+                    # plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM], freq[1:], fsc_spw[1:NSAM], freq[1:], fsc_mask_true[1:NSAM])
+                    plt.title('Fourier Shell Correlation')
+                    plt.ylabel('FSC')
+                    plt.xlabel(r'Spatial frequency (1/$\rm \AA$)')
+                    plt.minorticks_on()
+                    ax = plt.gca()
+                    ax.set_yticks([options.fsc_threshold], minor=True)
+                    ax.set_yticklabels(
+                        [str(options.fsc_threshold)], minor=True)
+                    if options.refine_res_lim != None:
+                        ax.axvline(1.0 / options.refine_res_lim,
+                                   linestyle='dashed', linewidth=0.75, color='m')
+                    plt.grid(b=True, which='both')
+                    plt.savefig(options.out + '_fsc' + ext,
+                                dpi=options.dpi, transparent=options.transparent)
+                    plt.close()
+
+                else:
+
+                    # Plot
+                    plt.figure()
+                    if options.fsc_sigma != None and options.fsc_halfbit:
+
+                        plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM], freq[1:],
+                                 fsc_spw[1:NSAM], freq[1:], sigma_curve[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                        plt.legend(['unmasked', 'masked', 'masked - SPW',
+                                    '%.1f-Sigma' % (options.fsc_sigma), '1/2-bit'])
+
+                    elif options.fsc_sigma != None:
+
+                        plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM],
+                                 freq[1:], fsc_spw[1:NSAM], freq[1:], sigma_curve[1:NSAM])
+                        plt.legend(['unmasked', 'masked', 'masked - SPW',
+                                    '%.1f-Sigma' % (options.fsc_sigma)])
+
+                    elif options.fsc_halfbit:
+
+                        plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM],
+                                 freq[1:], fsc_spw[1:NSAM], freq[1:], halfbit_curve[1:NSAM])
+                        plt.legend(
+                            ['unmasked', 'masked', 'masked - SPW', '1/2-bit'])
+
+                    else:
+
+                        plt.plot(freq[1:], fsc[1:NSAM], freq[1:],
+                                 fsc_mask[1:NSAM], freq[1:], fsc_spw[1:NSAM])
+                        plt.legend(['unmasked', 'masked', 'masked - SPW'])
+
+                    # plt.plot(freq[1:], fsc[1:NSAM], freq[1:], fsc_mask[1:NSAM], freq[1:], fsc_spw[1:NSAM])
+                    plt.title('Fourier Shell Correlation')
+                    plt.ylabel('FSC')
+                    plt.xlabel(r'Spatial frequency (1/$\rm \AA$)')
+                    plt.minorticks_on()
+                    ax = plt.gca()
+                    ax.set_yticks([options.fsc_threshold], minor=True)
+                    ax.set_yticklabels(
+                        [str(options.fsc_threshold)], minor=True)
+                    if options.refine_res_lim != None:
+                        ax.axvline(1.0 / options.refine_res_lim,
+                                   linestyle='dashed', linewidth=0.75, color='m')
+                    plt.grid(b=True, which='both')
+                    plt.savefig(options.out + '_fsc' + ext,
+                                dpi=options.dpi, transparent=options.transparent)
+                    plt.close()
+
+    else:
+
+        print('\nSkipping FSC calculations...')
+
+# MAP FILTERING STEPS:
+
+    # 1. Sum the two half-reconstructions:
+    print('\nAveraging the two half-maps...')
+    fullmap = ne.evaluate( "0.5 * (map1 + map2)" )
+
+    radamp_original = util.RadialProfile( fullmap, amps=True )[:NSAM]
+    lnF_original = np.log(radamp_original)
+
+    # 2. Apply FSC weighting or SPW filter to the final map, accordingly:
+    if options.skip_fsc_weighting == False:
+
+        print('Applying FSC weighting (Cref) to the map...')
+        if options.mask == None and options.mw == None:
+
+            # Derive weights from unmasked FSC
+            fsc_weights = np.zeros(fsc.shape)
+            idx = fsc > 0.0
+            fsc_weights[idx] = np.sqrt(2 * fsc[idx] / (1 + fsc[idx]))
+
+        elif options.mw == None:
+
+            # Derive weights from masked FSC
+            if options.randomize_below_fsc != None:
+
+                fsc_weights = np.zeros(fsc_mask_true.shape)
+                idx = fsc_mask_true > 0.0
+                fsc_weights[idx] = np.sqrt(
+                    2 * fsc_mask_true[idx] / (1 + fsc_mask_true[idx]))
+
+            else:
+
+                fsc_weights = np.zeros(fsc_mask.shape)
+                idx = fsc_mask > 0.0
+                fsc_weights[idx] = np.sqrt(
+                    2 * fsc_mask[idx] / (1 + fsc_mask[idx]))
+
+        else:
+
+            fsc_weights = np.zeros(fsc_spw.shape)
+            idx = fsc_spw > 0.0
+            fsc_weights[idx] = np.sqrt(2 * fsc_spw[idx] / (1 + fsc_spw[idx]))
+
+        if options.mw != None:
+
+          rmax = res_spw
+
+        elif options.mask != None:
+
+          rmax = res_mask
+
+        else:
+
+          rmax = res
+
+        # print(rmax)
+        # fsc_weights[:NSAM][freq > 1./rmax] = 0.0
+
+        fullmap = util.RadialFilter(fullmap, fsc_weights, return_filter=False)
+        # print(np.any(np.isnan(fullmap)))
+
+        # Append the FSC weighting
+        dat = np.append(dat, fsc_weights[:NSAM], axis=1)
+        head += 'Cref_Weights\t'
+
+    # 3. Sharpen map by recovering amplitudes from detector's MTF:
+    if options.mtf != None:
+
+        print('Dividing map by the detector MTF...')
+
+        try:
+
+            mtf = np.loadtxt(options.mtf)
+
+            ignore_mtf = False
+
+        except ValueError:
+
+            if options.mtf[-5:] == '.star':
+
+                mtf = np.loadtxt(options.mtf, skiprows=4)
+
+                ignore_mtf = False
+
+            else:
+
+                print('Could not read MTF file! Ignoring MTF...')
+                ignore_mtf = True
+
+        if ignore_mtf == False:
+
+            # We need to know the MTF values at the Fourier bins of our map. So we interpolate from the MTF description available:
+
+            # For cubic volumes this is just half the box size multiplied by sqrt(2).
+            NSAMfull = np.ceil(
+                np.sqrt(np.sum(np.power(map1.shape, 2))) / 2.0 + 1).astype('int')
+            freqfull = (np.arange(NSAMfull) / (2.0 * NSAM *
+                                               options.angpix)).reshape(NSAMfull, 1)
+            freqfull[0] = 1.0 / 999  # Just to avoid dividing by zero later
+
+            interp_mtf = np.interp(
+                freqfull, mtf[:, 0] / options.angpix, mtf[:, 1])
+
+            # print( len(interp_mtf),len(freq[1:]full) )
+
+            # Divide Fourier components by the detector MTF:
+            inv_mtf = 1.0 / interp_mtf
+
+            fullmap = util.RadialFilter(fullmap, inv_mtf, return_filter=False)
+            # radamp_mtf = util.RadialProfile( fullmap, amps=True )[:NSAM]
+            # lnF_mtf = np.log(radamp_mtf)
+
+            # Append the inverse MTF applied
+            dat = np.append(dat, inv_mtf[:NSAM], axis=1)
+            head += 'InverseMTF\t'
+
+    # 4. Perform automatic sharpening based on the Guinier plot:
+
+    ##### GUINIER PLOT #####
+    if options.auto_bfac != None:
+
+        # Here we use the same method as relion_postprocess. Note there is a difference in the normalization of the FFT, but that doesn't affect the results (only the intercept of fit).
+        # NOTE: the bfactor.exe and EM-BFACTOR programs use a different fitting method.
+        radamp = util.RadialProfile( fullmap, amps=True )[:NSAM] # We use the unmasked map to avoid overestimating the sharpening B-factor
+        # radamp = util.RadialProfile(ne.evaluate( "fullmap * mask" ), amps=True)[:NSAM]
+        lnF = np.log(radamp)
+        # print(lnF)
+        if minres <= 0:
+            minres = 10.0
+        if maxres <= 0:
+
+            if not options.skip_fsc:
+
+                if options.mw != None:
+
+                    maxres = res_spw
+
+                elif options.mask != None:
+
+                    if options.randomize_below_fsc != None:
+
+                        maxres = res_mask_true
+
+                    else:
+
+                        maxres = res_mask
+
+                else:
+
+                    maxres = res
+
+            else:
+
+              maxres = 2 * options.angpix
+          # maxres = 0.0
+
+        print('\nEstimating contrast decay (B-factor) from Guinier plot between %.3f A and %.3f A...\n' % (minres, maxres))
+
+        hirange = 1. / freq <= minres
+        lorange = 1. / freq >= maxres
+        resrange = hirange * lorange
+        resrange = resrange[:, 0]
+        fit = np.polyfit(freq2[resrange, 0], lnF[resrange], deg=1)
+        fitline = fit[0] * freq2 + fit[1]
+        print('Slope of fit: %.4f' % (fit[0]))
+        print('Intercept of fit: %.4f' % (fit[1]))
+        print('Correlation of fit: %.5f' %
+              (np.corrcoef(lnF[resrange], fitline[resrange, 0])[0, 1]))
+        print('B-factor for contrast restoration: %.4f A^2\n' % (4.0 * fit[0]))
+
+        fullmap = util.FilterBfactor(
+            fullmap, apix=options.angpix, B=4.0 * fit[0], return_filter=False)
+        # Just for appending to the output data file
+        guinierfilt = np.exp(- fit[0] * freq2)
+        # Append the B-factor filter derived from the Guinier plot
+        dat = np.append(dat, guinierfilt[:NSAM], axis=1)
+        head += 'Auto_B-factor\t'
+
+        radampnew = util.RadialProfile(fullmap, amps=True)[:NSAM]
+        # radampnew = util.RadialProfile(ne.evaluate( "fullmap * mask" ), amps=True)[:NSAM]
+        lnFnew = np.log(radampnew)
+        # print(lnFnew)
+        # lnFnew = np.log(radampnew)
+
+        # Plot
+        plt.figure()
+        plt.plot(freq2, lnF_original, freq2[lorange[:, 0], 0],
+                 lnF[lorange[:, 0]], freq2[lorange[:, 0], 0],
+                 lnFnew[lorange[:, 0]], freq2[resrange, 0], fitline[resrange],'k--')
+        plt.title('Guinier Plot')
+        plt.ylabel('ln(F)')
+        plt.xlabel('Spatial frequency^2 (1/A^2)')
+        plt.legend(['Experimental','Exp. Weighted', 'Exp. sharpened', 'Fit'])
+        # ax = plt.gca()
+        # ax.axvline(1.0 / minres**2, linestyle='dashed',
+        #            linewidth=0.75, color='m')
+        # ax.axvline(1.0 / maxres**2, linestyle='dashed',
+        #            linewidth=0.75, color='m')
+        plt.grid(b=True, which='both')
+        plt.savefig(options.out + '_guinier' + ext,
+                    dpi=options.dpi, transparent=options.transparent)
+        plt.close()
+
+        if options.cosine == False:
+
+            print('\nWARNING: You should probably specify --cosine or --tophat option to band-pass filter your map after sharpening!\n')
+
+    # 5. Apply an ad-hoc B-factor for smoothing or sharpening the map, if provided:
+    if options.adhoc_bfac != 0.0:
+        print('Applying ad-hoc B-factor to the map...')
+
+        fullmap = util.FilterBfactor(
+            fullmap, apix=options.angpix, B=options.adhoc_bfac, return_filter=False)
+        freq2 = freq * freq
+        # Just for appending to the output data file
+        bfacfilt = np.exp(- options.adhoc_bfac * freq2 / 4.0)
+
+        # Append the ad-hoc B-factor filter applied
+        dat = np.append(dat, bfacfilt[:NSAM], axis=1)
+        head += 'Adhoc_B-factor\t'
+
+        if options.cosine == False:
+
+            print('\nWARNING: You should probably specify --cosine or --tophat option to band-pass filter your map after sharpening!\n')
+
+    # 6. Apply FSC^2 weighting to the final map:
+    if options.apply_fsc2:
+
+        print('Applying FSC^2 weighting to the map...')
+        if options.mask == None and options.mw == None:
+
+            # Derive weights from unmasked FSC
+            fsc2_weights = fsc**2
+
+        elif options.mw == None:
+
+            # Derive weights from masked FSC
+            if options.randomize_below_fsc != None:
+
+                fsc2_weights = fsc_mask_true**2
+
+            else:
+
+                fsc2_weights = fsc_mask**2
+
+        else:
+
+            fsc2_weights = fsc_spw**2
+
+        fullmap = util.RadialFilter(fullmap, fsc2_weights, return_filter=False)
+
+        # Append the FSC weighting
+        dat = np.append(dat, fsc2_weights[:NSAM], axis=1)
+        head += 'FSC^2_Weights\t'
+
+    if options.whiten:
+
+        print('Whitening the map...')
+        # Below, use ps=True to whiten the radial Power Spectrum (cisTEM) instead of the Amplitude Spectrum (IMAGIC). Results are visually almost identical, but whitening amplitudes seems to give a slightly more "peaky" (sharp) map as measured by kurtosis.
+        # fullmap = util.FilterWhiten( fullmap, ps=~options.whiten_amps )
+        whitened, filt = util.FilterWhiten(
+            ne.evaluate( "fullmap * mask" ), ps=~options.whiten_amps, return_filter=True)
+        # print filt.shape, whitened.shape
+        fullmap = util.RadialFilter(fullmap, 1. / util.RadialProfile(filt))
+
+    # 7. Impose a Gaussian or Cosine or Top-hat low-pass filter with cutoff at given resolution, or resolution determined from FSC threshold:
+    if options.lowpass == 'auto' or options.lowpass >= 0.0 or options.highpass >= 0.0:
+
+        if options.lowpass == 'auto':
+
+            if options.mw != None:
+
+                options.lowpass = res_spw
+
+            elif options.mask != None:
+
+                options.lowpass = res_mask
+
+            else:
+
+                options.lowpass = res
+
+        # if options.highpass == 'auto':
+
+        # 	options.highpass = 2.0 * ( NSAM - 1 ) * options.angpix / 3
+
+        if options.highpass == 'auto':
+
+            hipass_print = 2.0 * (NSAM - 1) * options.angpix
+            options.highpass = -1
+
+        else:
+
+            hipass_print = options.highpass
+
+        if options.lowpass <= 0.0:
+
+            lopass_print = 2 * options.angpix
+
+        else:
+
+            lopass_print = options.lowpass
+
+        print('Band-pass filtering the map between resolution cutoffs %.3f A and %.3f A...' %
+              (hipass_print, lopass_print))
+
+        if options.gaussian:
+
+            fullmap = util.FilterGauss(
+                fullmap, apix=options.angpix, lp=options.lowpass, hp=options.highpass, return_filter=False)
+            if options.lowpass <= 0.0:
+
+                lp = np.ones(freq2[:, 0].shape)
+
+            else:
+
+                lp = np.exp(- options.lowpass ** 2 * freq2[:, 0])
+
+            if options.highpass <= 0.0:
+
+                hp = np.ones(freq2[:, 0].shape)
+
+            else:
+
+                hp = 1.0 - np.exp(- options.highpass ** 2 * freq2[:, 0])
+
+            bp = hp * lp
+
+        else:
+
+            fullmap = util.FilterCosine(fullmap, apix=options.angpix, lp=options.lowpass,
+                                        hp=options.highpass, return_filter=False, width=options.cosine_edge_width)
+
+            if options.lowpass <= 0.0:
+
+                lp = np.ones(freq2[:, 0].shape)
+
+            else:
+
+                cosrad = np.argmin(np.abs(1. / freq - options.lowpass))
+                rii = cosrad + options.cosine_edge_width / 2
+                rih = cosrad - options.cosine_edge_width / 2
+                lp = np.zeros(freq[:, 0].shape)
+                r = np.arange(len(freq))
+                fill_idx = r <= rih
+                lp[fill_idx] = 1.0
+                rih_idx = r > rih
+                rii_idx = r <= rii
+                edge_idx = rih_idx * rii_idx
+                lp[edge_idx] = (
+                    1.0 + np.cos(np.pi * (r[edge_idx] - rih) / options.cosine_edge_width)) / 2.0
+
+            if options.highpass <= 0.0:
+
+                hp = np.ones(freq2[:, 0].shape)
+
+            else:
+
+                # The 1e-8 is just to ensure that the specified frequency is INCLUDED in the filter (not cancelled)
+                cosrad = np.argmin(np.abs(1. / freq - options.highpass))
+                rii = cosrad + options.cosine_edge_width / 2
+                rih = cosrad - options.cosine_edge_width / 2
+                hp = np.zeros(freq[:, 0].shape)
+                r = np.arange(len(freq))
+                fill_idx = r <= rih
+                hp[fill_idx] = 1.0
+                rih_idx = r > rih
+                rii_idx = r <= rii
+                edge_idx = rih_idx * rii_idx
+                hp[edge_idx] = (
+                    1.0 + np.cos(np.pi * (r[edge_idx] - rih) / options.cosine_edge_width)) / 2.0
+                hp = 1.0 - hp
+
+            bp = hp * lp
+
+        # Append the band-pass filter applied
+        dat = np.append(dat, bp.reshape(NSAM, 1), axis=1)
+        head += 'Band-pass  \t'
+
+    if options.clamp_output:
+
+        print('\nNegative values of output map will be clamped to zero!')
+
+        fullmap[fullmap < 0] = 0.0
+
+    # 8. Apply mask, if provided:
+    if options.mask != None or options.mw != None:
+        print('Masking the map...')
+        masked = ne.evaluate( "fullmap * mask" )
+
+        if options.resample == None:
+
+            sys.stdout = open(os.devnull, "w")  # Suppress output
+            ioMRC.writeMRC(masked, options.out + '-masked.mrc',
+                           dtype='float32', pixelsize=options.angpix, quickStats=False)
+            sys.stdout = sys.__stdout__
+
+        else:
+
+            masked = util.Resample(
+                masked, apix=options.angpix, newapix=options.resample)
+            sys.stdout = open(os.devnull, "w")  # Suppress output
+            ioMRC.writeMRC(masked, options.out + '-masked.mrc',
+                           dtype='float32', pixelsize=options.resample, quickStats=False)
+            sys.stdout = sys.__stdout__
+
+            mask = util.Resample(mask, apix=options.angpix,
+                                 newapix=options.resample)
+            sys.stdout = open(os.devnull, "w")  # Suppress output
+            ioMRC.writeMRC(mask, options.out + '-mask.mrc', dtype='float32',
+                           pixelsize=options.resample, quickStats=False)
+            sys.stdout = sys.__stdout__
+
+    # Write filtered, unmasked map
+    if options.resample == None:
+
+        sys.stdout = open(os.devnull, "w")  # Suppress output
+        ioMRC.writeMRC(fullmap, options.out + '-unmasked.mrc',
+                       dtype='float32', pixelsize=options.angpix, quickStats=False)
+        sys.stdout = sys.__stdout__
+
+    else:
+
+        fullmap = util.Resample(
+            fullmap, apix=options.angpix, newapix=options.resample)
+        sys.stdout = open(os.devnull, "w")  # Suppress output
+        ioMRC.writeMRC(fullmap, options.out + '-unmasked.mrc',
+                       dtype='float32', pixelsize=options.resample, quickStats=False)
+        sys.stdout = sys.__stdout__
+
+    if not options.skip_fsc:
+
+        # Save output file with all relevant FSC data
+        np.savetxt(options.out + '_data.fsc', np.matrix(dat),
+                   header=command + '\n' + head, delimiter='\t', fmt='%.6f')
+
+    print('\nDone!')
+
+
+if __name__ == "__main__":
+    main()

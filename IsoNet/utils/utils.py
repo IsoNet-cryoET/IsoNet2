@@ -70,23 +70,25 @@ def parse_params(batch_size_in, gpuID_in, ncpus_in, fit_ncpus_to_ngpus= False):
 
 
 
-def idx2list(tomo_idx):
-    if tomo_idx is not None:
-            if type(tomo_idx) is tuple:
-                tomo_idx = list(map(str,tomo_idx))
-            elif type(tomo_idx) is int:
-                tomo_idx = [str(tomo_idx)]
-            else:
-                txt=str(tomo_idx)
-                txt=txt.replace(',',' ').split()
-                tomo_idx=[]
-                for everything in txt:
-                    if everything.find("-")!=-1:
-                        everything=everything.split("-")
-                        for e in range(int(everything[0]),int(everything[1])+1):
-                            tomo_idx.append(str(e))
-                    else:
-                        tomo_idx.append(str(everything))
+def idx2list(tomo_idx, all_tomo_idx):
+    if tomo_idx not in  [None, "None", "all", "All"]:
+        if type(tomo_idx) is tuple:
+            tomo_idx = list(map(str,tomo_idx))
+        elif type(tomo_idx) is int:
+            tomo_idx = [str(tomo_idx)]
+        else:
+            txt=str(tomo_idx)
+            txt=txt.replace(',',' ').split()
+            tomo_idx=[]
+            for everything in txt:
+                if everything.find("-")!=-1:
+                    everything=everything.split("-")
+                    for e in range(int(everything[0]),int(everything[1])+1):
+                        tomo_idx.append(str(e))
+                else:
+                    tomo_idx.append(str(everything))
+    else:
+        tomo_idx = [str(i) for i in all_tomo_idx]
     return tomo_idx
 
 
