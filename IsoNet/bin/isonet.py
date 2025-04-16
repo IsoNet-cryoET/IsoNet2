@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import fire
 import logging
-import os, sys, traceback
+import os, sys
 from IsoNet.utils.dict2attr import check_parse
 from fire import core
 import starfile
@@ -11,8 +11,18 @@ from IsoNet.utils.fileio import read_mrc, write_mrc, create_folder
 from IsoNet.utils.utils import parse_params, process_gpuID
 import tqdm
 import pandas as pd
-from IsoNet.utils.utils import idx2list
-
+from IsoNet.utils.utils import idx2list, process_tomograms
+from IsoNet.utils.deconvolution import deconv_one
+from IsoNet.bin.make_mask import make_mask
+import os
+import sys
+import logging
+import numpy as np
+import starfile
+from IsoNet.models.network import Net, DuoNet
+from IsoNet.utils.processing import normalize
+from IsoNet.utils.missing_wedge import mw3D
+from IsoNet.utils.CTF import get_ctf_3d
 class ISONET:
     """
     ISONET: Train on tomograms and restore missing-wedge\n
@@ -108,7 +118,7 @@ class ISONET:
             counted_files = [f"{count_folder}/{item}" for item in counted_files_names]        
             for i in range(len(counted_files)):
                 _, apix = read_mrc(counted_files[i], inplace = True)
-                voxel_size_list.append(apix)
+                voxel_size_list.append(str(apix))
             add_param("None", "rlnPixelSize", voxel_size_list)
         else:           
             add_param("None", 'rlnPixelSize', pixel_size)
@@ -167,8 +177,8 @@ class ISONET:
     def deconv(self, star_file: str,
         output_dir:str="./deconv",
         input_column: str="rlnTomoName",
-        snrfalloff: float=None,
-        deconvstrength: float=None,
+        snrfalloff: float=0,
+        deconvstrength: float=1,
         highpassnyquist: float=0.02,
         chunk_size: int=None,
         overlap_rate: float= 0.25,
@@ -194,72 +204,48 @@ class ISONET:
         :param ncpu: (4) Number of cpus to use.
         :param tomo_idx: (None) If this value is set, process only the tomograms listed in this index. e.g. 1,2,4 or 5-10,15,16
         """
-        from IsoNet.utils.deconvolution import deconv_one
-        import starfile
 
+        def deconv_row(i, row, new_star):
+            tomo_file = row[input_column]
+            deconv_tomo_name = os.path.join(output_dir, os.path.basename(tomo_file))
 
-        if not os.path.isdir(output_dir):
-            os.mkdir(output_dir)
+            common_kwargs = {
+                "voltage":        row["rlnVoltage"],
+                "cs":             row["rlnSphericalAberration"],
+                "defocus":        row["rlnDefocus"] / 10000.0,
+                "pixel_size":     row["rlnPixelSize"],
+                "snrfalloff":     snrfalloff,
+                "deconvstrength": deconvstrength,
+                "highpassnyquist": highpassnyquist,
+                "chunk_size":     chunk_size,
+                "overlap_rate":   overlap_rate,
+                "ncpu":           ncpus,
+            }
 
-        star = starfile.read(star_file)
-        new_star = star.copy()
+            deconv_one(
+                tomo_file,
+                deconv_tomo_name,
+                **common_kwargs
+            )
 
-        print('\n###### Isonet ctf deconvolve starts ######\n')
-        tomo_idx = idx2list(tomo_idx, list(star.rlnIndex))
+            new_star.at[i, "rlnDeconvTomoName"] = deconv_tomo_name
 
-        with tqdm.tqdm(total=len(tomo_idx), desc="deconv") as progress_bar:
-            for i, it in star.iterrows():
-                if str(it.rlnIndex) in tomo_idx:
-                    tomo_file = it[input_column]
-                    
-                    # Update progress bar description
-                    progress_str = f"{os.path.basename(tomo_file)} | defocus: {new_star.loc[i, 'rlnDefocus']}"
-                    progress_bar.set_postfix_str(progress_str)
-                    progress_bar.update(1)  # Increment the progress bar
+        process_tomograms(
+            star_file,
+            output_dir,
+            tomo_idx,
+            desc="CTF Deconv",
+            row_processor=deconv_row
+        )
 
-                    # Define the deconvolution output file name
-                    deconv_tomo_name = f"{output_dir}/{os.path.basename(tomo_file)}"
-
-                    # Call the deconvolution function
-                    deconv_one(
-                        tomo_file,
-                        deconv_tomo_name,
-                        voltage=new_star.loc[i, 'rlnVoltage'],
-                        cs=new_star.loc[i, 'rlnSphericalAberration'],
-                        defocus=new_star.loc[i, 'rlnDefocus'] / 10000.0,
-                        pixel_size=new_star.loc[i, 'rlnPixelSize'],
-                        snrfalloff=snrfalloff,
-                        deconvstrength=deconvstrength,
-                        highpassnyquist=highpassnyquist,
-                        chunk_size=chunk_size,
-                        overlap_rate=overlap_rate,
-                        ncpu=ncpus
-                    )
-
-                    # Update the new_star DataFrame
-                    new_star.loc[i, 'rlnDeconvTomoName'] = deconv_tomo_name
-
-        # Save the updated star file
-        starfile.write(new_star, star_file)
-        print('\n###### Isonet done ctf deconvolve ######\n')
-
-        # except Exception:
-        #     error_text = traceback.format_exc()
-        #     f =open('log.txt','a+')
-        #     f.write(error_text)
-        #     f.close()
-        #     logging.error(error_text)
-            # with mrcfile.new(f"{output_dir}/corrected_{file_name}.mrc") as mrc:
-            #     mrc.set_data(outData)
 
     def make_mask(self,star_file,
                 input_column: str = "rlnDeconvTomoName",
                 output_dir: str = 'mask',
                 patch_size: int=4,
-                mask_boundary: str=None,
-                density_percentage: int=None,
-                std_percentage: int=None,
-                z_crop:float=None,
+                density_percentage: int=50,
+                std_percentage: int=50,
+                z_crop:float=0.1,
                 tomo_idx=None):
         """
         \ngenerate a mask that include sample area and exclude "empty" area of the tomogram. The masks do not need to be precise. In general, the number of subtomograms (a value in star file) should be lesser if you masked out larger area. \n
@@ -277,68 +263,37 @@ class ISONET:
         :param z_crop: If exclude the top and bottom regions of tomograms along z axis. For example, "--z_crop 0.2" will mask out the top 20% and bottom 20% region along z axis.
         :param tomo_idx: (None) If this value is set, process only the tomograms listed in this index. e.g. 1,2,4 or 5-10,15,16
         """
-        from IsoNet.bin.make_mask import make_mask
 
-        logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',
-        datefmt="%m-%d %H:%M:%S",level=logging.INFO,handlers=[logging.StreamHandler(sys.stdout)])
-        logging.info('\n######Isonet starts making mask######\n')
+        def mask_row(i, row, new_star):
+            tomo = row.get(input_column) or row["rlnTomoName"]
 
-        # try:
+            if 'rlnMaskBoundary' in row and row.rlnMaskBoundary not in [None, "None"]:
+                boundary = row.rlnMaskBoundary
+            else:
+                boundary = None
 
-        if not os.path.isdir(output_dir):
-            os.mkdir(output_dir)
-            
-        star = starfile.read(star_file)
-        new_star = star.copy()
-        tomo_idx = idx2list(tomo_idx, list(star.rlnIndex))
+            base = os.path.splitext(os.path.basename(tomo))[0]
+            out_path = os.path.join(output_dir, f"{base}_mask.mrc")
+            logging.info(f"Creating mask for {tomo} → {out_path}")
 
-        if not input_column in new_star.columns:
-            input_column = "rlnTomoName",
+            make_mask(
+                tomo,
+                out_path,
+                mask_boundary=boundary,
+                side=patch_size,
+                density_percentage=density_percentage,
+                std_percentage=std_percentage,
+                surface=z_crop
+            )
+            new_star.at[i, 'rlnMaskName'] = out_path
 
-        with tqdm.tqdm(total=len(tomo_idx), desc="make mask") as progress_bar:
-            for i, it in star.iterrows():
-                if str(it.rlnIndex) in tomo_idx:
-                    tomo_file = it[input_column]
-                    if tomo_file == "None":
-                        logging.info(f"using rlnTomoName instead of {input_column}")
-                        tomo_file = it["rlnTomoName"]
-                    tomo_root_name = os.path.splitext(os.path.basename(tomo_file))[0]
-
-                    if os.path.isfile(tomo_file):
-                        progress_str = f"{os.path.basename(tomo_file)}"
-                        progress_bar.set_postfix_str(progress_str)
-                        progress_bar.update(1)  # Increment the progress bar
-
-                        # logging.info('make_mask: {}| dir_to_save: {}| window_scale: {}'.format(tomo_file,
-                        # output_dir, patch_size))
-                        logging.info('make_mask: {}| dir_to_save: {}| percentage: {}| window_scale: {}'.format(tomo_file,
-                        output_dir, density_percentage, patch_size))
-                        
-                        #if mask_boundary is None:
-                        if "rlnMaskBoundary" in star.columns.tolist() and it.rlnMaskBoundary not in [None, "None"]:
-                            mask_boundary = it.rlnMaskBoundary 
-                        else:
-                            mask_boundary = None
-                            
-                        mask_out_name = '{}/{}_mask.mrc'.format(output_dir,tomo_root_name)
-                        make_mask(tomo_file,
-                                mask_out_name,
-                                mask_boundary=mask_boundary,
-                                side=patch_size,
-                                density_percentage=density_percentage,
-                                std_percentage=std_percentage,
-                                surface = z_crop)
-
-                        new_star.loc[i,'rlnMaskName']=mask_out_name
-        starfile.write(new_star,star_file)
-        logging.info('\n######Isonet done making mask######\n')
-
-        # except Exception:
-        #     error_text = traceback.format_exc()
-        #     f =open('log.txt','a+')
-        #     f.write(error_text)
-        #     f.close()
-        #     logging.error(error_text)
+        process_tomograms(
+            star_file,
+            output_dir,
+            tomo_idx,
+            desc="Make Mask",
+            row_processor=mask_row
+        )
 
     def predict(self, star_file: str, 
                 model: str, 
@@ -349,6 +304,7 @@ class ISONET:
                 apply_mw_x1: bool=True, 
                 correct_CTF: bool=False,
                 isCTFflipped: bool=False,
+                padding_factor: float=1.5,
                 tomo_idx=None):
         """
         \nPredict tomograms using trained model\n
@@ -366,118 +322,191 @@ class ISONET:
         :param use_deconv_tomo: (True) If CTF deconvolved tomogram is found in tomogram.star, use that tomogram instead.
         :raises: AttributeError, KeyError
         """
-
-
-        logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',
-        datefmt="%m-%d %H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])
-
         ngpus, gpuID, gpuID_list = process_gpuID(gpuID)
 
-        from IsoNet.models.network import Net,DuoNet
-        from IsoNet.utils.fileio import write_mrc
-        import starfile
-        import numpy as np
-        from IsoNet.utils.processing import normalize
-        if model2 not in ['None', None]:
-            network = DuoNet(pretrained_model1=model, pretrained_model2=model2,state='predict')
+        if model2 not in (None, 'None'):
+            network = DuoNet(pretrained_model1=model, pretrained_model2=model2, state='predict')
         else:
-            network = Net(pretrained_model=model,state='predict')
-        create_folder(output_dir, remove=False)
+            network = Net(pretrained_model=model, state='predict')
+
         cube_size = network.cube_size
-        inner_cube_size = cube_size//3*2
-        star = starfile.read(star_file)
 
-        out_column = "rlnCorrectedTomoName"
-        if network.method == 'n2n':
-            out_column = "rlnDenoisedTomoName"
-            # out_column1 = "rlnDenoisedTomoHalf1"
-            # out_column2 = "rlnDenoisedTomoHalf2"
+        def predict_row(i, row, new_star):
+            # 1) Build missing‑wedge mask if requested
+            F_mask = (
+                mw3D(cube_size, missingAngle=[
+                    90 + float(row.rlnTiltMin),
+                    90 - float(row.rlnTiltMax)
+                ]) if apply_mw_x1 else None
+            )
 
-        if out_column not in star.columns:
-            star[out_column] = None
+            # 2) Optionally incorporate CTF into the mask
+            if correct_CTF and not isCTFflipped:
+                defocus = row.rlnDefocus / 10000.0
+                ctf3d = np.sign(
+                    get_ctf_3d(
+                        angpix=row.rlnPixelSize,
+                        voltage=row.rlnVoltage,
+                        cs=row.rlnSphericalAberration,
+                        defocus=defocus,
+                        phaseflipped=False,
+                        phaseshift=0,
+                        amplitude=row.rlnAmplitudeContrast,
+                        length=cube_size
+                    )
+                )
+                F_mask = ctf3d * F_mask if F_mask is not None else ctf3d
 
-        def normalize_and_predict(network_model, tomo_name, F_mask=None):
-            tomo, _ = read_mrc(tomo_name)
-            tomo = normalize(tomo*-1)
-            # Z = tomo.shape[0]
-            # mean = np.mean(tomo.data[Z//2-16:Z//2+16])
-            # std = np.std(tomo.data[Z//2-16:Z//2+16])
-            # tomo = (mean-tomo)/std
-            outData = network_model.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, \
-                                          F_mask=F_mask)
-            if len(outData) == 2:
-                return [x.astype(np.float32)*-1 for x in outData]
+            # 3) Decide which tomo to feed in
+            if network.method in ['regular', 'isonet2']:
+                tomo_paths = [row.get(input_column) or row.rlnTomoName]
             else:
-                return outData.astype(np.float32) * -1
-        
-        def get_base_filename(tomo_name):
-            file_base_name = os.path.basename(tomo_name)
-            file_name, file_extension = os.path.splitext(file_base_name)
-            file_name = f"{output_dir}/corrected_{network.method}_{network.arch}_{file_name}"
-            return file_name
-        
-        if isCTFflipped == True and correct_CTF == True:
-            print("Do not need to correct_CTF in prediction when tomogram is ctf phase-flipped")
-            print("Setting correct_CTF to False here")
-            print("This is expected, do not need to worry")
-            correct_CTF = False
-        tomo_idx = idx2list(tomo_idx, list(star.rlnIndex))
+                tomo_paths = [
+                    row.rlnTomoReconstructedTomogramHalf1,
+                    row.rlnTomoReconstructedTomogramHalf2
+                ]
+            base = os.path.splitext(os.path.basename(tomo_paths[0]))[0]
+            prefix = f"{output_dir}/corrected_{network.method}_{network.arch}_{base}"
+
+            out_data = []
+            for tomo_p in tomo_paths:
+                print(tomo_p)
+                tomo_vol, _ = read_mrc(tomo_p)
+                tomo_vol = normalize(tomo_vol * -1, percentile=False)
+                out_data.append(network.predict_map(
+                    tomo_vol, output_dir,
+                    cube_size= int(cube_size / padding_factor+0.1),
+                    crop_size=cube_size,
+                    F_mask=F_mask
+                ))
+
+            out_data = sum(out_data) / len(out_data)
+
+            out_file = f"{prefix}.mrc"
+            write_mrc(out_file, out_data.astype(np.float32) * -1)
+
+            # 5) Update STAR
+            column = "rlnDenoisedTomoName" if network.method == 'n2n' else "rlnCorrectedTomoName"
+            new_star.at[i, column] = out_file
+
+            logging.info(f"Predicted {tomo_paths} → {out_file}")
+
+        process_tomograms(
+            star_path=star_file,
+            output_dir=output_dir,
+            idx_str=tomo_idx,
+            desc="Predict",
+            row_processor=predict_row
+        )
+        # logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',
+        # datefmt="%m-%d %H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])
 
 
-        for index, tomo_row in star.iterrows():
-            # wedgevolume
-            if str(tomo_row.rlnIndex) in tomo_idx:
-                if apply_mw_x1:
-                    min_angle, max_angle = float(tomo_row['rlnTiltMin']), float(tomo_row['rlnTiltMax'])
-                    from IsoNet.utils.missing_wedge import mw3D
-                    F_mask = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
-                else:
-                    F_mask = None
+        # from IsoNet.models.network import Net,DuoNet
+        # from IsoNet.utils.fileio import write_mrc
+        # import starfile
+        # import numpy as np
+        # from IsoNet.utils.processing import normalize
+        # if model2 not in ['None', None]:
+        #     network = DuoNet(pretrained_model1=model, pretrained_model2=model2,state='predict')
+        # else:
+        #     network = Net(pretrained_model=model,state='predict')
+        # create_folder(output_dir, remove=False)
+        # cube_size = network.cube_size
+        # inner_cube_size = cube_size//3*2
+        # star = starfile.read(star_file)
+
+        # out_column = "rlnCorrectedTomoName"
+        # if network.method == 'n2n':
+        #     out_column = "rlnDenoisedTomoName"
+        #     # out_column1 = "rlnDenoisedTomoHalf1"
+        #     # out_column2 = "rlnDenoisedTomoHalf2"
+
+        # if out_column not in star.columns:
+        #     star[out_column] = None
+
+        # def normalize_and_predict(network_model, tomo_name, F_mask=None):
+        #     tomo, _ = read_mrc(tomo_name)
+        #     tomo = normalize(tomo*-1)
+        #     # Z = tomo.shape[0]
+        #     # mean = np.mean(tomo.data[Z//2-16:Z//2+16])
+        #     # std = np.std(tomo.data[Z//2-16:Z//2+16])
+        #     # tomo = (mean-tomo)/std
+        #     outData = network_model.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, \
+        #                                   F_mask=F_mask)
+        #     if len(outData) == 2:
+        #         return [x.astype(np.float32)*-1 for x in outData]
+        #     else:
+        #         return outData.astype(np.float32) * -1
+        
+        # def get_base_filename(tomo_name):
+        #     file_base_name = os.path.basename(tomo_name)
+        #     file_name, file_extension = os.path.splitext(file_base_name)
+        #     file_name = f"{output_dir}/corrected_{network.method}_{network.arch}_{file_name}"
+        #     return file_name
+        
+        # if isCTFflipped == True and correct_CTF == True:
+        #     print("Do not need to correct_CTF in prediction when tomogram is ctf phase-flipped")
+        #     print("Setting correct_CTF to False here")
+        #     print("This is expected, do not need to worry")
+        #     correct_CTF = False
+        # tomo_idx = idx2list(tomo_idx, list(star.rlnIndex))
+
+
+        # for index, tomo_row in star.iterrows():
+        #     # wedgevolume
+        #     if str(tomo_row.rlnIndex) in tomo_idx:
+        #         if apply_mw_x1:
+        #             min_angle, max_angle = float(tomo_row['rlnTiltMin']), float(tomo_row['rlnTiltMax'])
+        #             from IsoNet.utils.missing_wedge import mw3D
+        #             F_mask = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
+        #         else:
+        #             F_mask = None
                 
-                if correct_CTF:
-                    from IsoNet.utils.CTF import get_ctf_3d
-                    defocus = tomo_row['rlnDefocus']/10000.
-                    ctf3d = get_ctf_3d(angpix=tomo_row['rlnPixelSize'], voltage=tomo_row['rlnVoltage'], \
-                                    cs=tomo_row['rlnSphericalAberration'], defocus=defocus, phaseflipped=False,\
-                                    phaseshift=0, amplitude=tomo_row['rlnAmplitudeContrast'],length=cube_size)
-                    ctf3d = np.sign(ctf3d)
-                    if F_mask is not None and F_mask != "None":
-                        F_mask = ctf3d * F_mask
-                    else:
-                        F_mask = ctf3d
+        #         if correct_CTF:
+        #             from IsoNet.utils.CTF import get_ctf_3d
+        #             defocus = tomo_row['rlnDefocus']/10000.
+        #             ctf3d = get_ctf_3d(angpix=tomo_row['rlnPixelSize'], voltage=tomo_row['rlnVoltage'], \
+        #                             cs=tomo_row['rlnSphericalAberration'], defocus=defocus, phaseflipped=False,\
+        #                             phaseshift=0, amplitude=tomo_row['rlnAmplitudeContrast'],length=cube_size)
+        #             ctf3d = np.sign(ctf3d)
+        #             if F_mask is not None and F_mask != "None":
+        #                 F_mask = ctf3d * F_mask
+        #             else:
+        #                 F_mask = ctf3d
 
-                if network.method in ['regular','isonet2']:
-                    star = starfile.read(star_file)
-                    if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
-                        print("using rlnTomoName instead of rlnDeconvTomoName")
-                        input_column = "rlnTomoName"
-                    outData_full = normalize_and_predict(network, tomo_row[input_column],F_mask=F_mask)
-                    base_filename = get_base_filename(tomo_row[input_column])
+        #         if network.method in ['regular','isonet2']:
+        #             star = starfile.read(star_file)
+        #             if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
+        #                 print("using rlnTomoName instead of rlnDeconvTomoName")
+        #                 input_column = "rlnTomoName"
+        #             outData_full = normalize_and_predict(network, tomo_row[input_column],F_mask=F_mask)
+        #             base_filename = get_base_filename(tomo_row[input_column])
 
-                if network.method in ['n2n','isonet2-n2n']:
-                    base_filename = get_base_filename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
-                    out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
-                    out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
-                    if model2 in ['None', None]:
-                        outData_full = (out_half1 + out_half2) * (0.5)
-                    else:
+        #         if network.method in ['n2n','isonet2-n2n']:
+        #             base_filename = get_base_filename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
+        #             out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
+        #             out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
+        #             if model2 in ['None', None]:
+        #                 outData_full = (out_half1 + out_half2) * (0.5)
+        #             else:
                         
-                        out_file_net1_half1 = f"{base_filename}_net1_half1.mrc"
-                        out_file_net2_half1 = f"{base_filename}_net2_half1.mrc"
-                        out_file_net1_half2 = f"{base_filename}_net1_half2.mrc"
-                        out_file_net2_half2 = f"{base_filename}_net2_half2.mrc"
+        #                 out_file_net1_half1 = f"{base_filename}_net1_half1.mrc"
+        #                 out_file_net2_half1 = f"{base_filename}_net2_half1.mrc"
+        #                 out_file_net1_half2 = f"{base_filename}_net1_half2.mrc"
+        #                 out_file_net2_half2 = f"{base_filename}_net2_half2.mrc"
                         
-                        write_mrc(out_file_net1_half1, out_half1[0])
-                        write_mrc(out_file_net2_half1, out_half1[1])
-                        write_mrc(out_file_net1_half2, out_half2[0])
-                        write_mrc(out_file_net2_half2, out_half2[1])
+        #                 write_mrc(out_file_net1_half1, out_half1[0])
+        #                 write_mrc(out_file_net2_half1, out_half1[1])
+        #                 write_mrc(out_file_net1_half2, out_half2[0])
+        #                 write_mrc(out_file_net2_half2, out_half2[1])
 
-                        outData_full = (out_half1[0] + out_half1[1] + out_half2[0] + out_half2[1])*0.25
-                out_file_name = f"{base_filename}.mrc"
-                write_mrc(out_file_name, outData_full)
-                star.at[index, out_column] = out_file_name            
-        starfile.write(star,star_file)
-        print("################predict completed#####################")
+        #                 outData_full = (out_half1[0] + out_half1[1] + out_half2[0] + out_half2[1])*0.25
+        #         out_file_name = f"{base_filename}.mrc"
+        #         write_mrc(out_file_name, outData_full)
+        #         star.at[index, out_column] = out_file_name            
+        # starfile.write(star,star_file)
+        # print("################predict completed#####################")
 
     def denoise(self, 
                    star_file: str,

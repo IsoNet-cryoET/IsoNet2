@@ -291,26 +291,12 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
 
             outputs.append(batch_output)
 
-    output = torch.cat(outputs, dim=0).cpu().numpy()
+    output = torch.cat(outputs, dim=0).cpu().numpy().astype(np.float32)
     rank_output_path = f"{tmp_data_path}_rank_{rank}.npy"
     np.save(rank_output_path, output)
-
-    dist.barrier()
-
-    if rank == 0:
-        all_outputs = []
-        for r in range(world_size):
-            rank_output_path = f"{tmp_data_path}_rank_{r}.npy"
-            rank_output = np.load(rank_output_path)
-            all_outputs.append(rank_output)
-        
-        gathered_outputs = np.concatenate(all_outputs, axis=0)[:num_data_points]
-        np.save(tmp_data_path, gathered_outputs)
-    
-        for r in range(world_size):
-            os.remove(f"{tmp_data_path}_rank_{r}.npy")
-
-    dist.destroy_process_group()
+    if world_size > 1:
+        dist.barrier()
+        dist.destroy_process_group()
 
     # output = torch.zeros(steps_per_rank,data.shape[1],data.shape[2],data.shape[3],data.shape[4]).to(rank)
     # with torch.no_grad():
