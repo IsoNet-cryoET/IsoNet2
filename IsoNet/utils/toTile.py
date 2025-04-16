@@ -34,7 +34,7 @@ class reform3D:
         # pad_right + pad_left + shape >= (self._sp + edge_depth * 2) + (crop_size-cube_size)
         pad_right = (self._sidelen * self.cubesize + (self.cropsize-self.cubesize) - pad_left - self._sp).astype(int)
 
-        data = np.pad(self._orig_data,((pad_left,pad_right[0]),(pad_left,pad_right[1]),(pad_left,pad_right[2])),'symmetric')
+        data = np.pad(self._orig_data,((pad_left,pad_right[0]),(pad_left,pad_right[1]),(pad_left,pad_right[2])),'symmetric').astype(np.float32)
         outdata=[]
 
         for i in range(self._sidelen[0]):
@@ -67,7 +67,7 @@ class reform3D:
         array_z  = array_z[:,np.newaxis,np.newaxis]
 
         out = array_x * array_y * array_z
-        return out[:x_len,:y_len,:z_len]
+        return out[:x_len,:y_len,:z_len].astype(np.float32)
 
 
     def restore(self,cubes):
