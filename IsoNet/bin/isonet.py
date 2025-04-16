@@ -11,6 +11,8 @@ from IsoNet.utils.fileio import read_mrc, write_mrc, create_folder
 from IsoNet.utils.utils import parse_params, process_gpuID
 import tqdm
 import pandas as pd
+from IsoNet.utils.utils import idx2list
+
 class ISONET:
     """
     ISONET: Train on tomograms and restore missing-wedge\n
@@ -194,7 +196,6 @@ class ISONET:
         """
         from IsoNet.utils.deconvolution import deconv_one
         import starfile
-        from IsoNet.utils.utils import idx2list
 
 
         if not os.path.isdir(output_dir):
@@ -277,7 +278,6 @@ class ISONET:
         :param tomo_idx: (None) If this value is set, process only the tomograms listed in this index. e.g. 1,2,4 or 5-10,15,16
         """
         from IsoNet.bin.make_mask import make_mask
-        from IsoNet.utils.utils import idx2list
 
         logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',
         datefmt="%m-%d %H:%M:%S",level=logging.INFO,handlers=[logging.StreamHandler(sys.stdout)])
@@ -421,13 +421,12 @@ class ISONET:
             print("Setting correct_CTF to False here")
             print("This is expected, do not need to worry")
             correct_CTF = False
-        from IsoNet.utils.utils import idx2list
-        if tomo_idx not in ['None',None,'all','All']:
-            tomo_idx = idx2list(tomo_idx)
+        tomo_idx = idx2list(tomo_idx, list(star.rlnIndex))
+
 
         for index, tomo_row in star.iterrows():
             # wedgevolume
-            if tomo_idx in ['None', None, 'all', 'All'] or str(tomo_row.rlnIndex) in tomo_idx:
+            if str(tomo_row.rlnIndex) in tomo_idx:
                 if apply_mw_x1:
                     min_angle, max_angle = float(tomo_row['rlnTiltMin']), float(tomo_row['rlnTiltMax'])
                     from IsoNet.utils.missing_wedge import mw3D
@@ -442,10 +441,10 @@ class ISONET:
                                     cs=tomo_row['rlnSphericalAberration'], defocus=defocus, phaseflipped=False,\
                                     phaseshift=0, amplitude=tomo_row['rlnAmplitudeContrast'],length=cube_size)
                     ctf3d = np.sign(ctf3d)
-                    if F_mask in [None,"None"]:
-                        F_mask = ctf3d
+                    if F_mask is not None and F_mask != "None":
+                        F_mask = ctf3d * F_mask
                     else:
-                        F_mask = ctf3d*F_mask
+                        F_mask = ctf3d
 
                 if network.method in ['regular','isonet2']:
                     star = starfile.read(star_file)

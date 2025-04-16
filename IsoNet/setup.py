@@ -18,7 +18,7 @@ setup(name='IsoNet',
     },
     include_package_data = True,
     install_requires=[
-        'torch==1.13.1',
+        'torch==2.6.0',
         'mrcfile',
         'matplotlib',
         'fire',

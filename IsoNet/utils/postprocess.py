@@ -3,59 +3,32 @@ def FCC(volume1, volume2, phiArray=[0.0], invertCone=False):
     """
     Fourier conic correlation
 
-    Created on Fri Dec  4 16:35:42 2015
-    @author: Robert A. McLeod
 
-    Modified by: Ricardo Righetto
-    Date of modification: 23.02.2017
-    Change: now also supports (conical) FRC
 
-    Returns FCC_normed, which has len(phiArray) Fourier conic correlations
+    [M, N, P] = volume1.shape
+    [zmesh, ymesh, xmesh] = np.mgrid[-M /
+                                        2:M / 2, -N / 2:N / 2, -P / 2:P / 2]
+    # # The below is for RFFT implementation which is faster but gives numerically different results that potentially affect resolution estimation, DO NOT USE.
+    # # The above is consistent with other programs such as FREALIGN v9.11 and relion_postprocess.
+    # [zmesh, ymesh, xmesh] = np.mgrid[-M//2+m[0]:(M-1)//2+1, -N//2+m[1]:(N-1)//2+1, 0:P//2+1]
+    # zmesh = np.fft.ifftshift( zmesh )
+    # ymesh = np.fft.ifftshift( ymesh )
     """
+    rhomax = int(
+        np.ceil(np.sqrt(M * M / 4.0 + N * N / 4.0 + P * P / 4.0)) + 1)
+    # if xy_only:
+    #   zmesh *= 0
+    #   rhomax = int( np.ceil( np.sqrt( N*N/4.0 + P*P/4.0) ) + 1 )
+    # if z_only:
+    #   xmesh *= 0
+    #   ymesh *= 0
+    #   rhomax = rhomax = int( np.ceil( np.sqrt( M*M/4.0 ) ) + 1 )
+    rhomesh = ne.evaluate(
+        "sqrt(xmesh * xmesh + ymesh * ymesh + zmesh * zmesh)")
+    phimesh = ne.evaluate("arccos(zmesh / rhomesh)")
+    phimesh[M // 2, N // 2, P // 2] = 0.0
+    phimesh = np.ravel(phimesh)
 
-    # import warnings
-    # with warnings.catch_warnings():
-    #     warnings.filterwarnings("ignore", category=RuntimeWarning)
-
-    if volume1.ndim == 3:
-
-        [M, N, P] = volume1.shape
-        [zmesh, ymesh, xmesh] = np.mgrid[-M /
-                                         2:M / 2, -N / 2:N / 2, -P / 2:P / 2]
-        # # The below is for RFFT implementation which is faster but gives numerically different results that potentially affect resolution estimation, DO NOT USE.
-        # # The above is consistent with other programs such as FREALIGN v9.11 and relion_postprocess.
-        # [zmesh, ymesh, xmesh] = np.mgrid[-M//2+m[0]:(M-1)//2+1, -N//2+m[1]:(N-1)//2+1, 0:P//2+1]
-        # zmesh = np.fft.ifftshift( zmesh )
-        # ymesh = np.fft.ifftshift( ymesh )
-
-        rhomax = int(
-            np.ceil(np.sqrt(M * M / 4.0 + N * N / 4.0 + P * P / 4.0)) + 1)
-        # if xy_only:
-        #   zmesh *= 0
-        #   rhomax = int( np.ceil( np.sqrt( N*N/4.0 + P*P/4.0) ) + 1 )
-        # if z_only:
-        #   xmesh *= 0
-        #   ymesh *= 0
-        #   rhomax = rhomax = int( np.ceil( np.sqrt( M*M/4.0 ) ) + 1 )
-        rhomesh = ne.evaluate(
-            "sqrt(xmesh * xmesh + ymesh * ymesh + zmesh * zmesh)")
-        phimesh = ne.evaluate("arccos(zmesh / rhomesh)")
-        phimesh[M // 2, N // 2, P // 2] = 0.0
-        phimesh = np.ravel(phimesh)
-
-    elif volume1.ndim == 2:
-
-        [M, N] = volume1.shape
-        [ymesh, xmesh] = np.mgrid[-M / 2:M / 2, -N / 2:N / 2]
-        rhomax = int(np.ceil(np.sqrt(M * M / 4.0 + N * N / 4.0)) + 1)
-        rhomesh = ne.evaluate("sqrt(xmesh * xmesh + ymesh * ymesh)")
-        phimesh = ne.evaluate("arctan2(ymesh, xmesh)")
-        phimesh[M // 2, N // 2] = 0.0
-        phimesh = np.ravel(phimesh)
-
-    else:
-
-        raise RuntimeError("Error: FCC only supports 2D and 3D objects.")
 
     # phiArray = np.deg2rad(phiArray)
     phiArray = ne.evaluate("phiArray * pi / 180.0")
