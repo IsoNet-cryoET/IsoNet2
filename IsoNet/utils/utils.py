@@ -1,9 +1,22 @@
 import mrcfile
 import logging
+import starfile
+import tqdm
+import os
+def process_tomograms(star_path, output_dir, idx_str, desc, row_processor):
+    star = starfile.read(star_path)
+    new_star = star.copy()
+    idx_list = idx2list(idx_str, star.rlnIndex)
+    os.makedirs(output_dir, exist_ok=True)
 
+    with tqdm.tqdm(total=len(idx_list), desc=desc) as pbar:
+        for i, row in star.iterrows():
+            if str(row.rlnIndex) in idx_list:
+                row_processor(i, row, new_star)
+                pbar.update(1)
 
+    starfile.write(new_star, star_path)
 
-import mrcfile
 def debug_matrix(mat, filename='debug.mrc'):
     out_mat = mat.detach().cpu().numpy().squeeze()
     with mrcfile.new(filename, overwrite=True) as mrc:

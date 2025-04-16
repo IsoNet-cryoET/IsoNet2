@@ -118,7 +118,7 @@ class Net:
 
     def load(self, path):
         print(path)
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, weights_only=False)
         self.method = checkpoint['method']
         self.arch = checkpoint['arch']
         self.cube_size = checkpoint['cube_size']
@@ -210,7 +210,16 @@ class Net:
         print('data_shape',data.shape)
         mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path,\
                                      F_mask), nprocs=self.world_size)
-        outData = np.load(tmp_data_path)
+        all_outputs = []
+        for r in range(self.world_size):
+            rank_output_path = f"{tmp_data_path}_rank_{r}.npy"
+            rank_output = np.load(rank_output_path,mmap_mode='r')
+            all_outputs.append(rank_output)
+        outData = np.concatenate(all_outputs, axis=0)[:data.shape[0]]
+
+        for r in range(self.world_size):
+            os.remove(f"{tmp_data_path}_rank_{r}.npy")
+
         outData = outData.squeeze()
         return outData
 
@@ -223,7 +232,6 @@ class Net:
         outData = self.predict(data, tmp_data_path=tmp_data_path, F_mask=F_mask)
         outData = outData.squeeze()
         outData=reform_ins.restore(outData)
-        os.remove(tmp_data_path)
         return outData
     
 
