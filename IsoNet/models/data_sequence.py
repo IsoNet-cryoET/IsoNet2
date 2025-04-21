@@ -129,7 +129,6 @@ class Train_sets_n2n(Dataset):
 
         self.mean.append(mean)
         self.std.append(std)
-
         if "rlnMaskName" not in column_name_list or row.get("rlnMaskName") in [None, "None"]:
             mask = np.ones(tomo_shape, dtype=np.float32)
         else:

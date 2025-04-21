@@ -60,7 +60,7 @@ def create_sphere(size=16):
                     sphere[x, y, z] = 1
     return sphere
 
-def generate_3D_image(array_size=(256, 512, 512), num_objects=200, size_object=16):
+def generate_3D_image(array_size=(256, 512, 512), num_objects=200, size_object=16, rotate=True):
     # Initialize the 3D array
     array = np.zeros(array_size, dtype=np.float32)
 
@@ -79,11 +79,12 @@ def generate_3D_image(array_size=(256, 512, 512), num_objects=200, size_object=1
             obj = create_sphere()
 
         # Apply random rotation
-        angles = (random.uniform(0, 360), random.uniform(0, 360), random.uniform(0, 360))
-        obj_rotated = rotate_object(obj, angles)
+        if rotate:
+            angles = (random.uniform(0, 360), random.uniform(0, 360), random.uniform(0, 360))
+            obj = rotate_object(obj, angles)
         
         # Place the object into the main array
-        place_object(array, obj_rotated, center)
+        place_object(array, obj, center)
     return array
 
 
