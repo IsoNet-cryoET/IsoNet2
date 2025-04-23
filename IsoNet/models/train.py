@@ -13,6 +13,11 @@ from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
 import shutil
+from packaging import version
+if version.parse(torch.__version__) >= version.parse("2.3.0"):
+    from torch.amp import GradScaler
+else:
+    from torch.cuda.amp import GradScaler
 
 def normalize_percentage(tensor, percentile=5):
     original_shape = tensor.shape
@@ -84,7 +89,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
     loss_func = loss_funcs.get(training_params['loss_func'])
     
     if training_params['mixed_precision']:
-        scaler = torch.amp.GradScaler()
+        scaler = GradScaler()
 
     steps_per_epoch_train = training_params['steps_per_epoch']
     total_steps = min(len(train_loader)//training_params['acc_batches'], training_params['steps_per_epoch'])
