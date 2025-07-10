@@ -278,7 +278,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             # outside_mw_loss2, inside_mw_loss2 = masked_loss(second_x1_rot, x2_rot, rotated_mw, mw, loss_func = loss_func)
                             # print("second_x1",outside_mw_loss2,inside_mw_loss2)
                             # inside_mw_loss = inside_mw_loss + inside_mw_loss2 # test_6
-                            loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss + consistency_loss                             
+                            loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss# + consistency_loss                             
 
                 loss = loss / training_params['acc_batches']
                 inside_mw_loss = inside_mw_loss / training_params['acc_batches']

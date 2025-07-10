@@ -183,6 +183,7 @@ class ISONET:
         chunk_size: int=None,
         overlap_rate: float= 0.25,
         ncpus:int=4,
+        phaseflipped:bool=False,
         tomo_idx: str=None):
         """
         \nCTF deconvolution for the tomograms.\n
@@ -219,6 +220,7 @@ class ISONET:
                 "highpassnyquist": highpassnyquist,
                 "chunk_size":     chunk_size,
                 "overlap_rate":   overlap_rate,
+                "phaseflipped":   phaseflipped,
                 "ncpu":           ncpus,
             }
 
