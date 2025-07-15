@@ -656,7 +656,7 @@ class ISONET:
                    correct_between_tilts: bool=True,
                    start_bt_size: int=128,
 
-                   noise_level: float=0.2, 
+                   noise_level: float=0, 
                    noise_mode: str="ramp",
 
                    with_predict: bool=True,

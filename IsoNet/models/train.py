@@ -138,109 +138,30 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         rot = random.choice(rotation_list)
 
 
-                    x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
                     x1 = apply_F_filter_torch(x1, mw)
                     x2 = apply_F_filter_torch(x2, mw)
-                    if True:#with torch.no_grad():
+                    x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
+
+                    with torch.no_grad():
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
                             preds = model(x1)
-                            # preds2 = model(x2)
                     preds = preds.to(torch.float32)
-                    # preds2 = preds2.to(torch.float32)
 
                     if 'CTF_mode' in training_params and training_params['CTF_mode'] not in [None, "None"]:
                         preds = apply_F_filter_torch(preds, torch.abs(ctf))
 
-                    # reverse_wedge_preds = apply_F_filter_torch(preds, 1-mw)
-                    attempt="test5"
-                    if attempt == "test1":
-                        if training_params['apply_mw_x1']:
-                            subtomos =  apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
-                            subtomos2 = apply_F_filter_torch(preds2, 1-mw) + apply_F_filter_torch(x2, mw)
-                        else:
-                            subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                            subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
 
-                        # second_x1 = apply_F_filter_torch(subtomos, mw)
-                        rotated_subtomo = rotate_func(subtomos, rot)
-                        mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-                        # rotated_mw = rotate_func(mw, rot)
-                        # x2_rot = rotate_func(x2, rot)
-                        rot_subtomo2 = rotate_func(subtomos2, rot)
-                        # mw_x2 = apply_F_filter_torch(x2_rot,mw)
-                        # x1_rot = rotate_func(x1, rot)
-                        # second_x1_rot = rotate_func(second_x1, rot)
+                    subtomos = apply_F_filter_torch(preds, 1-mw) + x1
+                    rotated_subtomo = rotate_func(subtomos, rot)
+                    mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+                    
+                    mw_rotated_subtomos_std = mw_rotated_subtomos.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                    mw_rotated_subtomos = mw_rotated_subtomos/mw_rotated_subtomos_std * x1_std_org
 
-                        # mean_new = mw_rotated_subtomos.mean(dim=(-3,-2,-1), keepdim=True)
-                        # std_new = mw_rotated_subtomos.std(dim=(-3,-2,-1), keepdim=True)
-                        # mw_rotated_subtomos = (mw_rotated_subtomos - mean_new)/ std_new\
-                        #                             *x1_std_org + x1_mean_org
-                    elif attempt == "test2":
-                        noise1 = x1 - apply_F_filter_torch(preds, mw)
-                        rotated_signal1 = rotate_func(preds, rot)
-                        mw_rotated_signal1 = apply_F_filter_torch(rotated_signal1, mw)
-                        mw_rotated_subtomos =  mw_rotated_signal1 + noise1
 
-                        subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
-                        rot_subtomo2 = rotate_func(subtomos2, rot)
-
-                    elif attempt == "test3":
-                        noise1 = x1 - apply_F_filter_torch(preds, mw)
-                        rotated_signal1 = rotate_func(preds, rot)
-                        mw_rotated_signal1 = apply_F_filter_torch(rotated_signal1, mw)
-                        mw_rotated_subtomos =  mw_rotated_signal1 + noise1
-
-                        noise2 = x2 - apply_F_filter_torch(preds2, mw)
-                        rotated_signal2 = rotate_func(preds2, rot)
-                        rot_subtomo2 = rotated_signal2 + noise2
-
-                    elif attempt == "test4":
-                        subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                        rotated_subtomo = rotate_func(subtomos, rot)
-                        mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-
-                        subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
-                        rot_subtomo2 = rotate_func(subtomos2, rot)
-                        # mw_rotated_subtomos2=apply_F_filter_torch(rot_subtomo2,mw)
-                    elif attempt == "test5":
-                        subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                        rotated_subtomo = rotate_func(subtomos, rot)
-                        mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-
-                        rotated_mw = rotate_func(mw, rot)
-                        x2_rot = rotate_func(x2, rot)
-
-                    elif attempt == "test8":
-                        if random.random()<0.5:
-                            noise1 = x1 - apply_F_filter_torch(preds, mw)
-                            rotated_signal1 = rotate_func(preds, rot)
-                            mw_rotated_signal1 = apply_F_filter_torch(rotated_signal1, mw)
-                            mw_rotated_subtomos =  mw_rotated_signal1 + noise1
-                        else:
-                            subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                            rotated_subtomo = rotate_func(subtomos, rot)
-                            mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-
-                        rotated_mw = rotate_func(mw, rot)
-                        x2_rot = rotate_func(x2, rot)
-
-                    elif attempt == "test9":
-                        subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                        rotated_subtomo = rotate_func(subtomos, rot)
-                        mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-
-                        rotated_mw = rotate_func(mw, rot)
-                        x2_rot = rotate_func(x2, rot)
-
-                    elif attempt == "test10":
-                        o1 = apply_F_filter_torch(preds, mw)
-                        subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                        rotated_subtomo = rotate_func(subtomos, rot)
-                        mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-                        consistency_loss = loss_func(o1, x2)
-
-                        rotated_mw = rotate_func(mw, rot)
-                        x2_rot = rotate_func(x2, rot)
+                    rotated_mw = rotate_func(mw, rot)
+                    x2_rot = rotate_func(x2, rot)
+                    
 
                     if training_params["noise_level"] > 0:
                         noise_vol = apply_F_filter_torch(noise_vol, mw)
@@ -410,3 +331,95 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
     #     gathered_outputs = gathered_outputs[:data.shape[0]]
     #     np.save(tmp_data_path,gathered_outputs)
     # dist.destroy_process_group()
+
+
+    # reverse_wedge_preds = apply_F_filter_torch(preds, 1-mw)
+                    # attempt="test5"
+                    # if attempt == "test1":
+                    #     if training_params['apply_mw_x1']:
+                    #         subtomos =  apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
+                    #         subtomos2 = apply_F_filter_torch(preds2, 1-mw) + apply_F_filter_torch(x2, mw)
+                    #     else:
+                    #         subtomos = apply_F_filter_torch(preds, 1-mw) + x1
+                    #         subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
+
+                    #     # second_x1 = apply_F_filter_torch(subtomos, mw)
+                    #     rotated_subtomo = rotate_func(subtomos, rot)
+                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+                    #     # rotated_mw = rotate_func(mw, rot)
+                    #     # x2_rot = rotate_func(x2, rot)
+                    #     rot_subtomo2 = rotate_func(subtomos2, rot)
+                    #     # mw_x2 = apply_F_filter_torch(x2_rot,mw)
+                    #     # x1_rot = rotate_func(x1, rot)
+                    #     # second_x1_rot = rotate_func(second_x1, rot)
+
+                    #     # mean_new = mw_rotated_subtomos.mean(dim=(-3,-2,-1), keepdim=True)
+                    #     # std_new = mw_rotated_subtomos.std(dim=(-3,-2,-1), keepdim=True)
+                    #     # mw_rotated_subtomos = (mw_rotated_subtomos - mean_new)/ std_new\
+                    #     #                             *x1_std_org + x1_mean_org
+                    # elif attempt == "test2":
+                    #     noise1 = x1 - apply_F_filter_torch(preds, mw)
+                    #     rotated_signal1 = rotate_func(preds, rot)
+                    #     mw_rotated_signal1 = apply_F_filter_torch(rotated_signal1, mw)
+                    #     mw_rotated_subtomos =  mw_rotated_signal1 + noise1
+
+                    #     subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
+                    #     rot_subtomo2 = rotate_func(subtomos2, rot)
+
+                    # elif attempt == "test3":
+                    #     noise1 = x1 - apply_F_filter_torch(preds, mw)
+                    #     rotated_signal1 = rotate_func(preds, rot)
+                    #     mw_rotated_signal1 = apply_F_filter_torch(rotated_signal1, mw)
+                    #     mw_rotated_subtomos =  mw_rotated_signal1 + noise1
+
+                    #     noise2 = x2 - apply_F_filter_torch(preds2, mw)
+                    #     rotated_signal2 = rotate_func(preds2, rot)
+                    #     rot_subtomo2 = rotated_signal2 + noise2
+
+                    # elif attempt == "test4":
+                    #     subtomos = apply_F_filter_torch(preds, 1-mw) + x1
+                    #     rotated_subtomo = rotate_func(subtomos, rot)
+                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+
+                    #     subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
+                    #     rot_subtomo2 = rotate_func(subtomos2, rot)
+                    #     # mw_rotated_subtomos2=apply_F_filter_torch(rot_subtomo2,mw)
+                    # elif attempt == "test5":
+                    #     subtomos = apply_F_filter_torch(preds, 1-mw) + x1
+                    #     rotated_subtomo = rotate_func(subtomos, rot)
+                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+
+                    #     rotated_mw = rotate_func(mw, rot)
+                    #     x2_rot = rotate_func(x2, rot)
+
+                    # elif attempt == "test8":
+                    #     if random.random()<0.5:
+                    #         noise1 = x1 - apply_F_filter_torch(preds, mw)
+                    #         rotated_signal1 = rotate_func(preds, rot)
+                    #         mw_rotated_signal1 = apply_F_filter_torch(rotated_signal1, mw)
+                    #         mw_rotated_subtomos =  mw_rotated_signal1 + noise1
+                    #     else:
+                    #         subtomos = apply_F_filter_torch(preds, 1-mw) + x1
+                    #         rotated_subtomo = rotate_func(subtomos, rot)
+                    #         mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+
+                    #     rotated_mw = rotate_func(mw, rot)
+                    #     x2_rot = rotate_func(x2, rot)
+
+                    # elif attempt == "test9":
+                    #     subtomos = apply_F_filter_torch(preds, 1-mw) + x1
+                    #     rotated_subtomo = rotate_func(subtomos, rot)
+                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+
+                    #     rotated_mw = rotate_func(mw, rot)
+                    #     x2_rot = rotate_func(x2, rot)
+
+                    # elif attempt == "test10":
+                    #     o1 = apply_F_filter_torch(preds, mw)
+                    #     subtomos = apply_F_filter_torch(preds, 1-mw) + x1
+                    #     rotated_subtomo = rotate_func(subtomos, rot)
+                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+                    #     consistency_loss = loss_func(o1, x2)
+
+                    #     rotated_mw = rotate_func(mw, rot)
+                    #     x2_rot = rotate_func(x2, rot)
