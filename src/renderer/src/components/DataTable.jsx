@@ -21,6 +21,11 @@ const DataTable = ({ jsonData, star_name }) => {
     const [focusedColumn, setFocusedColumn] = useState(null)
 
     const [columnWidths, setColumnWidths] = useState({})
+    const [editingCell, setEditingCell] = useState({
+        rowIndex: null,
+        col: null,
+        originalValue: null
+    })
 
     useEffect(() => {
         setRows(flattenData(jsonData))
@@ -32,12 +37,21 @@ const DataTable = ({ jsonData, star_name }) => {
 
     const columns = Object.keys(jsonData[0]).filter((col) => col !== 'index')
 
-    const handleCellBlur = () => {
-        convertToJson()
+    // const handleCellBlur = () => {
+    //     convertToJson()
+    // }
+    const isNumeric = (value) => {
+        if (typeof value === 'number') return true
+        if (typeof value !== 'string') return false
+        return value.trim() !== '' && !isNaN(Number(value))
     }
     const handleCellChange = (rowIndex, columnName, value) => {
         const updatedRows = [...rows]
-        updatedRows[rowIndex][columnName] = value
+        if (isNumeric(value)) {
+            updatedRows[rowIndex][columnName] = Number(value)
+        } else {
+            updatedRows[rowIndex][columnName] = value
+        }
         setRows(updatedRows)
     }
 
@@ -94,7 +108,7 @@ const DataTable = ({ jsonData, star_name }) => {
                 <TableHead>
                     <TableRow>
                         {columns.map((col) => {
-                            const isString = typeof rows[0][col] === 'string'
+                            // const isString = typeof rows[0][col] === 'string'
                             return (
                                 <TableCell
                                     key={col}
@@ -138,17 +152,33 @@ const DataTable = ({ jsonData, star_name }) => {
                                                 setFocusedColumn(col)
                                                 const font = getComputedStyle(e.target).font
                                                 const width = measureTextWidth(e.target.value, font)
-                                                // const text = row[col]?.toString() || ''
-                                                // const width = `${Math.ceil(measureTextWidth(text))}px`
-                                                console.log(width)
                                                 setColumnWidths((prev) => ({
                                                     ...prev,
                                                     [col]: width
                                                 }))
+                                                setEditingCell({
+                                                    rowIndex,
+                                                    col,
+                                                    originalValue: row[col]
+                                                })
                                             }}
                                             onBlur={() => {
-                                                handleCellBlur()
                                                 setFocusedColumn(null)
+
+                                                const editedValue = rows[rowIndex][col]
+                                                if (
+                                                    editingCell.rowIndex === rowIndex &&
+                                                    editingCell.col === col &&
+                                                    editingCell.originalValue !== editedValue
+                                                ) {
+                                                    convertToJson()
+                                                }
+
+                                                setEditingCell({
+                                                    rowIndex: null,
+                                                    col: null,
+                                                    originalValue: null
+                                                })
                                             }}
                                             variant="outlined"
                                             size="small"
