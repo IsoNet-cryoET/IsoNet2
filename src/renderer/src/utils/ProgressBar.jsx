@@ -2,8 +2,6 @@ import React from 'react'
 import { LinearProgress, Typography, Box } from '@mui/material' // For displaying progress
 
 const ProgressBar = (props) => {
-    // console.log(props)
-
     return (
         <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
             <Typography

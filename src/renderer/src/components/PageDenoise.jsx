@@ -4,9 +4,9 @@ import { IconButton, Box, Button } from '@mui/material'
 import StopIcon from '@mui/icons-material/Stop'
 import CancelIcon from '@mui/icons-material/Cancel'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
-const PageRefine = (props) => {
+const PageDenoise = (props) => {
     const handleClear = () => {
-        props.setMessages((prev) => ({ ...prev, refine: [] }))
+        props.setMessages((prev) => ({ ...prev, denoise: [] }))
     }
     return (
         <div>
@@ -21,8 +21,8 @@ const PageRefine = (props) => {
                     clear screen
                 </Button>
             </Box>
-            {renderContent(props.messages.refine)}
+            {renderContent(props.messages.denoise)}
         </div>
     )
 }
-export default PageRefine
+export default PageDenoise

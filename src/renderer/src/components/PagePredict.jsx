@@ -1,11 +1,11 @@
 import React from 'react'
-import { renderContent } from './log_handler'
+import { renderContent } from '../utils/log_handler'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 import { Box, TextField, Button } from '@mui/material'
 
 const PagePredict = (props) => {
     const handleClear = () => {
-        props.setPredictMessages([])
+        props.setMessages((prev) => ({ ...prev, predict: [] }))
     }
     return (
         <div>
@@ -20,7 +20,7 @@ const PagePredict = (props) => {
                     clear screen
                 </Button>
             </Box>
-            {renderContent(props.predictMessages)}
+            {renderContent(props.messages.predict)}
         </div>
     )
 }

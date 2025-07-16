@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { renderContent } from './log_handler'
+import { renderContent } from '../utils/log_handler'
 import { Box, TextField, Button } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import DataTable from './DataTable'
@@ -26,14 +26,14 @@ const PagePrepare = (props) => {
         })
     }, [])
     const handleClear = () => {
-        props.setMessages((prev) => ({ ...prev, prepare: [] }))
+        props.setMessages((prev) => ({ ...prev, prepare_star: [] }))
     }
     const handleFileSelect = async (property) => {
         try {
             const filePath = await api.selectFile(property)
             props.setStarName(filePath) // Update the state
 
-            props.setMessages((prev) => ({ ...prev, prepare: [] }))
+            props.setMessages((prev) => ({ ...prev, prepare_star: [] }))
             await api.run({
                 command: 'star2json',
                 json_file: '.to_node.json',
@@ -73,7 +73,7 @@ const PagePrepare = (props) => {
                 </Button>
             </Box>
             <DataTable jsonData={JsonData} star_name={props.starName} />
-            {renderContent(props.messages.prepare)}
+            {renderContent(props.messages.prepare_star)}
         </div>
     )
 }

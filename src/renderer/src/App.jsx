@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
     List,
     ListItem,
@@ -9,11 +9,14 @@ import {
 } from '@mui/material'
 import DrawerPrepare from './components/DrawerPrepare'
 import DrawerRefine from './components/DrawerRefine'
+import DrawerRefine_v1 from './components/DrawerRefine_v1'
 import DrawerDenoise from './components/DrawerDenoise'
 import DrawerPredict from './components/DrawerPredict'
 import DrawerDeconv from './components/DrawerDeconv'
 import DrawerMask from './components/DrawerMask'
 import PageRefine from './components/PageRefine'
+import PageRefine_v1 from './components/PageRefine_v1'
+import PageDenoise from './components/PageDenoise'
 import PagePrepare from './components/PagePrepare'
 import PagePredict from './components/PagePredict'
 import PageMask from './components/PageMask'
@@ -25,25 +28,42 @@ import { mergeMsg, processMessage } from './utils/utils'
 import EditIcon from '@mui/icons-material/Edit'
 import AppsIcon from '@mui/icons-material/Apps'
 import CameraIcon from '@mui/icons-material/Camera'
+import { ConstructionOutlined } from '@mui/icons-material'
+
+const drawerComponents = {
+    prepare_star: DrawerPrepare,
+    denoise: DrawerDenoise,
+    refine_v1: DrawerRefine_v1,
+    refine: DrawerRefine,
+    deconv: DrawerDeconv,
+    make_mask: DrawerMask,
+    predict: DrawerPredict
+}
 
 const App = () => {
     const [drawerState, setDrawerState] = useState({
-        prepare: false,
+        prepare_star: false,
+        denoise: false,
+        refine_v1: false,
         refine: false,
         deconv: false,
-        mask: false,
+        make_mask: false,
         predict: false
     })
     const [messages, setMessages] = useState({
-        prepare: [],
+        prepare_star: [],
+        denoise: [],
+        refine_v1: [],
         refine: [],
         deconv: [],
-        mask: [],
+        make_mask: [],
         predict: []
     })
     const [runningProcesses, setRunningProcesses] = useState({
         prepare_star: false,
         refine: false,
+        refine_v1: false,
+        denoise: false,
         deconv: false,
         make_mask: false,
         predict: false
@@ -71,7 +91,7 @@ const App = () => {
     const handleSubmit = useCallback(
         (type, data) => {
             try {
-                if (type === 'prepare') setStarName(data.star_name)
+                if (type === 'prepare_star') setStarName(data.star_name)
                 api.run(data)
             } catch (error) {
                 console.error(`Error submitting ${type} form:`, error)
@@ -83,10 +103,9 @@ const App = () => {
 
     useEffect(() => {
         const handleIncomingMessage = (data) => {
-            let name = data.cmd === 'prepare_star' ? 'prepare' : data.cmd
             setMessages((prev) => ({
                 ...prev,
-                [name]: mergeMsg(prev[name] || [], processMessage(data))
+                [data.cmd]: mergeMsg(prev[data.cmd] || [], processMessage(data))
             }))
         }
         window.api.onPythonStderr(handleIncomingMessage)
@@ -115,21 +134,40 @@ const App = () => {
         }
     }, [])
 
-    const primaryMenus = [
-        { icon: <CameraIcon sx={{ color: '#14446e' }} />, label: 'Camera' },
-        { icon: <AppsIcon sx={{ color: '#14446e' }} />, label: 'Apps' }
-    ]
-    const secondaryMenus = [
-        { key: 'prepare', label: 'Prepare' },
-        { key: 'deconv', label: 'Deconvolve' },
-        { key: 'make_mask', label: 'Create Mask' },
-        { key: 'refine', label: 'Refine' },
-        { key: 'predict', label: 'Predict' },
-        { key: 'postprocess', label: 'Postprocess' },
-        { key: 'jobs_viewer', label: 'Jobs Viewer' }
-    ]
+    const primaryMenus = useMemo(
+        () => [
+            { icon: <CameraIcon sx={{ color: '#14446e' }} />, label: 'Camera' },
+            { icon: <AppsIcon sx={{ color: '#14446e' }} />, label: 'Apps' }
+        ],
+        []
+    )
+
+    const secondaryMenus = useMemo(
+        () => [
+            { key: 'prepare_star', label: 'Prepare' },
+            { key: 'denoise', label: 'Denoise' },
+            { key: 'deconv', label: 'Deconvolve' },
+            { key: 'make_mask', label: 'Create Mask' },
+            { key: 'refine', label: 'Refine' },
+            { key: 'refine_v1', label: 'Refine_v1' },
+            { key: 'predict', label: 'Predict' },
+            { key: 'postprocess', label: 'Postprocess' },
+            { key: 'jobs_viewer', label: 'Jobs Viewer' }
+        ],
+        []
+    )
     const Contents = [
-        [PagePrepare, PageDeconv, PageMask, PageRefine, PagePredict, PagePost, PageJobs],
+        [
+            PagePrepare,
+            PageDenoise,
+            PageDeconv,
+            PageMask,
+            PageRefine,
+            PageRefine_v1,
+            PagePredict,
+            PagePost,
+            PageJobs
+        ],
         [null, null]
     ]
 
@@ -199,11 +237,16 @@ const App = () => {
                                             <CircularProgress size={20} color="inherit" />
                                         )}
                                         <ListItemText primary={label} />
-                                        {index < 5 && (
+                                        {index < 7 && (
                                             <IconButton
                                                 onClick={() => toggleDrawer(key, true)}
                                                 sx={{
-                                                    backgroundColor: '#eaf1fb',
+                                                    // backgroundColor: '#eaf1fb',
+                                                    backgroundColor:
+                                                        index === 2 || index === 3 || index === 5
+                                                            ? '#f8edeb'
+                                                            : '#D5E2F4', // Replace 'defaultBackgroundColor' with your default color
+
                                                     '&:hover': { backgroundColor: '#e0e0e0' },
                                                     borderRadius: '50%',
                                                     width: 40,
@@ -261,14 +304,7 @@ const App = () => {
                 </div>
 
                 {Object.keys(drawerState).map((key) => {
-                    const DrawerComponent = {
-                        prepare: DrawerPrepare,
-                        refine: DrawerRefine,
-                        deconv: DrawerDeconv,
-                        mask: DrawerMask,
-                        predict: DrawerPredict
-                    }[key]
-
+                    const DrawerComponent = drawerComponents[key]
                     return (
                         <DrawerComponent
                             key={key}

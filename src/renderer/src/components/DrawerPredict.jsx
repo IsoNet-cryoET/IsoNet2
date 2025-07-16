@@ -153,6 +153,22 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                         ></Button>
                     </Box>
                 )}
+
+                <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
+                    <InputLabel>input column</InputLabel>
+                    <Select
+                        // labelId="demo-simple-select-standard-label"
+                        // id="demo-simple-select-standard"
+                        value={formData.input_column}
+                        onChange={(e) => handleChange('input_column', e.target.value)}
+                        // label="Age"
+                    >
+                        <MenuItem value={'rlnDeconvTomoName'}>rlnDeconvTomoName</MenuItem>
+                        <MenuItem value={'rlnTomoName'}>rlnTomoName</MenuItem>
+                        <MenuItem value={'rlnDenoisedTomoName'}>rlnDenoisedTomoName</MenuItem>
+                        <MenuItem value={'rlnCorrectedTomoName'}>rlnCorrectedTomoName</MenuItem>
+                    </Select>
+                </FormControl>
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     <TextField
                         label="output directory"

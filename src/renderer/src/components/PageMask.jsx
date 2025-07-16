@@ -1,11 +1,11 @@
 import React from 'react'
-import { renderContent } from './log_handler'
+import { renderContent } from '../utils/log_handler'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 import { Box, TextField, Button } from '@mui/material'
 
 const PageMask = (props) => {
     const handleClear = () => {
-        props.setMaskMessages([])
+        props.setMessages((prev) => ({ ...prev, make_mask: [] }))
     }
     return (
         <div>
@@ -20,7 +20,7 @@ const PageMask = (props) => {
                     clear screen
                 </Button>
             </Box>
-            {renderContent(props.maskMessages)}
+            {renderContent(props.messages.make_mask)}
         </div>
     )
 }

@@ -41,6 +41,13 @@ const api = {
             callback(data)
         })
     },
+    // offJson: () => {
+    //     ipcRenderer.removeAllListeners('json-star')
+    // },
+
+    // offPythonStderr: () => {
+    //     ipcRenderer.removeAllListeners('python-stderr')
+    // },
     killJob: (pid) => {
         return new Promise((resolve, reject) => {
             ipcRenderer.once('kill-job-response', (event, success) => {
