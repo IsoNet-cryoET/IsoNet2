@@ -18,6 +18,9 @@ const DataTable = ({ jsonData, star_name }) => {
     if (!jsonData || jsonData.length === 0) return null
 
     const [rows, setRows] = useState(flattenData(jsonData))
+    const [focusedColumn, setFocusedColumn] = useState(null)
+
+    const [columnWidths, setColumnWidths] = useState({})
 
     useEffect(() => {
         setRows(flattenData(jsonData))
@@ -66,7 +69,25 @@ const DataTable = ({ jsonData, star_name }) => {
         })
         api.updateStar({ convertedJson, star_name })
     }
+    const measureTextWidth = (text, font = 'inherit') => {
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        context.font = font
+        return context.measureText(text).width + 75 // Add some padding
+    }
 
+    const getCellWidth = (col) => {
+        const firstValue = rows[0]?.[col]
+        const valueStr = firstValue != null ? firstValue.toString() : ''
+        const isShort = valueStr.length < 10
+
+        const defaultWidth = isShort ? '75px' : '250px'
+        const expandedWidth = columnWidths[col] || defaultWidth
+        return {
+            minWidth: focusedColumn === col ? expandedWidth : defaultWidth,
+            maxWidth: focusedColumn === col ? expandedWidth : defaultWidth
+        }
+    }
     return (
         <TableContainer component={Paper}>
             <Table stickyHeader>
@@ -78,11 +99,12 @@ const DataTable = ({ jsonData, star_name }) => {
                                 <TableCell
                                     key={col}
                                     sx={{
-                                        whiteSpace: 'normal',
-                                        wordWrap: 'break-word',
+                                        ...getCellWidth(col),
+                                        whiteSpace: 'nowrap',
                                         textAlign: 'center',
-                                        minWidth: isString ? '250px' : '75px', // Adjust width based on content type
-                                        maxWidth: isString ? '250px' : '75px' // Keep the maxWidth consistent
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        transition: 'min-width 0.3s ease, max-width 0.3s ease' // ✨ Smooth transition
                                     }}
                                 >
                                     {col}
@@ -95,17 +117,52 @@ const DataTable = ({ jsonData, star_name }) => {
                     {rows.map((row, rowIndex) => (
                         <TableRow key={rowIndex}>
                             {columns.map((col) => (
-                                <TableCell key={col}>
+                                <TableCell
+                                    key={col}
+                                    sx={{
+                                        ...getCellWidth(col),
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        padding: '8px',
+                                        transition: 'min-width 0.3s ease, max-width 0.3s ease' // ✨ Smooth transition
+                                    }}
+                                >
                                     <Box display="flex" alignItems="center" gap={1}>
                                         <TextField
                                             value={row[col]}
                                             onChange={(e) =>
                                                 handleCellChange(rowIndex, col, e.target.value)
                                             }
-                                            onBlur={handleCellBlur} // Save on blur
+                                            onFocus={(e) => {
+                                                setFocusedColumn(col)
+                                                const font = getComputedStyle(e.target).font
+                                                const width = measureTextWidth(e.target.value, font)
+                                                // const text = row[col]?.toString() || ''
+                                                // const width = `${Math.ceil(measureTextWidth(text))}px`
+                                                console.log(width)
+                                                setColumnWidths((prev) => ({
+                                                    ...prev,
+                                                    [col]: width
+                                                }))
+                                            }}
+                                            onBlur={() => {
+                                                handleCellBlur()
+                                                setFocusedColumn(null)
+                                            }}
                                             variant="outlined"
                                             size="small"
+                                            inputProps={{
+                                                title: row[col],
+                                                style: {
+                                                    overflow: 'auto',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap'
+                                                }
+                                            }}
+                                            fullWidth
                                         />
+
                                         {typeof row[col] === 'string' && (
                                             <Box
                                                 display="flex"
