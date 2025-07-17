@@ -42,6 +42,7 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
     })
 
     const handleChange = (field, value) => {
+        console.log(field, value)
         setFormData((prev) => ({ ...prev, [field]: value }))
     }
 
@@ -156,7 +157,7 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                             control={<Switch defaultChecked />}
                             label="create average"
                             value={formData.create_average}
-                            onChange={(e) => handleChange('create_average', e.target.value)}
+                            onChange={(e) => handleChange('create_average', e.target.checked)}
                             fullWidth
                             margin="normal"
                         />
