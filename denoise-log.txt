@@ -1,0 +1,365 @@
+Command: isonet.py denoise --star_file tomograms.star --output_dir denoise --gpuID None --ncpus 16 --arch unet-medium --pretrained_model None --pretrained_model2 None --cube_size 96 --epochs 50 --input_column rlnTomoReconstructedTomogramHalf --batch_size None --acc_batches 1 --loss_func L2 --learning_rate 0.0003 --T_max 10 --learning_rate_min 0.0003 --compile_model False --mixed_precision True --CTF_mode None --isCTFflipped False --with_predict True --split_halves False --snrfalloff 0 --deconvstrength 1 --highpassnyquist 0.02
+07-18 12:40:37, INFO     Port number: 45415
+using all GPUs in this node: 0,1,2,3
+Total number of parameters: 23989825
+Preprocess tomograms:   0%|                                                   | 0/5 [00:00<?, ?it/s]Preprocess tomograms:  20%|████████▌                                  | 1/5 [00:00<00:02,  1.97it/s]Preprocess tomograms:  40%|█████████████████▏                         | 2/5 [00:00<00:01,  2.31it/s]Preprocess tomograms:  60%|█████████████████████████▊                 | 3/5 [00:01<00:00,  2.50it/s]Preprocess tomograms:  80%|██████████████████████████████████▍        | 4/5 [00:01<00:00,  2.58it/s]Preprocess tomograms: 100%|███████████████████████████████████████████| 5/5 [00:02<00:00,  2.57it/s]Preprocess tomograms: 100%|███████████████████████████████████████████| 5/5 [00:02<00:00,  2.49it/s]
+training the top half of tomograms for 10 epochs, remaining epochs 50
+Epoch 1:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 1:   0%| | 0/6 [00:10<?, ?batch/s, Loss: 1.7894 | in_mw_loss: 1.7894 | ouEpoch 1:  17%|▏| 1/6 [00:10<00:53, 10.61s/batch, Loss: 1.7894 | in_mw_loss: 1.7Epoch 1:  17%|▏| 1/6 [00:10<00:53, 10.61s/batch, Loss: 1.5106 | in_mw_loss: 1.5Epoch 1:  33%|▎| 2/6 [00:10<00:18,  4.50s/batch, Loss: 1.5106 | in_mw_loss: 1.5Epoch 1:  33%|▎| 2/6 [00:11<00:18,  4.50s/batch, Loss: 1.5015 | in_mw_loss: 1.5Epoch 1:  50%|▌| 3/6 [00:11<00:07,  2.63s/batch, Loss: 1.5015 | in_mw_loss: 1.5Epoch 1:  50%|▌| 3/6 [00:11<00:07,  2.63s/batch, Loss: 1.3365 | in_mw_loss: 1.3Epoch 1:  67%|▋| 4/6 [00:11<00:03,  1.65s/batch, Loss: 1.3365 | in_mw_loss: 1.3Epoch 1:  67%|▋| 4/6 [00:11<00:03,  1.65s/batch, Loss: 1.3565 | in_mw_loss: 1.3Epoch 1:  83%|▊| 5/6 [00:11<00:01,  1.21s/batch, Loss: 1.3565 | in_mw_loss: 1.3Epoch 1:  83%|▊| 5/6 [00:11<00:01,  1.21s/batch, Loss: 1.2555 | in_mw_loss: 1.2Epoch 1: 100%|█| 6/6 [00:11<00:00,  1.18batch/s, Loss: 1.2555 | in_mw_loss: 1.2Epoch 1: 100%|█| 6/6 [00:11<00:00,  1.99s/batch, Loss: 1.2555 | in_mw_loss: 1.2
+Epoch [  1/ 10], Loss: 1.4671, in_mw_loss: 1.4671, out_mw_loss: 1.4671, learning_rate: 3.0000e-04
+Epoch 2:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 2:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.1496 | in_mw_loss: 1.1496 | ouEpoch 2:  17%|▏| 1/6 [00:00<00:01,  2.72batch/s, Loss: 1.1496 | in_mw_loss: 1.1Epoch 2:  17%|▏| 1/6 [00:00<00:01,  2.72batch/s, Loss: 1.1878 | in_mw_loss: 1.1Epoch 2:  33%|▎| 2/6 [00:00<00:01,  2.97batch/s, Loss: 1.1878 | in_mw_loss: 1.1Epoch 2:  33%|▎| 2/6 [00:00<00:01,  2.97batch/s, Loss: 1.1406 | in_mw_loss: 1.1Epoch 2:  50%|▌| 3/6 [00:00<00:00,  4.03batch/s, Loss: 1.1406 | in_mw_loss: 1.1Epoch 2:  50%|▌| 3/6 [00:01<00:00,  4.03batch/s, Loss: 1.1379 | in_mw_loss: 1.1Epoch 2:  67%|▋| 4/6 [00:01<00:00,  4.16batch/s, Loss: 1.1379 | in_mw_loss: 1.1Epoch 2:  67%|▋| 4/6 [00:01<00:00,  4.16batch/s, Loss: 1.1192 | in_mw_loss: 1.1Epoch 2:  83%|▊| 5/6 [00:01<00:00,  3.53batch/s, Loss: 1.1192 | in_mw_loss: 1.1Epoch 2:  83%|▊| 5/6 [00:01<00:00,  3.53batch/s, Loss: 1.1064 | in_mw_loss: 1.1Epoch 2: 100%|█| 6/6 [00:01<00:00,  4.30batch/s, Loss: 1.1064 | in_mw_loss: 1.1Epoch 2: 100%|█| 6/6 [00:01<00:00,  3.88batch/s, Loss: 1.1064 | in_mw_loss: 1.1
+Epoch [  2/ 10], Loss: 1.1668, in_mw_loss: 1.1668, out_mw_loss: 1.1668, learning_rate: 3.0000e-04
+Epoch 3:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 3:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0954 | in_mw_loss: 1.0954 | ouEpoch 3:  17%|▏| 1/6 [00:00<00:01,  3.72batch/s, Loss: 1.0954 | in_mw_loss: 1.0Epoch 3:  17%|▏| 1/6 [00:00<00:01,  3.72batch/s, Loss: 1.1628 | in_mw_loss: 1.1Epoch 3:  33%|▎| 2/6 [00:00<00:00,  5.23batch/s, Loss: 1.1628 | in_mw_loss: 1.1Epoch 3:  33%|▎| 2/6 [00:00<00:00,  5.23batch/s, Loss: 1.1334 | in_mw_loss: 1.1Epoch 3:  50%|▌| 3/6 [00:00<00:00,  3.68batch/s, Loss: 1.1334 | in_mw_loss: 1.1Epoch 3:  50%|▌| 3/6 [00:00<00:00,  3.68batch/s, Loss: 1.0529 | in_mw_loss: 1.0Epoch 3:  67%|▋| 4/6 [00:00<00:00,  3.94batch/s, Loss: 1.0529 | in_mw_loss: 1.0Epoch 3:  67%|▋| 4/6 [00:01<00:00,  3.94batch/s, Loss: 1.0829 | in_mw_loss: 1.0Epoch 3:  83%|▊| 5/6 [00:01<00:00,  4.60batch/s, Loss: 1.0829 | in_mw_loss: 1.0Epoch 3:  83%|▊| 5/6 [00:01<00:00,  4.60batch/s, Loss: 1.0648 | in_mw_loss: 1.0Epoch 3: 100%|█| 6/6 [00:01<00:00,  3.55batch/s, Loss: 1.0648 | in_mw_loss: 1.0Epoch 3: 100%|█| 6/6 [00:01<00:00,  3.85batch/s, Loss: 1.0648 | in_mw_loss: 1.0
+Epoch [  3/ 10], Loss: 1.0944, in_mw_loss: 1.0944, out_mw_loss: 1.0944, learning_rate: 3.0000e-04
+Epoch 4:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 4:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0338 | in_mw_loss: 1.0338 | ouEpoch 4:  17%|▏| 1/6 [00:00<00:02,  2.16batch/s, Loss: 1.0338 | in_mw_loss: 1.0Epoch 4:  17%|▏| 1/6 [00:00<00:02,  2.16batch/s, Loss: 1.0343 | in_mw_loss: 1.0Epoch 4:  33%|▎| 2/6 [00:00<00:01,  2.55batch/s, Loss: 1.0343 | in_mw_loss: 1.0Epoch 4:  33%|▎| 2/6 [00:01<00:01,  2.55batch/s, Loss: 1.0192 | in_mw_loss: 1.0Epoch 4:  50%|▌| 3/6 [00:01<00:00,  3.00batch/s, Loss: 1.0192 | in_mw_loss: 1.0Epoch 4:  50%|▌| 3/6 [00:01<00:00,  3.00batch/s, Loss: 1.1265 | in_mw_loss: 1.1Epoch 4:  67%|▋| 4/6 [00:01<00:00,  2.61batch/s, Loss: 1.1265 | in_mw_loss: 1.1Epoch 4:  67%|▋| 4/6 [00:01<00:00,  2.61batch/s, Loss: 1.0195 | in_mw_loss: 1.0Epoch 4:  83%|▊| 5/6 [00:01<00:00,  3.12batch/s, Loss: 1.0195 | in_mw_loss: 1.0Epoch 4:  83%|▊| 5/6 [00:02<00:00,  3.12batch/s, Loss: 1.0664 | in_mw_loss: 1.0Epoch 4: 100%|█| 6/6 [00:02<00:00,  2.86batch/s, Loss: 1.0664 | in_mw_loss: 1.0Epoch 4: 100%|█| 6/6 [00:02<00:00,  2.80batch/s, Loss: 1.0664 | in_mw_loss: 1.0
+Epoch [  4/ 10], Loss: 1.0655, in_mw_loss: 1.0655, out_mw_loss: 1.0655, learning_rate: 3.0000e-04
+Epoch 5:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 5:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0321 | in_mw_loss: 1.0321 | ouEpoch 5:  17%|▏| 1/6 [00:00<00:01,  2.66batch/s, Loss: 1.0321 | in_mw_loss: 1.0Epoch 5:  17%|▏| 1/6 [00:00<00:01,  2.66batch/s, Loss: 0.9938 | in_mw_loss: 0.9Epoch 5:  33%|▎| 2/6 [00:00<00:00,  4.14batch/s, Loss: 0.9938 | in_mw_loss: 0.9Epoch 5:  33%|▎| 2/6 [00:00<00:00,  4.14batch/s, Loss: 1.1157 | in_mw_loss: 1.1Epoch 5:  50%|▌| 3/6 [00:00<00:00,  3.55batch/s, Loss: 1.1157 | in_mw_loss: 1.1Epoch 5:  50%|▌| 3/6 [00:01<00:00,  3.55batch/s, Loss: 1.0470 | in_mw_loss: 1.0Epoch 5:  67%|▋| 4/6 [00:01<00:00,  3.61batch/s, Loss: 1.0470 | in_mw_loss: 1.0Epoch 5:  67%|▋| 4/6 [00:01<00:00,  3.61batch/s, Loss: 1.0536 | in_mw_loss: 1.0Epoch 5:  83%|▊| 5/6 [00:01<00:00,  4.00batch/s, Loss: 1.0536 | in_mw_loss: 1.0Epoch 5:  83%|▊| 5/6 [00:01<00:00,  4.00batch/s, Loss: 1.0553 | in_mw_loss: 1.0Epoch 5: 100%|█| 6/6 [00:01<00:00,  3.36batch/s, Loss: 1.0553 | in_mw_loss: 1.0Epoch 5: 100%|█| 6/6 [00:01<00:00,  3.50batch/s, Loss: 1.0553 | in_mw_loss: 1.0
+Epoch [  5/ 10], Loss: 1.0459, in_mw_loss: 1.0459, out_mw_loss: 1.0459, learning_rate: 3.0000e-04
+Epoch 6:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 6:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0265 | in_mw_loss: 1.0265 | ouEpoch 6:  17%|▏| 1/6 [00:00<00:02,  2.38batch/s, Loss: 1.0265 | in_mw_loss: 1.0Epoch 6:  17%|▏| 1/6 [00:00<00:02,  2.38batch/s, Loss: 0.9812 | in_mw_loss: 0.9Epoch 6:  33%|▎| 2/6 [00:00<00:01,  3.61batch/s, Loss: 0.9812 | in_mw_loss: 0.9Epoch 6:  33%|▎| 2/6 [00:01<00:01,  3.61batch/s, Loss: 1.0075 | in_mw_loss: 1.0Epoch 6:  50%|▌| 3/6 [00:01<00:01,  2.92batch/s, Loss: 1.0075 | in_mw_loss: 1.0Epoch 6:  50%|▌| 3/6 [00:01<00:01,  2.92batch/s, Loss: 1.0527 | in_mw_loss: 1.0Epoch 6:  67%|▋| 4/6 [00:01<00:00,  3.84batch/s, Loss: 1.0527 | in_mw_loss: 1.0Epoch 6:  67%|▋| 4/6 [00:01<00:00,  3.84batch/s, Loss: 1.0185 | in_mw_loss: 1.0Epoch 6:  83%|▊| 5/6 [00:01<00:00,  3.00batch/s, Loss: 1.0185 | in_mw_loss: 1.0Epoch 6:  83%|▊| 5/6 [00:01<00:00,  3.00batch/s, Loss: 1.0773 | in_mw_loss: 1.0Epoch 6: 100%|█| 6/6 [00:01<00:00,  3.73batch/s, Loss: 1.0773 | in_mw_loss: 1.0Epoch 6: 100%|█| 6/6 [00:01<00:00,  3.42batch/s, Loss: 1.0773 | in_mw_loss: 1.0
+Epoch [  6/ 10], Loss: 1.0312, in_mw_loss: 1.0312, out_mw_loss: 1.0312, learning_rate: 3.0000e-04
+Epoch 7:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 7:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0019 | in_mw_loss: 1.0019 | ouEpoch 7:  17%|▏| 1/6 [00:00<00:01,  2.77batch/s, Loss: 1.0019 | in_mw_loss: 1.0Epoch 7:  17%|▏| 1/6 [00:00<00:01,  2.77batch/s, Loss: 1.0135 | in_mw_loss: 1.0Epoch 7:  33%|▎| 2/6 [00:00<00:01,  3.45batch/s, Loss: 1.0135 | in_mw_loss: 1.0Epoch 7:  33%|▎| 2/6 [00:00<00:01,  3.45batch/s, Loss: 1.0355 | in_mw_loss: 1.0Epoch 7:  50%|▌| 3/6 [00:00<00:00,  3.05batch/s, Loss: 1.0355 | in_mw_loss: 1.0Epoch 7:  50%|▌| 3/6 [00:01<00:00,  3.05batch/s, Loss: 1.0232 | in_mw_loss: 1.0Epoch 7:  67%|▋| 4/6 [00:01<00:00,  3.79batch/s, Loss: 1.0232 | in_mw_loss: 1.0Epoch 7:  67%|▋| 4/6 [00:01<00:00,  3.79batch/s, Loss: 1.0052 | in_mw_loss: 1.0Epoch 7:  83%|▊| 5/6 [00:01<00:00,  3.10batch/s, Loss: 1.0052 | in_mw_loss: 1.0Epoch 7:  83%|▊| 5/6 [00:01<00:00,  3.10batch/s, Loss: 1.0098 | in_mw_loss: 1.0Epoch 7: 100%|█| 6/6 [00:01<00:00,  3.87batch/s, Loss: 1.0098 | in_mw_loss: 1.0Epoch 7: 100%|█| 6/6 [00:01<00:00,  3.53batch/s, Loss: 1.0098 | in_mw_loss: 1.0
+Epoch [  7/ 10], Loss: 1.0197, in_mw_loss: 1.0197, out_mw_loss: 1.0197, learning_rate: 3.0000e-04
+Epoch 8:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 8:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0120 | in_mw_loss: 1.0120 | ouEpoch 8:  17%|▏| 1/6 [00:00<00:01,  3.27batch/s, Loss: 1.0120 | in_mw_loss: 1.0Epoch 8:  17%|▏| 1/6 [00:00<00:01,  3.27batch/s, Loss: 0.9964 | in_mw_loss: 0.9Epoch 8:  33%|▎| 2/6 [00:00<00:00,  4.33batch/s, Loss: 0.9964 | in_mw_loss: 0.9Epoch 8:  33%|▎| 2/6 [00:00<00:00,  4.33batch/s, Loss: 0.9825 | in_mw_loss: 0.9Epoch 8:  50%|▌| 3/6 [00:00<00:00,  3.14batch/s, Loss: 0.9825 | in_mw_loss: 0.9Epoch 8:  50%|▌| 3/6 [00:01<00:00,  3.14batch/s, Loss: 1.0410 | in_mw_loss: 1.0Epoch 8:  67%|▋| 4/6 [00:01<00:00,  4.07batch/s, Loss: 1.0410 | in_mw_loss: 1.0Epoch 8:  67%|▋| 4/6 [00:01<00:00,  4.07batch/s, Loss: 1.0104 | in_mw_loss: 1.0Epoch 8:  83%|▊| 5/6 [00:01<00:00,  4.83batch/s, Loss: 1.0104 | in_mw_loss: 1.0Epoch 8:  83%|▊| 5/6 [00:01<00:00,  4.83batch/s, Loss: 0.9903 | in_mw_loss: 0.9Epoch 8: 100%|█| 6/6 [00:01<00:00,  4.60batch/s, Loss: 0.9903 | in_mw_loss: 0.9Epoch 8: 100%|█| 6/6 [00:01<00:00,  4.23batch/s, Loss: 0.9903 | in_mw_loss: 0.9
+Epoch [  8/ 10], Loss: 1.0165, in_mw_loss: 1.0165, out_mw_loss: 1.0165, learning_rate: 3.0000e-04
+Epoch 9:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 9:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0197 | in_mw_loss: 1.0197 | ouEpoch 9:  17%|▏| 1/6 [00:00<00:01,  4.81batch/s, Loss: 1.0197 | in_mw_loss: 1.0Epoch 9:  17%|▏| 1/6 [00:00<00:01,  4.81batch/s, Loss: 1.0054 | in_mw_loss: 1.0Epoch 9:  33%|▎| 2/6 [00:00<00:01,  2.99batch/s, Loss: 1.0054 | in_mw_loss: 1.0Epoch 9:  33%|▎| 2/6 [00:00<00:01,  2.99batch/s, Loss: 1.0661 | in_mw_loss: 1.0Epoch 9:  50%|▌| 3/6 [00:00<00:00,  3.92batch/s, Loss: 1.0661 | in_mw_loss: 1.0Epoch 9:  50%|▌| 3/6 [00:00<00:00,  3.92batch/s, Loss: 0.9739 | in_mw_loss: 0.9Epoch 9:  67%|▋| 4/6 [00:00<00:00,  4.35batch/s, Loss: 0.9739 | in_mw_loss: 0.9Epoch 9:  67%|▋| 4/6 [00:01<00:00,  4.35batch/s, Loss: 1.0023 | in_mw_loss: 1.0Epoch 9:  83%|▊| 5/6 [00:01<00:00,  3.40batch/s, Loss: 1.0023 | in_mw_loss: 1.0Epoch 9:  83%|▊| 5/6 [00:01<00:00,  3.40batch/s, Loss: 0.9708 | in_mw_loss: 0.9Epoch 9: 100%|█| 6/6 [00:01<00:00,  4.14batch/s, Loss: 0.9708 | in_mw_loss: 0.9Epoch 9: 100%|█| 6/6 [00:01<00:00,  3.92batch/s, Loss: 0.9708 | in_mw_loss: 0.9
+Epoch [  9/ 10], Loss: 1.0095, in_mw_loss: 1.0095, out_mw_loss: 1.0095, learning_rate: 3.0000e-04
+Epoch 10:   0%|                                       | 0/6 [00:00<?, ?batch/s]Epoch 10:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 0.9862 | in_mw_loss: 0.9862 | oEpoch 10:  17%|▏| 1/6 [00:00<00:01,  3.29batch/s, Loss: 0.9862 | in_mw_loss: 0.Epoch 10:  17%|▏| 1/6 [00:00<00:01,  3.29batch/s, Loss: 1.0315 | in_mw_loss: 1.Epoch 10:  33%|▎| 2/6 [00:00<00:00,  4.26batch/s, Loss: 1.0315 | in_mw_loss: 1.Epoch 10:  33%|▎| 2/6 [00:00<00:00,  4.26batch/s, Loss: 0.9682 | in_mw_loss: 0.Epoch 10:  50%|▌| 3/6 [00:00<00:00,  3.20batch/s, Loss: 0.9682 | in_mw_loss: 0.Epoch 10:  50%|▌| 3/6 [00:01<00:00,  3.20batch/s, Loss: 0.9855 | in_mw_loss: 0.Epoch 10:  67%|▋| 4/6 [00:01<00:00,  4.12batch/s, Loss: 0.9855 | in_mw_loss: 0.Epoch 10:  67%|▋| 4/6 [00:01<00:00,  4.12batch/s, Loss: 0.9573 | in_mw_loss: 0.Epoch 10:  83%|▊| 5/6 [00:01<00:00,  3.16batch/s, Loss: 0.9573 | in_mw_loss: 0.Epoch 10:  83%|▊| 5/6 [00:01<00:00,  3.16batch/s, Loss: 1.0323 | in_mw_loss: 1.Epoch 10: 100%|█| 6/6 [00:01<00:00,  3.87batch/s, Loss: 1.0323 | in_mw_loss: 1.Epoch 10: 100%|█| 6/6 [00:01<00:00,  3.70batch/s, Loss: 1.0323 | in_mw_loss: 1.
+Epoch [ 10/ 10], Loss: 1.0023, in_mw_loss: 1.0023, out_mw_loss: 1.0023, learning_rate: 3.0000e-04
+training the top half of tomograms for 10 epochs, remaining epochs 40
+Epoch 1:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 1:   0%| | 0/6 [00:09<?, ?batch/s, Loss: 1.7889 | in_mw_loss: 1.7889 | ouEpoch 1:  17%|▏| 1/6 [00:09<00:46,  9.34s/batch, Loss: 1.7889 | in_mw_loss: 1.7Epoch 1:  17%|▏| 1/6 [00:09<00:46,  9.34s/batch, Loss: 1.5117 | in_mw_loss: 1.5Epoch 1:  33%|▎| 2/6 [00:09<00:15,  3.99s/batch, Loss: 1.5117 | in_mw_loss: 1.5Epoch 1:  33%|▎| 2/6 [00:10<00:15,  3.99s/batch, Loss: 1.5016 | in_mw_loss: 1.5Epoch 1:  50%|▌| 3/6 [00:10<00:07,  2.38s/batch, Loss: 1.5016 | in_mw_loss: 1.5Epoch 1:  50%|▌| 3/6 [00:10<00:07,  2.38s/batch, Loss: 1.3366 | in_mw_loss: 1.3Epoch 1:  67%|▋| 4/6 [00:10<00:03,  1.51s/batch, Loss: 1.3366 | in_mw_loss: 1.3Epoch 1:  67%|▋| 4/6 [00:10<00:03,  1.51s/batch, Loss: 1.3564 | in_mw_loss: 1.3Epoch 1:  83%|▊| 5/6 [00:10<00:01,  1.12s/batch, Loss: 1.3564 | in_mw_loss: 1.3Epoch 1:  83%|▊| 5/6 [00:10<00:01,  1.12s/batch, Loss: 1.2535 | in_mw_loss: 1.2Epoch 1: 100%|█| 6/6 [00:10<00:00,  1.19batch/s, Loss: 1.2535 | in_mw_loss: 1.2Epoch 1: 100%|█| 6/6 [00:10<00:00,  1.82s/batch, Loss: 1.2535 | in_mw_loss: 1.2
+Epoch [  1/ 10], Loss: 1.4671, in_mw_loss: 1.4671, out_mw_loss: 1.4671, learning_rate: 3.0000e-04
+Epoch 2:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 2:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.1503 | in_mw_loss: 1.1503 | ouEpoch 2:  17%|▏| 1/6 [00:00<00:01,  2.99batch/s, Loss: 1.1503 | in_mw_loss: 1.1Epoch 2:  17%|▏| 1/6 [00:00<00:01,  2.99batch/s, Loss: 1.1881 | in_mw_loss: 1.1Epoch 2:  33%|▎| 2/6 [00:00<00:01,  2.45batch/s, Loss: 1.1881 | in_mw_loss: 1.1Epoch 2:  33%|▎| 2/6 [00:00<00:01,  2.45batch/s, Loss: 1.1396 | in_mw_loss: 1.1Epoch 2:  50%|▌| 3/6 [00:00<00:00,  3.50batch/s, Loss: 1.1396 | in_mw_loss: 1.1Epoch 2:  50%|▌| 3/6 [00:01<00:00,  3.50batch/s, Loss: 1.1378 | in_mw_loss: 1.1Epoch 2:  67%|▋| 4/6 [00:01<00:00,  4.15batch/s, Loss: 1.1378 | in_mw_loss: 1.1Epoch 2:  67%|▋| 4/6 [00:01<00:00,  4.15batch/s, Loss: 1.1191 | in_mw_loss: 1.1Epoch 2:  83%|▊| 5/6 [00:01<00:00,  3.24batch/s, Loss: 1.1191 | in_mw_loss: 1.1Epoch 2:  83%|▊| 5/6 [00:01<00:00,  3.24batch/s, Loss: 1.1047 | in_mw_loss: 1.1Epoch 2: 100%|█| 6/6 [00:01<00:00,  3.99batch/s, Loss: 1.1047 | in_mw_loss: 1.1Epoch 2: 100%|█| 6/6 [00:01<00:00,  3.58batch/s, Loss: 1.1047 | in_mw_loss: 1.1
+Epoch [  2/ 10], Loss: 1.1668, in_mw_loss: 1.1668, out_mw_loss: 1.1668, learning_rate: 3.0000e-04
+Epoch 3:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 3:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0929 | in_mw_loss: 1.0929 | ouEpoch 3:  17%|▏| 1/6 [00:00<00:02,  2.50batch/s, Loss: 1.0929 | in_mw_loss: 1.0Epoch 3:  17%|▏| 1/6 [00:00<00:02,  2.50batch/s, Loss: 1.1626 | in_mw_loss: 1.1Epoch 3:  33%|▎| 2/6 [00:00<00:01,  3.19batch/s, Loss: 1.1626 | in_mw_loss: 1.1Epoch 3:  33%|▎| 2/6 [00:01<00:01,  3.19batch/s, Loss: 1.1351 | in_mw_loss: 1.1Epoch 3:  50%|▌| 3/6 [00:01<00:01,  2.98batch/s, Loss: 1.1351 | in_mw_loss: 1.1Epoch 3:  50%|▌| 3/6 [00:01<00:01,  2.98batch/s, Loss: 1.0532 | in_mw_loss: 1.0Epoch 3:  67%|▋| 4/6 [00:01<00:00,  3.06batch/s, Loss: 1.0532 | in_mw_loss: 1.0Epoch 3:  67%|▋| 4/6 [00:01<00:00,  3.06batch/s, Loss: 1.0834 | in_mw_loss: 1.0Epoch 3:  83%|▊| 5/6 [00:01<00:00,  3.21batch/s, Loss: 1.0834 | in_mw_loss: 1.0Epoch 3:  83%|▊| 5/6 [00:01<00:00,  3.21batch/s, Loss: 1.0647 | in_mw_loss: 1.0Epoch 3: 100%|█| 6/6 [00:01<00:00,  3.50batch/s, Loss: 1.0647 | in_mw_loss: 1.0Epoch 3: 100%|█| 6/6 [00:01<00:00,  3.25batch/s, Loss: 1.0647 | in_mw_loss: 1.0
+Epoch [  3/ 10], Loss: 1.0949, in_mw_loss: 1.0949, out_mw_loss: 1.0949, learning_rate: 3.0000e-04
+Epoch 4:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 4:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0320 | in_mw_loss: 1.0320 | ouEpoch 4:  17%|▏| 1/6 [00:00<00:01,  3.84batch/s, Loss: 1.0320 | in_mw_loss: 1.0Epoch 4:  17%|▏| 1/6 [00:00<00:01,  3.84batch/s, Loss: 1.0334 | in_mw_loss: 1.0Epoch 4:  33%|▎| 2/6 [00:00<00:01,  2.76batch/s, Loss: 1.0334 | in_mw_loss: 1.0Epoch 4:  33%|▎| 2/6 [00:01<00:01,  2.76batch/s, Loss: 1.0209 | in_mw_loss: 1.0Epoch 4:  50%|▌| 3/6 [00:01<00:01,  2.53batch/s, Loss: 1.0209 | in_mw_loss: 1.0Epoch 4:  50%|▌| 3/6 [00:01<00:01,  2.53batch/s, Loss: 1.1281 | in_mw_loss: 1.1Epoch 4:  67%|▋| 4/6 [00:01<00:00,  3.17batch/s, Loss: 1.1281 | in_mw_loss: 1.1Epoch 4:  67%|▋| 4/6 [00:01<00:00,  3.17batch/s, Loss: 1.0237 | in_mw_loss: 1.0Epoch 4:  83%|▊| 5/6 [00:01<00:00,  2.83batch/s, Loss: 1.0237 | in_mw_loss: 1.0Epoch 4:  83%|▊| 5/6 [00:01<00:00,  2.83batch/s, Loss: 1.0657 | in_mw_loss: 1.0Epoch 4: 100%|█| 6/6 [00:01<00:00,  3.17batch/s, Loss: 1.0657 | in_mw_loss: 1.0Epoch 4: 100%|█| 6/6 [00:01<00:00,  3.02batch/s, Loss: 1.0657 | in_mw_loss: 1.0
+Epoch [  4/ 10], Loss: 1.0654, in_mw_loss: 1.0654, out_mw_loss: 1.0654, learning_rate: 3.0000e-04
+Epoch 5:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 5:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0351 | in_mw_loss: 1.0351 | ouEpoch 5:  17%|▏| 1/6 [00:00<00:01,  3.32batch/s, Loss: 1.0351 | in_mw_loss: 1.0Epoch 5:  17%|▏| 1/6 [00:00<00:01,  3.32batch/s, Loss: 0.9924 | in_mw_loss: 0.9Epoch 5:  33%|▎| 2/6 [00:00<00:01,  2.79batch/s, Loss: 0.9924 | in_mw_loss: 0.9Epoch 5:  33%|▎| 2/6 [00:00<00:01,  2.79batch/s, Loss: 1.1164 | in_mw_loss: 1.1Epoch 5:  50%|▌| 3/6 [00:00<00:00,  3.59batch/s, Loss: 1.1164 | in_mw_loss: 1.1Epoch 5:  50%|▌| 3/6 [00:01<00:00,  3.59batch/s, Loss: 1.0467 | in_mw_loss: 1.0Epoch 5:  67%|▋| 4/6 [00:01<00:00,  2.97batch/s, Loss: 1.0467 | in_mw_loss: 1.0Epoch 5:  67%|▋| 4/6 [00:01<00:00,  2.97batch/s, Loss: 1.0533 | in_mw_loss: 1.0Epoch 5:  83%|▊| 5/6 [00:01<00:00,  3.57batch/s, Loss: 1.0533 | in_mw_loss: 1.0Epoch 5:  83%|▊| 5/6 [00:01<00:00,  3.57batch/s, Loss: 1.0531 | in_mw_loss: 1.0Epoch 5: 100%|█| 6/6 [00:01<00:00,  3.05batch/s, Loss: 1.0531 | in_mw_loss: 1.0Epoch 5: 100%|█| 6/6 [00:01<00:00,  3.14batch/s, Loss: 1.0531 | in_mw_loss: 1.0
+Epoch [  5/ 10], Loss: 1.0457, in_mw_loss: 1.0457, out_mw_loss: 1.0457, learning_rate: 3.0000e-04
+Epoch 6:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 6:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0285 | in_mw_loss: 1.0285 | ouEpoch 6:  17%|▏| 1/6 [00:00<00:01,  2.51batch/s, Loss: 1.0285 | in_mw_loss: 1.0Epoch 6:  17%|▏| 1/6 [00:00<00:01,  2.51batch/s, Loss: 0.9795 | in_mw_loss: 0.9Epoch 6:  33%|▎| 2/6 [00:00<00:01,  3.54batch/s, Loss: 0.9795 | in_mw_loss: 0.9Epoch 6:  33%|▎| 2/6 [00:00<00:01,  3.54batch/s, Loss: 1.0034 | in_mw_loss: 1.0Epoch 6:  50%|▌| 3/6 [00:00<00:01,  2.98batch/s, Loss: 1.0034 | in_mw_loss: 1.0Epoch 6:  50%|▌| 3/6 [00:01<00:01,  2.98batch/s, Loss: 1.0540 | in_mw_loss: 1.0Epoch 6:  67%|▋| 4/6 [00:01<00:00,  3.90batch/s, Loss: 1.0540 | in_mw_loss: 1.0Epoch 6:  67%|▋| 4/6 [00:01<00:00,  3.90batch/s, Loss: 1.0185 | in_mw_loss: 1.0Epoch 6:  83%|▊| 5/6 [00:01<00:00,  3.03batch/s, Loss: 1.0185 | in_mw_loss: 1.0Epoch 6:  83%|▊| 5/6 [00:01<00:00,  3.03batch/s, Loss: 1.0774 | in_mw_loss: 1.0Epoch 6: 100%|█| 6/6 [00:01<00:00,  3.79batch/s, Loss: 1.0774 | in_mw_loss: 1.0Epoch 6: 100%|█| 6/6 [00:01<00:00,  3.47batch/s, Loss: 1.0774 | in_mw_loss: 1.0
+Epoch [  6/ 10], Loss: 1.0310, in_mw_loss: 1.0310, out_mw_loss: 1.0310, learning_rate: 3.0000e-04
+Epoch 7:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 7:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0023 | in_mw_loss: 1.0023 | ouEpoch 7:  17%|▏| 1/6 [00:00<00:01,  2.72batch/s, Loss: 1.0023 | in_mw_loss: 1.0Epoch 7:  17%|▏| 1/6 [00:00<00:01,  2.72batch/s, Loss: 1.0143 | in_mw_loss: 1.0Epoch 7:  33%|▎| 2/6 [00:00<00:01,  3.90batch/s, Loss: 1.0143 | in_mw_loss: 1.0Epoch 7:  33%|▎| 2/6 [00:00<00:01,  3.90batch/s, Loss: 1.0353 | in_mw_loss: 1.0Epoch 7:  50%|▌| 3/6 [00:00<00:01,  2.98batch/s, Loss: 1.0353 | in_mw_loss: 1.0Epoch 7:  50%|▌| 3/6 [00:01<00:01,  2.98batch/s, Loss: 1.0217 | in_mw_loss: 1.0Epoch 7:  67%|▋| 4/6 [00:01<00:00,  3.08batch/s, Loss: 1.0217 | in_mw_loss: 1.0Epoch 7:  67%|▋| 4/6 [00:01<00:00,  3.08batch/s, Loss: 1.0048 | in_mw_loss: 1.0Epoch 7:  83%|▊| 5/6 [00:01<00:00,  3.18batch/s, Loss: 1.0048 | in_mw_loss: 1.0Epoch 7:  83%|▊| 5/6 [00:01<00:00,  3.18batch/s, Loss: 1.0096 | in_mw_loss: 1.0Epoch 7: 100%|█| 6/6 [00:01<00:00,  3.33batch/s, Loss: 1.0096 | in_mw_loss: 1.0Epoch 7: 100%|█| 6/6 [00:01<00:00,  3.24batch/s, Loss: 1.0096 | in_mw_loss: 1.0
+Epoch [  7/ 10], Loss: 1.0196, in_mw_loss: 1.0196, out_mw_loss: 1.0196, learning_rate: 3.0000e-04
+Epoch 8:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 8:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0110 | in_mw_loss: 1.0110 | ouEpoch 8:  17%|▏| 1/6 [00:00<00:02,  1.93batch/s, Loss: 1.0110 | in_mw_loss: 1.0Epoch 8:  17%|▏| 1/6 [00:00<00:02,  1.93batch/s, Loss: 0.9996 | in_mw_loss: 0.9Epoch 8:  33%|▎| 2/6 [00:00<00:01,  3.41batch/s, Loss: 0.9996 | in_mw_loss: 0.9Epoch 8:  33%|▎| 2/6 [00:01<00:01,  3.41batch/s, Loss: 0.9833 | in_mw_loss: 0.9Epoch 8:  50%|▌| 3/6 [00:01<00:01,  2.69batch/s, Loss: 0.9833 | in_mw_loss: 0.9Epoch 8:  50%|▌| 3/6 [00:01<00:01,  2.69batch/s, Loss: 1.0383 | in_mw_loss: 1.0Epoch 8:  67%|▋| 4/6 [00:01<00:00,  3.53batch/s, Loss: 1.0383 | in_mw_loss: 1.0Epoch 8:  67%|▋| 4/6 [00:01<00:00,  3.53batch/s, Loss: 1.0093 | in_mw_loss: 1.0Epoch 8:  83%|▊| 5/6 [00:01<00:00,  3.24batch/s, Loss: 1.0093 | in_mw_loss: 1.0Epoch 8:  83%|▊| 5/6 [00:01<00:00,  3.24batch/s, Loss: 0.9862 | in_mw_loss: 0.9Epoch 8: 100%|█| 6/6 [00:01<00:00,  3.48batch/s, Loss: 0.9862 | in_mw_loss: 0.9Epoch 8: 100%|█| 6/6 [00:01<00:00,  3.21batch/s, Loss: 0.9862 | in_mw_loss: 0.9
+Epoch [  8/ 10], Loss: 1.0161, in_mw_loss: 1.0161, out_mw_loss: 1.0161, learning_rate: 3.0000e-04
+Epoch 9:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 9:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0196 | in_mw_loss: 1.0196 | ouEpoch 9:  17%|▏| 1/6 [00:00<00:01,  2.67batch/s, Loss: 1.0196 | in_mw_loss: 1.0Epoch 9:  17%|▏| 1/6 [00:00<00:01,  2.67batch/s, Loss: 1.0057 | in_mw_loss: 1.0Epoch 9:  33%|▎| 2/6 [00:00<00:01,  2.37batch/s, Loss: 1.0057 | in_mw_loss: 1.0Epoch 9:  33%|▎| 2/6 [00:01<00:01,  2.37batch/s, Loss: 1.0682 | in_mw_loss: 1.0Epoch 9:  50%|▌| 3/6 [00:01<00:01,  3.00batch/s, Loss: 1.0682 | in_mw_loss: 1.0Epoch 9:  50%|▌| 3/6 [00:01<00:01,  3.00batch/s, Loss: 0.9733 | in_mw_loss: 0.9Epoch 9:  67%|▋| 4/6 [00:01<00:00,  2.88batch/s, Loss: 0.9733 | in_mw_loss: 0.9Epoch 9:  67%|▋| 4/6 [00:01<00:00,  2.88batch/s, Loss: 1.0016 | in_mw_loss: 1.0Epoch 9:  83%|▊| 5/6 [00:01<00:00,  2.97batch/s, Loss: 1.0016 | in_mw_loss: 1.0Epoch 9:  83%|▊| 5/6 [00:02<00:00,  2.97batch/s, Loss: 0.9744 | in_mw_loss: 0.9Epoch 9: 100%|█| 6/6 [00:02<00:00,  3.13batch/s, Loss: 0.9744 | in_mw_loss: 0.9Epoch 9: 100%|█| 6/6 [00:02<00:00,  2.95batch/s, Loss: 0.9744 | in_mw_loss: 0.9
+Epoch [  9/ 10], Loss: 1.0091, in_mw_loss: 1.0091, out_mw_loss: 1.0091, learning_rate: 3.0000e-04
+Epoch 10:   0%|                                       | 0/6 [00:00<?, ?batch/s]Epoch 10:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 0.9889 | in_mw_loss: 0.9889 | oEpoch 10:  17%|▏| 1/6 [00:00<00:01,  4.01batch/s, Loss: 0.9889 | in_mw_loss: 0.Epoch 10:  17%|▏| 1/6 [00:00<00:01,  4.01batch/s, Loss: 1.0312 | in_mw_loss: 1.Epoch 10:  33%|▎| 2/6 [00:00<00:01,  2.70batch/s, Loss: 1.0312 | in_mw_loss: 1.Epoch 10:  33%|▎| 2/6 [00:00<00:01,  2.70batch/s, Loss: 0.9668 | in_mw_loss: 0.Epoch 10:  50%|▌| 3/6 [00:00<00:00,  3.23batch/s, Loss: 0.9668 | in_mw_loss: 0.Epoch 10:  50%|▌| 3/6 [00:01<00:00,  3.23batch/s, Loss: 0.9858 | in_mw_loss: 0.Epoch 10:  67%|▋| 4/6 [00:01<00:00,  3.02batch/s, Loss: 0.9858 | in_mw_loss: 0.Epoch 10:  67%|▋| 4/6 [00:01<00:00,  3.02batch/s, Loss: 0.9600 | in_mw_loss: 0.Epoch 10:  83%|▊| 5/6 [00:01<00:00,  3.22batch/s, Loss: 0.9600 | in_mw_loss: 0.Epoch 10:  83%|▊| 5/6 [00:01<00:00,  3.22batch/s, Loss: 1.0311 | in_mw_loss: 1.Epoch 10: 100%|█| 6/6 [00:01<00:00,  3.14batch/s, Loss: 1.0311 | in_mw_loss: 1.Epoch 10: 100%|█| 6/6 [00:01<00:00,  3.13batch/s, Loss: 1.0311 | in_mw_loss: 1.
+Epoch [ 10/ 10], Loss: 1.0021, in_mw_loss: 1.0021, out_mw_loss: 1.0021, learning_rate: 3.0000e-04
+training the top half of tomograms for 10 epochs, remaining epochs 30
+Epoch 1:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 1:   0%| | 0/6 [00:09<?, ?batch/s, Loss: 1.7879 | in_mw_loss: 1.7879 | ouEpoch 1:  17%|▏| 1/6 [00:09<00:47,  9.50s/batch, Loss: 1.7879 | in_mw_loss: 1.7Epoch 1:  17%|▏| 1/6 [00:09<00:47,  9.50s/batch, Loss: 1.5117 | in_mw_loss: 1.5Epoch 1:  33%|▎| 2/6 [00:09<00:16,  4.13s/batch, Loss: 1.5117 | in_mw_loss: 1.5Epoch 1:  33%|▎| 2/6 [00:10<00:16,  4.13s/batch, Loss: 1.5017 | in_mw_loss: 1.5Epoch 1:  50%|▌| 3/6 [00:10<00:07,  2.44s/batch, Loss: 1.5017 | in_mw_loss: 1.5Epoch 1:  50%|▌| 3/6 [00:10<00:07,  2.44s/batch, Loss: 1.3366 | in_mw_loss: 1.3Epoch 1:  67%|▋| 4/6 [00:10<00:03,  1.54s/batch, Loss: 1.3366 | in_mw_loss: 1.3Epoch 1:  67%|▋| 4/6 [00:10<00:03,  1.54s/batch, Loss: 1.3548 | in_mw_loss: 1.3Epoch 1:  83%|▊| 5/6 [00:10<00:01,  1.06s/batch, Loss: 1.3548 | in_mw_loss: 1.3Epoch 1:  83%|▊| 5/6 [00:11<00:01,  1.06s/batch, Loss: 1.2536 | in_mw_loss: 1.2Epoch 1: 100%|█| 6/6 [00:11<00:00,  1.20batch/s, Loss: 1.2536 | in_mw_loss: 1.2Epoch 1: 100%|█| 6/6 [00:11<00:00,  1.84s/batch, Loss: 1.2536 | in_mw_loss: 1.2
+Epoch [  1/ 10], Loss: 1.4672, in_mw_loss: 1.4672, out_mw_loss: 1.4672, learning_rate: 3.0000e-04
+Epoch 2:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 2:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.1500 | in_mw_loss: 1.1500 | ouEpoch 2:  17%|▏| 1/6 [00:00<00:02,  1.90batch/s, Loss: 1.1500 | in_mw_loss: 1.1Epoch 2:  17%|▏| 1/6 [00:00<00:02,  1.90batch/s, Loss: 1.1894 | in_mw_loss: 1.1Epoch 2:  33%|▎| 2/6 [00:00<00:01,  2.57batch/s, Loss: 1.1894 | in_mw_loss: 1.1Epoch 2:  33%|▎| 2/6 [00:01<00:01,  2.57batch/s, Loss: 1.1419 | in_mw_loss: 1.1Epoch 2:  50%|▌| 3/6 [00:01<00:01,  2.83batch/s, Loss: 1.1419 | in_mw_loss: 1.1Epoch 2:  50%|▌| 3/6 [00:01<00:01,  2.83batch/s, Loss: 1.1375 | in_mw_loss: 1.1Epoch 2:  67%|▋| 4/6 [00:01<00:00,  2.86batch/s, Loss: 1.1375 | in_mw_loss: 1.1Epoch 2:  67%|▋| 4/6 [00:01<00:00,  2.86batch/s, Loss: 1.1189 | in_mw_loss: 1.1Epoch 2:  83%|▊| 5/6 [00:01<00:00,  3.17batch/s, Loss: 1.1189 | in_mw_loss: 1.1Epoch 2:  83%|▊| 5/6 [00:02<00:00,  3.17batch/s, Loss: 1.1064 | in_mw_loss: 1.1Epoch 2: 100%|█| 6/6 [00:02<00:00,  2.77batch/s, Loss: 1.1064 | in_mw_loss: 1.1Epoch 2: 100%|█| 6/6 [00:02<00:00,  2.75batch/s, Loss: 1.1064 | in_mw_loss: 1.1
+Epoch [  2/ 10], Loss: 1.1669, in_mw_loss: 1.1669, out_mw_loss: 1.1669, learning_rate: 3.0000e-04
+Epoch 3:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 3:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0936 | in_mw_loss: 1.0936 | ouEpoch 3:  17%|▏| 1/6 [00:00<00:01,  2.68batch/s, Loss: 1.0936 | in_mw_loss: 1.0Epoch 3:  17%|▏| 1/6 [00:00<00:01,  2.68batch/s, Loss: 1.1627 | in_mw_loss: 1.1Epoch 3:  33%|▎| 2/6 [00:00<00:01,  2.37batch/s, Loss: 1.1627 | in_mw_loss: 1.1Epoch 3:  33%|▎| 2/6 [00:00<00:01,  2.37batch/s, Loss: 1.1349 | in_mw_loss: 1.1Epoch 3:  50%|▌| 3/6 [00:00<00:00,  3.41batch/s, Loss: 1.1349 | in_mw_loss: 1.1Epoch 3:  50%|▌| 3/6 [00:01<00:00,  3.41batch/s, Loss: 1.0554 | in_mw_loss: 1.0Epoch 3:  67%|▋| 4/6 [00:01<00:00,  2.77batch/s, Loss: 1.0554 | in_mw_loss: 1.0Epoch 3:  67%|▋| 4/6 [00:01<00:00,  2.77batch/s, Loss: 1.0829 | in_mw_loss: 1.0Epoch 3:  83%|▊| 5/6 [00:01<00:00,  3.33batch/s, Loss: 1.0829 | in_mw_loss: 1.0Epoch 3:  83%|▊| 5/6 [00:02<00:00,  3.33batch/s, Loss: 1.0649 | in_mw_loss: 1.0Epoch 3: 100%|█| 6/6 [00:02<00:00,  2.95batch/s, Loss: 1.0649 | in_mw_loss: 1.0Epoch 3: 100%|█| 6/6 [00:02<00:00,  2.94batch/s, Loss: 1.0649 | in_mw_loss: 1.0
+Epoch [  3/ 10], Loss: 1.0944, in_mw_loss: 1.0944, out_mw_loss: 1.0944, learning_rate: 3.0000e-04
+Epoch 4:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 4:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0281 | in_mw_loss: 1.0281 | ouEpoch 4:  17%|▏| 1/6 [00:00<00:01,  2.64batch/s, Loss: 1.0281 | in_mw_loss: 1.0Epoch 4:  17%|▏| 1/6 [00:00<00:01,  2.64batch/s, Loss: 1.0335 | in_mw_loss: 1.0Epoch 4:  33%|▎| 2/6 [00:00<00:01,  2.34batch/s, Loss: 1.0335 | in_mw_loss: 1.0Epoch 4:  33%|▎| 2/6 [00:01<00:01,  2.34batch/s, Loss: 1.0206 | in_mw_loss: 1.0Epoch 4:  50%|▌| 3/6 [00:01<00:00,  3.21batch/s, Loss: 1.0206 | in_mw_loss: 1.0Epoch 4:  50%|▌| 3/6 [00:01<00:00,  3.21batch/s, Loss: 1.1266 | in_mw_loss: 1.1Epoch 4:  67%|▋| 4/6 [00:01<00:00,  2.80batch/s, Loss: 1.1266 | in_mw_loss: 1.1Epoch 4:  67%|▋| 4/6 [00:01<00:00,  2.80batch/s, Loss: 1.0213 | in_mw_loss: 1.0Epoch 4:  83%|▊| 5/6 [00:01<00:00,  3.17batch/s, Loss: 1.0213 | in_mw_loss: 1.0Epoch 4:  83%|▊| 5/6 [00:02<00:00,  3.17batch/s, Loss: 1.0660 | in_mw_loss: 1.0Epoch 4: 100%|█| 6/6 [00:02<00:00,  3.01batch/s, Loss: 1.0660 | in_mw_loss: 1.0Epoch 4: 100%|█| 6/6 [00:02<00:00,  2.93batch/s, Loss: 1.0660 | in_mw_loss: 1.0
+Epoch [  4/ 10], Loss: 1.0650, in_mw_loss: 1.0650, out_mw_loss: 1.0650, learning_rate: 3.0000e-04
+Epoch 5:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 5:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0330 | in_mw_loss: 1.0330 | ouEpoch 5:  17%|▏| 1/6 [00:00<00:01,  3.46batch/s, Loss: 1.0330 | in_mw_loss: 1.0Epoch 5:  17%|▏| 1/6 [00:00<00:01,  3.46batch/s, Loss: 0.9924 | in_mw_loss: 0.9Epoch 5:  33%|▎| 2/6 [00:00<00:01,  2.64batch/s, Loss: 0.9924 | in_mw_loss: 0.9Epoch 5:  33%|▎| 2/6 [00:00<00:01,  2.64batch/s, Loss: 1.1171 | in_mw_loss: 1.1Epoch 5:  50%|▌| 3/6 [00:00<00:00,  3.72batch/s, Loss: 1.1171 | in_mw_loss: 1.1Epoch 5:  50%|▌| 3/6 [00:01<00:00,  3.72batch/s, Loss: 1.0476 | in_mw_loss: 1.0Epoch 5:  67%|▋| 4/6 [00:01<00:00,  2.91batch/s, Loss: 1.0476 | in_mw_loss: 1.0Epoch 5:  67%|▋| 4/6 [00:01<00:00,  2.91batch/s, Loss: 1.0517 | in_mw_loss: 1.0Epoch 5:  83%|▊| 5/6 [00:01<00:00,  3.72batch/s, Loss: 1.0517 | in_mw_loss: 1.0Epoch 5:  83%|▊| 5/6 [00:01<00:00,  3.72batch/s, Loss: 1.0543 | in_mw_loss: 1.0Epoch 5: 100%|█| 6/6 [00:01<00:00,  2.99batch/s, Loss: 1.0543 | in_mw_loss: 1.0Epoch 5: 100%|█| 6/6 [00:01<00:00,  3.12batch/s, Loss: 1.0543 | in_mw_loss: 1.0
+Epoch [  5/ 10], Loss: 1.0456, in_mw_loss: 1.0456, out_mw_loss: 1.0456, learning_rate: 3.0000e-04
+Epoch 6:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 6:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0292 | in_mw_loss: 1.0292 | ouEpoch 6:  17%|▏| 1/6 [00:00<00:02,  2.40batch/s, Loss: 1.0292 | in_mw_loss: 1.0Epoch 6:  17%|▏| 1/6 [00:00<00:02,  2.40batch/s, Loss: 0.9819 | in_mw_loss: 0.9Epoch 6:  33%|▎| 2/6 [00:00<00:01,  2.30batch/s, Loss: 0.9819 | in_mw_loss: 0.9Epoch 6:  33%|▎| 2/6 [00:01<00:01,  2.30batch/s, Loss: 1.0033 | in_mw_loss: 1.0Epoch 6:  50%|▌| 3/6 [00:01<00:00,  3.05batch/s, Loss: 1.0033 | in_mw_loss: 1.0Epoch 6:  50%|▌| 3/6 [00:01<00:00,  3.05batch/s, Loss: 1.0558 | in_mw_loss: 1.0Epoch 6:  67%|▋| 4/6 [00:01<00:00,  2.81batch/s, Loss: 1.0558 | in_mw_loss: 1.0Epoch 6:  67%|▋| 4/6 [00:01<00:00,  2.81batch/s, Loss: 1.0182 | in_mw_loss: 1.0Epoch 6:  83%|▊| 5/6 [00:01<00:00,  2.54batch/s, Loss: 1.0182 | in_mw_loss: 1.0Epoch 6:  83%|▊| 5/6 [00:02<00:00,  2.54batch/s, Loss: 1.0775 | in_mw_loss: 1.0Epoch 6: 100%|█| 6/6 [00:02<00:00,  3.12batch/s, Loss: 1.0775 | in_mw_loss: 1.0Epoch 6: 100%|█| 6/6 [00:02<00:00,  2.85batch/s, Loss: 1.0775 | in_mw_loss: 1.0
+Epoch [  6/ 10], Loss: 1.0311, in_mw_loss: 1.0311, out_mw_loss: 1.0311, learning_rate: 3.0000e-04
+Epoch 7:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 7:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0015 | in_mw_loss: 1.0015 | ouEpoch 7:  17%|▏| 1/6 [00:00<00:01,  4.67batch/s, Loss: 1.0015 | in_mw_loss: 1.0Epoch 7:  17%|▏| 1/6 [00:00<00:01,  4.67batch/s, Loss: 1.0133 | in_mw_loss: 1.0Epoch 7:  33%|▎| 2/6 [00:00<00:00,  4.64batch/s, Loss: 1.0133 | in_mw_loss: 1.0Epoch 7:  33%|▎| 2/6 [00:00<00:00,  4.64batch/s, Loss: 1.0354 | in_mw_loss: 1.0Epoch 7:  50%|▌| 3/6 [00:00<00:00,  3.44batch/s, Loss: 1.0354 | in_mw_loss: 1.0Epoch 7:  50%|▌| 3/6 [00:00<00:00,  3.44batch/s, Loss: 1.0186 | in_mw_loss: 1.0Epoch 7:  67%|▋| 4/6 [00:00<00:00,  4.35batch/s, Loss: 1.0186 | in_mw_loss: 1.0Epoch 7:  67%|▋| 4/6 [00:01<00:00,  4.35batch/s, Loss: 1.0059 | in_mw_loss: 1.0Epoch 7:  83%|▊| 5/6 [00:01<00:00,  4.52batch/s, Loss: 1.0059 | in_mw_loss: 1.0Epoch 7:  83%|▊| 5/6 [00:01<00:00,  4.52batch/s, Loss: 1.0096 | in_mw_loss: 1.0Epoch 7: 100%|█| 6/6 [00:01<00:00,  3.61batch/s, Loss: 1.0096 | in_mw_loss: 1.0Epoch 7: 100%|█| 6/6 [00:01<00:00,  3.90batch/s, Loss: 1.0096 | in_mw_loss: 1.0
+Epoch [  7/ 10], Loss: 1.0196, in_mw_loss: 1.0196, out_mw_loss: 1.0196, learning_rate: 3.0000e-04
+Epoch 8:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 8:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0114 | in_mw_loss: 1.0114 | ouEpoch 8:  17%|▏| 1/6 [00:00<00:02,  2.31batch/s, Loss: 1.0114 | in_mw_loss: 1.0Epoch 8:  17%|▏| 1/6 [00:00<00:02,  2.31batch/s, Loss: 0.9996 | in_mw_loss: 0.9Epoch 8:  33%|▎| 2/6 [00:00<00:01,  2.50batch/s, Loss: 0.9996 | in_mw_loss: 0.9Epoch 8:  33%|▎| 2/6 [00:01<00:01,  2.50batch/s, Loss: 0.9843 | in_mw_loss: 0.9Epoch 8:  50%|▌| 3/6 [00:01<00:00,  3.13batch/s, Loss: 0.9843 | in_mw_loss: 0.9Epoch 8:  50%|▌| 3/6 [00:01<00:00,  3.13batch/s, Loss: 1.0379 | in_mw_loss: 1.0Epoch 8:  67%|▋| 4/6 [00:01<00:00,  2.66batch/s, Loss: 1.0379 | in_mw_loss: 1.0Epoch 8:  67%|▋| 4/6 [00:01<00:00,  2.66batch/s, Loss: 1.0114 | in_mw_loss: 1.0Epoch 8:  83%|▊| 5/6 [00:01<00:00,  3.15batch/s, Loss: 1.0114 | in_mw_loss: 1.0Epoch 8:  83%|▊| 5/6 [00:02<00:00,  3.15batch/s, Loss: 0.9909 | in_mw_loss: 0.9Epoch 8: 100%|█| 6/6 [00:02<00:00,  2.96batch/s, Loss: 0.9909 | in_mw_loss: 0.9Epoch 8: 100%|█| 6/6 [00:02<00:00,  2.88batch/s, Loss: 0.9909 | in_mw_loss: 0.9
+Epoch [  8/ 10], Loss: 1.0165, in_mw_loss: 1.0165, out_mw_loss: 1.0165, learning_rate: 3.0000e-04
+Epoch 9:   0%|                                        | 0/6 [00:00<?, ?batch/s]Epoch 9:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 1.0188 | in_mw_loss: 1.0188 | ouEpoch 9:  17%|▏| 1/6 [00:00<00:01,  3.45batch/s, Loss: 1.0188 | in_mw_loss: 1.0Epoch 9:  17%|▏| 1/6 [00:00<00:01,  3.45batch/s, Loss: 1.0059 | in_mw_loss: 1.0Epoch 9:  33%|▎| 2/6 [00:00<00:00,  5.05batch/s, Loss: 1.0059 | in_mw_loss: 1.0Epoch 9:  33%|▎| 2/6 [00:00<00:00,  5.05batch/s, Loss: 1.0687 | in_mw_loss: 1.0Epoch 9:  50%|▌| 3/6 [00:00<00:00,  5.59batch/s, Loss: 1.0687 | in_mw_loss: 1.0Epoch 9:  50%|▌| 3/6 [00:01<00:00,  5.59batch/s, Loss: 0.9748 | in_mw_loss: 0.9Epoch 9:  67%|▋| 4/6 [00:01<00:00,  3.57batch/s, Loss: 0.9748 | in_mw_loss: 0.9Epoch 9:  67%|▋| 4/6 [00:01<00:00,  3.57batch/s, Loss: 1.0012 | in_mw_loss: 1.0Epoch 9:  83%|▊| 5/6 [00:01<00:00,  4.38batch/s, Loss: 1.0012 | in_mw_loss: 1.0Epoch 9:  83%|▊| 5/6 [00:01<00:00,  4.38batch/s, Loss: 0.9766 | in_mw_loss: 0.9Epoch 9: 100%|█| 6/6 [00:01<00:00,  5.09batch/s, Loss: 0.9766 | in_mw_loss: 0.9Epoch 9: 100%|█| 6/6 [00:01<00:00,  4.66batch/s, Loss: 0.9766 | in_mw_loss: 0.9
+Epoch [  9/ 10], Loss: 1.0101, in_mw_loss: 1.0101, out_mw_loss: 1.0101, learning_rate: 3.0000e-04
+Epoch 10:   0%|                                       | 0/6 [00:00<?, ?batch/s]Epoch 10:   0%| | 0/6 [00:00<?, ?batch/s, Loss: 0.9862 | in_mw_loss: 0.9862 | oEpoch 10:  17%|▏| 1/6 [00:00<00:01,  3.87batch/s, Loss: 0.9862 | in_mw_loss: 0.Epoch 10:  17%|▏| 1/6 [00:00<00:01,  3.87batch/s, Loss: 1.0318 | in_mw_loss: 1.Epoch 10:  33%|▎| 2/6 [00:00<00:01,  2.67batch/s, Loss: 1.0318 | in_mw_loss: 1.Epoch 10:  33%|▎| 2/6 [00:00<00:01,  2.67batch/s, Loss: 0.9675 | in_mw_loss: 0.Epoch 10:  50%|▌| 3/6 [00:00<00:00,  3.47batch/s, Loss: 0.9675 | in_mw_loss: 0.Epoch 10:  50%|▌| 3/6 [00:01<00:00,  3.47batch/s, Loss: 0.9862 | in_mw_loss: 0.Epoch 10:  67%|▋| 4/6 [00:01<00:00,  2.96batch/s, Loss: 0.9862 | in_mw_loss: 0.Epoch 10:  67%|▋| 4/6 [00:01<00:00,  2.96batch/s, Loss: 0.9605 | in_mw_loss: 0.Epoch 10:  83%|▊| 5/6 [00:01<00:00,  2.88batch/s, Loss: 0.9605 | in_mw_loss: 0.Epoch 10:  83%|▊| 5/6 [00:01<00:00,  2.88batch/s, Loss: 1.0321 | in_mw_loss: 1.Epoch 10: 100%|█| 6/6 [00:01<00:00,  3.23batch/s, Loss: 1.0321 | in_mw_loss: 1.Epoch 10: 100%|█| 6/6 [00:01<00:00,  3.13batch/s, Loss: 1.0321 | in_mw_loss: 1.
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 604, in denoise
+    network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/cii/software/IsoNet2/IsoNet/models/network.py", line 181, in train
+    mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, train_dataset, training_params), nprocs=self.world_size)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/multiprocessing/spawn.py", line 340, in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method="spawn")
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/multiprocessing/spawn.py", line 296, in start_processes
+    while not context.join():
+              ~~~~~~~~~~~~^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/multiprocessing/spawn.py", line 144, in join
+    ready = multiprocessing.connection.wait(
+        self.sentinels.keys(),
+        timeout=timeout,
+    )
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/connection.py", line 1148, in wait
+    ready = selector.select(timeout)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/selectors.py", line 398, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt
+Epoch [ 10/ 10], Loss: 1.0022, in_mw_loss: 1.0022, out_mw_loss: 1.0022, learning_rate: 3.0000e-04
+[rank0]:[W718 12:42:49.770396315 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+Process exited with code null
+Command: isonet.py denoise --star_file tomograms.star --output_dir denoise --gpuID 0,1 --ncpus 16 --arch unet-medium --pretrained_model None --pretrained_model2 None --cube_size 96 --epochs 50 --input_column rlnTomoReconstructedTomogramHalf --batch_size None --acc_batches 1 --loss_func L2 --learning_rate 0.0003 --T_max 10 --learning_rate_min 0.0003 --compile_model False --mixed_precision True --CTF_mode None --isCTFflipped False --with_predict True --split_halves False --snrfalloff 0 --deconvstrength 1 --highpassnyquist 0.02
+07-18 14:26:53, INFO     The denoise folder already exists, outputs will write into this folder
+07-18 14:26:53, INFO     Port number: 48427
+Total number of parameters: 23989825
+Preprocess tomograms:   0%|                                                   | 0/5 [00:00<?, ?it/s]Preprocess tomograms:  20%|████████▌                                  | 1/5 [00:00<00:01,  2.23it/s]Preprocess tomograms:  40%|█████████████████▏                         | 2/5 [00:00<00:01,  2.44it/s]Preprocess tomograms:  60%|█████████████████████████▊                 | 3/5 [00:01<00:00,  2.50it/s]Preprocess tomograms:  80%|██████████████████████████████████▍        | 4/5 [00:01<00:00,  2.51it/s]Preprocess tomograms: 100%|███████████████████████████████████████████| 5/5 [00:02<00:00,  2.51it/s]Preprocess tomograms: 100%|███████████████████████████████████████████| 5/5 [00:02<00:00,  2.48it/s]
+training tomograms for 10 epochs, remaining epochs 50
+Epoch 1:   0%|                                       | 0/13 [00:00<?, ?batch/s]Epoch 1:   0%|                                       | 0/13 [00:06<?, ?batch/s]
+Exception ignored in: <function _MultiProcessingDataLoaderIter.__del__ at 0x7f1b6c4c5440>
+Traceback (most recent call last):
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/utils/data/dataloader.py", line 1618, in __del__
+Exception ignored in: <function _MultiProcessingDataLoaderIter.__del__ at 0x7f55df0c9440>
+Traceback (most recent call last):
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/utils/data/dataloader.py", line 1618, in __del__
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=29, pipe_handle=28)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 132, in _main
+    self = reduction.pickle.load(from_parent)
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1118, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1218, in get_data
+KeyboardInterrupt
+    self._shutdown_workers()
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/utils/data/dataloader.py", line 1577, in _shutdown_workers
+    self._shutdown_workers()
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/utils/data/dataloader.py", line 1577, in _shutdown_workers
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 604, in denoise
+    network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/cii/software/IsoNet2/IsoNet/models/network.py", line 184, in train
+    mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, train_dataset, training_params), nprocs=self.world_size)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/multiprocessing/spawn.py", line 340, in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method="spawn")
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/multiprocessing/spawn.py", line 296, in start_processes
+    while not context.join():
+              ~~~~~~~~~~~~^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/multiprocessing/spawn.py", line 144, in join
+    ready = multiprocessing.connection.wait(
+        self.sentinels.keys(),
+        timeout=timeout,
+    )
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/connection.py", line 1148, in wait
+    ready = selector.select(timeout)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/selectors.py", line 398, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt
+    self._mark_worker_as_unavailable(worker_id, shutdown=True)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/utils/data/dataloader.py", line 1513, in _mark_worker_as_unavailable
+    assert self._workers_status[worker_id] or (
+AttributeError: '_MultiProcessingDataLoaderIter' object has no attribute '_workers_status'
+    self._mark_worker_as_unavailable(worker_id, shutdown=True)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/utils/data/dataloader.py", line 1513, in _mark_worker_as_unavailable
+    assert self._workers_status[worker_id] or (
+AttributeError: '_MultiProcessingDataLoaderIter' object has no attribute '_workers_status'
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=29, pipe_handle=33)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 5, in <module>
+    from IsoNet.utils.dict2attr import check_parse
+  File "/home/cii/software/IsoNet2/IsoNet/utils/dict2attr.py", line 6, in <module>
+    import numpy as np
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/numpy/__init__.py", line 114, in <module>
+    from numpy.__config__ import show_config
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/numpy/__config__.py", line 4, in <module>
+    from numpy._core._multiarray_umath import (
+    ...<3 lines>...
+    )
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/numpy/_core/__init__.py", line 99, in <module>
+    from . import _dtype_ctypes
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 1022, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1155, in get_code
+  File "<frozen importlib._bootstrap_external>", line 784, in _compile_bytecode
+KeyboardInterrupt
+[rank0]:[W718 14:27:08.935928913 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+Process exited with code null
+Command: isonet.py denoise --star_file tomograms.star --output_dir denoise --gpuID 0,1 --ncpus 16 --arch unet-medium --pretrained_model None --pretrained_model2 None --cube_size 96 --epochs 50 --input_column rlnTomoReconstructedTomogramHalf --batch_size None --acc_batches 1 --loss_func L2 --learning_rate 0.0003 --T_max 10 --learning_rate_min 0.0003 --compile_model False --mixed_precision True --CTF_mode None --isCTFflipped False --with_predict True --split_halves False --snrfalloff 0 --deconvstrength 1 --highpassnyquist 0.02
+07-18 14:39:32, INFO     The denoise folder already exists, outputs will write into this folder
+07-18 14:39:32, INFO     Port number: 48307
+Total number of parameters: 23989825
+Preprocess tomograms:   0%|                                                   | 0/5 [00:00<?, ?it/s]Preprocess tomograms:  20%|████████▌                                  | 1/5 [00:00<00:01,  2.77it/s]Preprocess tomograms:  40%|█████████████████▏                         | 2/5 [00:00<00:01,  2.58it/s]Preprocess tomograms:  60%|█████████████████████████▊                 | 3/5 [00:01<00:00,  2.56it/s]Preprocess tomograms:  80%|██████████████████████████████████▍        | 4/5 [00:01<00:00,  2.64it/s]Preprocess tomograms: 100%|███████████████████████████████████████████| 5/5 [00:01<00:00,  2.64it/s]Preprocess tomograms: 100%|███████████████████████████████████████████| 5/5 [00:01<00:00,  2.63it/s]
+training tomograms for 10 epochs, remaining epochs 50
+Epoch 1:   0%|                                       | 0/13 [00:00<?, ?batch/s]Epoch 1:   0%|                                       | 0/13 [00:01<?, ?batch/s]
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=29, pipe_handle=20)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 22, in <module>
+    from IsoNet.models.network import Net, DuoNet
+  File "/home/cii/software/IsoNet2/IsoNet/models/network.py", line 2, in <module>
+    import torch
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/__init__.py", line 2604, in <module>
+    from torch import _meta_registrations
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/_meta_registrations.py", line 6798, in <module>
+    activate_meta()
+    ~~~~~~~~~~~~~^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/_meta_registrations.py", line 6795, in activate_meta
+    _meta_lib_dont_use_me_use_register_meta.impl(op_overload, fn)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/library.py", line 349, in impl
+    self.m.impl(
+    ~~~~~~~~~~~^
+        name,
+        ^^^^^
+    ...<2 lines>...
+        with_keyset,
+        ^^^^^^^^^^^^
+    )
+    ^
+KeyboardInterrupt
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 604, in denoise
+    network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/cii/software/IsoNet2/IsoNet/models/network.py", line 184, in train
+    mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, train_dataset, training_params), nprocs=self.world_size)
+    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/multiprocessing/spawn.py", line 340, in spawn
+    return start_processes(fn, args, nprocs, join, daemon, start_method="spawn")
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/multiprocessing/spawn.py", line 296, in start_processes
+    while not context.join():
+              ~~~~~~~~~~~~^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/multiprocessing/spawn.py", line 144, in join
+    ready = multiprocessing.connection.wait(
+        self.sentinels.keys(),
+        timeout=timeout,
+    )
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/connection.py", line 1148, in wait
+    ready = selector.select(timeout)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/selectors.py", line 398, in select
+    fd_event_list = self._selector.poll(timeout)
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=29, pipe_handle=20)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/multiprocessing/spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 22, in <module>
+    from IsoNet.models.network import Net, DuoNet
+  File "/home/cii/software/IsoNet2/IsoNet/models/network.py", line 2, in <module>
+    import torch
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/__init__.py", line 2604, in <module>
+    from torch import _meta_registrations
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/_meta_registrations.py", line 1842, in <module>
+    @register_meta(aten.reflection_pad2d)
+     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/_meta_registrations.py", line 54, in wrapper
+    pytree.tree_map_(register, op)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/utils/_pytree.py", line 1024, in tree_map_
+    deque(map(func, *flat_args), maxlen=0)  # consume and exhaust the iterable
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/_meta_registrations.py", line 52, in register
+    _add_op_to_registry(meta_table, op, fn)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/torch/_decomp/__init__.py", line 99, in _add_op_to_registry
+    if torch._C._dispatch_has_kernel(op_overload.name()):
+       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+[rank0]:[W718 14:39:42.121612927 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+Process exited with code null

@@ -3,9 +3,15 @@ import { electronAPI } from '@electron-toolkit/preload'
 ipcRenderer.setMaxListeners(100)
 // Custom APIs for renderer
 const api = {
-    selectFile(property) {
-        const folderPath = ipcRenderer.invoke('select-file', property)
-        return folderPath
+    // selectFile(property) {
+    //     const folderPath = ipcRenderer.invoke('select-file', property)
+    //     return folderPath
+    // },
+    selectFile: async (property) => {
+        return await ipcRenderer.invoke('select-file', property)
+    },
+    readFile: async (filePath) => {
+        return await ipcRenderer.invoke('read-file', filePath)
     },
     // loadStar(star_name) {
     //     ipcRenderer.send('load_star', star_name)

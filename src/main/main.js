@@ -52,6 +52,16 @@ ipcMain.handle('select-file', async (_, property) => {
     return null
 })
 
+ipcMain.handle('read-file', async (_, filePath) => {
+    try {
+        const data = await fs.promises.readFile(filePath, 'utf-8')
+        return data
+    } catch (error) {
+        console.error('Failed to read file:', error)
+        return null
+    }
+})
+
 ipcMain.on('update_star', (event, data) => {
     const filePath = '.to_star.json'
     let updateStarProcess = null // To hold the reference of the running Python process
