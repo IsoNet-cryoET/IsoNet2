@@ -42,6 +42,7 @@ ODD
 sum*
 corrected_tomos
 deconv
+denoise/
 mask
 *.mrc
 log.txt
