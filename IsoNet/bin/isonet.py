@@ -45,7 +45,7 @@ class ISONET:
                      tilt_min: float=-60,
                      tilt_max: float=60,
                      tilt_step: float=3,
-                     create_average: bool=True,
+                     create_average: bool=False,
                      number_subtomos = 1000):
         """
         \n
@@ -521,7 +521,7 @@ class ISONET:
                    pretrained_model: str=None,
                    pretrained_model2: str=None,
 
-                   cube_size: int=80,
+                   cube_size: int=96,
                    epochs: int=50,
 
                    input_column: str = 'rlnTomoReconstructedTomogramHalf',
@@ -633,7 +633,7 @@ class ISONET:
                    pretrained_model: str=None,
                    pretrained_model2: str=None,
 
-                   cube_size: int=80,
+                   cube_size: int=96,
                    epochs: int=50,
 
                    
