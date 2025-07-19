@@ -1,6 +1,37 @@
-import React from 'react'
 import ProgressBar from './ProgressBar'
+import React, { useEffect, useState } from 'react'
 
+const ImageFromPath = ({ label, relativePath }) => {
+    const [imgData, setImgData] = useState(null)
+
+    useEffect(() => {
+        window.api.getImageData(relativePath).then((res) => {
+            if (res.success) setImgData(res.content)
+            else console.error(`Error loading image ${relativePath}: ${res.error}`)
+        })
+    }, [relativePath])
+
+    return (
+        <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '12px', marginBottom: '4px' }}>{label}</div>
+            {imgData ? (
+                <img
+                    src={imgData}
+                    alt={label}
+                    style={{
+                        width: '300px',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px'
+                    }}
+                />
+            ) : (
+                <div style={{ width: '180px', height: '135px', background: '#eee' }}>
+                    Loading...
+                </div>
+            )}
+        </div>
+    )
+}
 export const renderContent = (messageList) => {
     if (!messageList) return null
     return messageList.map((msg) => {
@@ -8,6 +39,32 @@ export const renderContent = (messageList) => {
 
         if (msg.type === 'bar') {
             return <ProgressBar currentProgress={msg} />
+        } else if (msg.type === 'power_spectrum') {
+            const { epoch, folder } = msg
+            const basePath = `${folder}/`
+            const images = [
+                { label: 'Power Spectrum', name: `power_epoch_${epoch}.png` },
+                { label: 'XY Slice', name: `xy_epoch_${epoch}.png` },
+                { label: 'XZ Slice', name: `xz_epoch_${epoch}.png` },
+                { label: 'YZ Slice', name: `yz_epoch_${epoch}.png` }
+            ]
+            return (
+                <div
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: '10px',
+                        marginBottom: '10px'
+                    }}
+                >
+                    {images.map((img, i) => (
+                        <div key={i} style={{ textAlign: 'center' }}>
+                            <ImageFromPath relativePath={`${basePath}${img.name}`} />
+                            <div>{img.label}</div>
+                        </div>
+                    ))}
+                </div>
+            )
         } else if (msg.type === 'text') {
             return (
                 <div style={{ marginBottom: '10px' }}>

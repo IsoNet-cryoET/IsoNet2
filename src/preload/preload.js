@@ -7,6 +7,7 @@ const api = {
     //     const folderPath = ipcRenderer.invoke('select-file', property)
     //     return folderPath
     // },
+    getImageData: (relativePath) => ipcRenderer.invoke('get-image-data', relativePath),
     selectFile: async (property) => {
         return await ipcRenderer.invoke('select-file', property)
     },

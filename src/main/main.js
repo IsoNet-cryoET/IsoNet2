@@ -3,6 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { handleProcess } from './process_handler'
 const { spawn } = require('child_process')
+const path = require('path')
 const fs = require('fs')
 
 function createWindow() {
@@ -59,6 +60,19 @@ ipcMain.handle('read-file', async (_, filePath) => {
     } catch (error) {
         console.error('Failed to read file:', error)
         return null
+    }
+})
+
+ipcMain.handle('get-image-data', async (event, relativePath) => {
+    const fullPath = path.resolve(process.cwd(), relativePath)
+    try {
+        const data = fs.readFileSync(fullPath)
+        return {
+            success: true,
+            content: `data:image/png;base64,${data.toString('base64')}`
+        }
+    } catch (err) {
+        return { success: false, error: err.message }
     }
 })
 
