@@ -19,7 +19,7 @@ const ImageFromPath = ({ label, relativePath }) => {
                     src={imgData}
                     alt={label}
                     style={{
-                        width: '300px',
+                        width: '100%',
                         border: '1px solid #ccc',
                         borderRadius: '4px'
                     }}
@@ -42,27 +42,51 @@ export const renderContent = (messageList) => {
         } else if (msg.type === 'power_spectrum') {
             const { epoch, folder } = msg
             const basePath = `${folder}/`
-            const images = [
-                { label: 'Power Spectrum', name: `power_epoch_${epoch}.png` },
-                { label: 'XY Slice', name: `xy_epoch_${epoch}.png` },
-                { label: 'XZ Slice', name: `xz_epoch_${epoch}.png` },
-                { label: 'YZ Slice', name: `yz_epoch_${epoch}.png` }
-            ]
+
             return (
                 <div
                     style={{
                         display: 'flex',
-                        flexDirection: 'row',
+                        flexDirection: 'column',
                         gap: '10px',
-                        marginBottom: '10px'
+                        alignItems: 'center',
+                        marginBottom: '20px'
                     }}
                 >
-                    {images.map((img, i) => (
-                        <div key={i} style={{ textAlign: 'center' }}>
-                            <ImageFromPath relativePath={`${basePath}${img.name}`} />
-                            <div>{img.label}</div>
+                    {/* XY Slice - Full width or 2x relative size */}
+                    <div style={{ width: '50%' }}>
+                        <ImageFromPath
+                            relativePath={`${basePath}xy_epoch_${epoch}.png`}
+                            style={{ width: '100%', display: 'block' }}
+                        />
+                        <div style={{ textAlign: 'center' }}>XY Slice</div>
+                    </div>
+
+                    {/* XZ + Power Spectrum Row */}
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'row',
+                            justifyContent: 'center',
+                            gap: '10px',
+                            width: '60%'
+                        }}
+                    >
+                        <div style={{ flex: 1 }}>
+                            <ImageFromPath
+                                relativePath={`${basePath}xz_epoch_${epoch}.png`}
+                                style={{ width: '100%', display: 'block' }}
+                            />
+                            <div style={{ textAlign: 'center' }}>XZ Slice</div>
                         </div>
-                    ))}
+                        <div style={{ flex: 1 }}>
+                            <ImageFromPath
+                                relativePath={`${basePath}power_epoch_${epoch}.png`}
+                                style={{ width: '100%', display: 'block' }}
+                            />
+                            <div style={{ textAlign: 'center' }}>Power Spectrum</div>
+                        </div>
+                    </div>
                 </div>
             )
         } else if (msg.type === 'text') {

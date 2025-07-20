@@ -55847,3 +55847,377 @@ Traceback (most recent call last):
          ~~~~^^^^^^^^^^^^
 IsADirectoryError: [Errno 21] Is a directory: '.'
 Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
+Command: isonet.py star2json --json_file .to_node.json --star_file 
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1080, in <module>
+    exit(main())
+         ~~~~^^
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 1076, in main
+    fire.Fire(ISONET)
+    ~~~~~~~~~^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 135, in Fire
+    component_trace = _Fire(component, args, parsed_flag_args, context, name)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 468, in _Fire
+    component, remaining_args = _CallAndUpdateTrace(
+                                ~~~~~~~~~~~~~~~~~~~^
+        component,
+        ^^^^^^^^^^
+    ...<2 lines>...
+        treatment='class' if is_class else 'routine',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        target=component.__name__)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
+    component = fn(*varargs, **kwargs)
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 170, in star2json
+    star = starfile.read(star_file)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/functions.py", line 43, in read
+    parser = StarParser(filename, n_blocks_to_read=read_n_blocks, parse_as_string=parse_as_string)
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 42, in __init__
+    self.n_lines_in_file = count_lines(self.filename)
+                           ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/home/cii/anaconda3/envs/torch_cuda12.6_glados_py3.13/lib/python3.13/site-packages/starfile/parser.py", line 155, in count_lines
+    with open(file, 'rb') as f:
+         ~~~~^^^^^^^^^^^^
+IsADirectoryError: [Errno 21] Is a directory: '.'
+Process exited with code 1
