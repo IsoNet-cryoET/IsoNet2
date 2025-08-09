@@ -1,0 +1,44 @@
+prepare_star:
+
+EVN-ODD:
+isonet.py prepare_star -e tomograms/EVN -o tomograms/ODD --create_average True (good)
+
+single tomograms input:
+isonet.py prepare_star sum_even_odd_tomograms -s tomograms_single.star (good)
+
+devonv:
+isonet.py deconv tomograms_single.star -o deconv1 
+(ERROR: The argument '-o' is ambiguous as it could refer to any of the following arguments: ['output_dir', 'overlap_rate'])
+
+isonet.py deconv tomograms_single.star --output_dir deconv1 (good)
+FIXED: the default SNR fall off is 0 which should be 1.
+
+make_mask:
+isonet.py make_mask tomograms_single.star (good)
+
+isonet.py make_mask tomograms_single.star -d 70 (good)
+
+denoise:
+isonet.py denoise tomograms.star --gpuID 0,1 (runs)
+
+isonet.py denoise tomograms.star --gpuID 0,1 (runs)
+
+Current effort:
+denoise with CTF and with CTF intact until first peak
+
+if CTF_mode is "None": no ctf correction
+if CTF_mode is "network": CTF approximated within network. likely to be preferred
+if CTF_mode is "wiener": do amplititude and phase correction
+if CTF_mode is "phase_only": do phase correction
+
+generate_mask:
+1. slabify
+2. flytomo
+3. coordinate based
+4. user defined segmentation, membrain, dragonfly
+5. IsoNet1
+
+isonet.py slabify
+isonet.py make_mask option="slabify" parameters
+isonet.py make_mask option="density based" parameters
+isonet.py make_mask option="coordinate-based" parameters

@@ -85,14 +85,11 @@ class Train_sets_n2n(Dataset):
             if self.split in ["top", "bottom"]:
                 n_samples = n_samples // 2
             self.n_samples_per_tomo.append(n_samples)
-            
             mask = self._load_statistics_and_mask(row, column_name_list)
-            
             if 'rlnBoxFile' not in row or row['rlnBoxFile'] in [None, "None"]:
                 coords = self.create_random_coords(mask.shape, mask, n_samples)
             else:
                 coords = np.loadtxt(row['rlnBoxFile'])
-            
             self.coords.append(coords)
 
             min_angle, max_angle, tilt_step = row['rlnTiltMin'], row['rlnTiltMax'], row['rlnTiltStep']
@@ -180,9 +177,11 @@ class Train_sets_n2n(Dataset):
         """Compute the missing wedge mask for given tilt angles."""
         # defocus in Anstron convert to um
         defocus = row['rlnDefocus']/10000.
-        from IsoNet.utils.CTF import get_wiener_3d,get_ctf_3d
-        ctf3d = get_ctf_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
-                                    phaseflipped=False, phaseshift=0, amplitude=row['rlnAmplitudeContrast'],length=self.cube_size)
+        from IsoNet.utils.CTF import get_wiener_3d
+        from IsoNet.utils.CTF_new import get_ctf3d
+        ctf3d = get_ctf3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
+                                    phaseshift=0, amplitude=row['rlnAmplitudeContrast'],bfactor=0, \
+                                        shape=[self.cube_size,self.cube_size,self.cube_size], clip_first_peak=True)
         wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
                                   snrfalloff=self.snrfalloff, deconvstrength=self.deconvstrength, highpassnyquist=self.highpassnyquist, \
                                     phaseflipped=False, phaseshift=0, amplitude=row['rlnAmplitudeContrast'], length=self.cube_size)

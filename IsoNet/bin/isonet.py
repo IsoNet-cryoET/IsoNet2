@@ -177,7 +177,7 @@ class ISONET:
     def deconv(self, star_file: str,
         output_dir:str="./deconv",
         input_column: str="rlnTomoName",
-        snrfalloff: float=0,
+        snrfalloff: float=1,
         deconvstrength: float=1,
         highpassnyquist: float=0.02,
         chunk_size: int=None,
@@ -304,7 +304,7 @@ class ISONET:
                 gpuID: str = None, 
                 input_column: str = "rlnDeconvTomoName",
                 apply_mw_x1: bool=True, 
-                correct_CTF: bool=False,
+                # correct_CTF: bool=False,
                 isCTFflipped: bool=False,
                 padding_factor: float=1.5,
                 tomo_idx=None):
@@ -332,6 +332,7 @@ class ISONET:
             network = Net(pretrained_model=model, state='predict')
 
         cube_size = network.cube_size
+        CTF_mode = network.CTF_mode
 
         def predict_row(i, row, new_star):
             # 1) Build missing‑wedge mask if requested
@@ -343,21 +344,22 @@ class ISONET:
             )
 
             # 2) Optionally incorporate CTF into the mask
-            if correct_CTF and not isCTFflipped:
-                defocus = row.rlnDefocus / 10000.0
-                ctf3d = np.sign(
-                    get_ctf_3d(
-                        angpix=row.rlnPixelSize,
-                        voltage=row.rlnVoltage,
-                        cs=row.rlnSphericalAberration,
-                        defocus=defocus,
-                        phaseflipped=False,
-                        phaseshift=0,
-                        amplitude=row.rlnAmplitudeContrast,
-                        length=cube_size
+            if CTF_mode == "wiener" or CTF_mode == "phase_only":
+                if isCTFflipped == False:
+                    defocus = row.rlnDefocus / 10000.0
+                    ctf3d = np.sign(
+                        get_ctf_3d(
+                            angpix=row.rlnPixelSize,
+                            voltage=row.rlnVoltage,
+                            cs=row.rlnSphericalAberration,
+                            defocus=defocus,
+                            phaseflipped=False,
+                            phaseshift=0,
+                            amplitude=row.rlnAmplitudeContrast,
+                            length=cube_size
+                        )
                     )
-                )
-                F_mask = ctf3d * F_mask if F_mask is not None else ctf3d
+                    F_mask = ctf3d * F_mask if F_mask is not None else ctf3d
 
             # 3) Decide which tomo to feed in
             if network.method in ['regular', 'isonet2']:
