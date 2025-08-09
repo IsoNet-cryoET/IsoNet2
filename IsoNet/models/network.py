@@ -117,11 +117,11 @@ class Net:
 
 
     def load(self, path):
-        print(path)
         checkpoint = torch.load(path, weights_only=False)
         self.method = checkpoint['method']
         self.arch = checkpoint['arch']
         self.cube_size = checkpoint['cube_size']
+        self.CTF_mode = checkpoint['CTF_mode']
         self.initialize(self.method, self.arch, self.cube_size)
 
         self.model.load_state_dict(checkpoint['model_state_dict'])
