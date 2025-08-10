@@ -110,18 +110,23 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 optimizer.zero_grad(set_to_none=True) 
                 x1, x2, mw, ctf, wiener, noise_vol = process_batch(batch)
 
+
                 if 'CTF_mode' in training_params and training_params['CTF_mode'] not in [None, "None"]:
+                    
                     if training_params['CTF_mode'] == "phase_only":
-                        if not training_params["isCTFflipped"]:
+                        # the result is all x1 and x2 are phaseflipped
+                        if not training_params["phaseflipped"]:
                             x1 = apply_F_filter_torch(x1, torch.sign(ctf))
                             x2 = apply_F_filter_torch(x2, torch.sign(ctf))
-                    elif training_params['CTF_mode'] in ["amplititude", 'wiener']:
-                        if not training_params["isCTFflipped"]:
-                            print(training_params['CTF_mode'])
+
+                    elif training_params['CTF_mode'] in ['wiener']:
+                        # the result is x1 is phaseflipped and x2 is wiener filtered
+                        if not training_params["phaseflipped"]:
                             x1 = apply_F_filter_torch(x1, torch.sign(ctf))
-                            x2 = apply_F_filter_torch(x2, torch.abs(wiener))
+                            x2 = apply_F_filter_torch(x2, wiener)
                         else:
-                            x2 = apply_F_filter_torch(x2,wiener)
+                            x2 = apply_F_filter_torch(x2, torch.abs(wiener))
+                    
 
                 if training_params['method'] in ["n2n", "regular"]:                       
                     with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
@@ -129,7 +134,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         loss = loss_func(x2, preds)
 
                     if training_params['CTF_mode']=='network':
-                        if training_params["isCTFflipped"]:
+                        if training_params["phaseflipped"]:
                             ctf = abs(ctf)
                         preds = preds.to(torch.float32)
                         preds = apply_F_filter_torch(preds, ctf)
@@ -154,115 +159,75 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
 
-                    option=2
-                    if option == 1:
-                        x1 = apply_F_filter_torch(x1, mw)
-                        x2 = apply_F_filter_torch(x2, mw)
-                        x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-                        x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
+                    x1 = apply_F_filter_torch(x1, mw)
+                    x2 = apply_F_filter_torch(x2, mw)
+                    x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
 
-                        with torch.no_grad():
-                            with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                                preds = model(x1)
-                                preds2 = model(x2)
-                        preds = preds.to(torch.float32)
-                        preds2 = preds2.to(torch.float32)
-
-                        if 'CTF_mode' in training_params and training_params['CTF_mode'] not in [None, "None"]:
+                    with torch.no_grad():
+                        with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
+                            preds = model(x1)
+                    preds = preds.to(torch.float32)
+                    
+                    if 'CTF_mode' in training_params:
+                        if training_params['CTF_mode'] in ['wiener', "phase_only"]:
+                            #  amplititute modulation
                             preds = apply_F_filter_torch(preds, torch.abs(ctf))
 
-                        subtomos1 = apply_F_filter_torch(preds, 1-mw) + x1
-                        rotated_subtomo1 = rotate_func(subtomos1, rot)
+                        if training_params['CTF_mode'] == 'network':
+                            if training_params['phaseflipped']:
+                                #  amplititute modulation
+                                preds = apply_F_filter_torch(preds, torch.abs(ctf))
+                            else:
+                                #  amplititute and phase modulation
+                                preds = apply_F_filter_torch(preds, ctf)
 
-                        rotated_subtomo1_sd1 = rotated_subtomo1.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                        rotated_subtomo1 = rotated_subtomo1/rotated_subtomo1_sd1 * x1_std_org
+                    subtomos = apply_F_filter_torch(preds, 1-mw) + x1
+                    rotated_subtomo = rotate_func(subtomos, rot)
+                    mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+                    
+                    mw_rotated_subtomos_std = mw_rotated_subtomos.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                    mw_rotated_subtomos = mw_rotated_subtomos/mw_rotated_subtomos_std * x1_std_org
 
-                        mw_rotated_subtomos1=apply_F_filter_torch(rotated_subtomo1,mw)
-                        mw_rotated_subtomos_std1 = mw_rotated_subtomos1.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                        mw_rotated_subtomos1 = mw_rotated_subtomos1/mw_rotated_subtomos_std1 * x1_std_org
+                    rotated_mw = rotate_func(mw, rot)
+                    x2_rot = rotate_func(x2, rot)
+                    
 
-                        subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
-                        rotated_subtomo2 = rotate_func(subtomos2, rot)
+                    if training_params["noise_level"] > 0:
+                        noise_vol = apply_F_filter_torch(noise_vol, mw)
+                        mw_rotated_subtomos += x1_std_org * noise_vol * training_params["noise_level"] / torch.std(noise_vol, correction=0) * random.random()
 
-                        rotated_subtomo2_sd2 = rotated_subtomo2.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                        rotated_subtomo2 = rotated_subtomo2/rotated_subtomo2_sd2 * x2_std_org 
+                    with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
+                        pred_y = model(mw_rotated_subtomos).to(torch.float32)
 
-                        mw_rotated_subtomos2=apply_F_filter_torch(rotated_subtomo2,mw)
-                        mw_rotated_subtomos_std2 = mw_rotated_subtomos2.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                        mw_rotated_subtomos2 = mw_rotated_subtomos2/mw_rotated_subtomos_std2 * x2_std_org                    
-                        
+                        if training_params['CTF_mode'] == 'network':
+                            if training_params['phaseflipped']:
+                                preds = apply_F_filter_torch(preds, torch.abs(ctf))
+                            else:
+                                preds = apply_F_filter_torch(preds, ctf)
 
-                        if training_params["noise_level"] > 0:
-                            noise_vol = apply_F_filter_torch(noise_vol, mw)
-                            mw_rotated_subtomos += x1_std_org * noise_vol * training_params["noise_level"] / torch.std(noise_vol, correction=0) * random.random()
+                        if rank == 0 and i_batch%100 == 0 :
+                            debug_matrix(preds, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
+                            debug_matrix(pred_y, filename=f"{training_params['output_dir']}/debug_pred_y_{i_batch}.mrc")
+                            debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")
+                            debug_matrix(mw_rotated_subtomos, filename=f"{training_params['output_dir']}/debug_mw_rotated_subtomos_{i_batch}.mrc")
+                            debug_matrix(mw, filename=f"{training_params['output_dir']}/debug_mw.mrc")
+                            debug_matrix(rotated_mw, filename=f"{training_params['output_dir']}/debug_rotated_mw.mrc")
 
-                        with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
-                            pred_y1 = model(mw_rotated_subtomos1).to(torch.float32)
-                            pred_y2 = model(mw_rotated_subtomos2).to(torch.float32)
-
-                            if training_params['method'] ==  'isonet2':
-                                loss = loss_func(pred_y,rotated_subtomo)
-                                outside_mw_loss = loss
-                                inside_mw_loss = loss                            
-                            elif training_params['method'] ==  'isonet2-n2n':
-                                outside_mw_loss = loss_func(pred_y1, rotated_subtomo2)
-                                inside_mw_loss = loss_func(pred_y2, rotated_subtomo1)
-                                loss = outside_mw_loss + inside_mw_loss
-
-                    if option == 2:
-                        x1 = apply_F_filter_torch(x1, mw)
-                        x2 = apply_F_filter_torch(x2, mw)
-                        x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-
-                        with torch.no_grad():
-                            with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                                preds = model(x1)
-                        preds = preds.to(torch.float32)
-
-                        if 'CTF_mode' in training_params and training_params['CTF_mode'] not in [None, "None"]:
-                            preds = apply_F_filter_torch(preds, torch.abs(ctf))
-
-
-                        subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                        rotated_subtomo = rotate_func(subtomos, rot)
-                        mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-                        
-                        mw_rotated_subtomos_std = mw_rotated_subtomos.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                        mw_rotated_subtomos = mw_rotated_subtomos/mw_rotated_subtomos_std * x1_std_org
-
-                        rotated_mw = rotate_func(mw, rot)
-                        x2_rot = rotate_func(x2, rot)
-                        
-
-                        if training_params["noise_level"] > 0:
-                            noise_vol = apply_F_filter_torch(noise_vol, mw)
-                            mw_rotated_subtomos += x1_std_org * noise_vol * training_params["noise_level"] / torch.std(noise_vol, correction=0) * random.random()
-
-                        with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
-                            pred_y = model(mw_rotated_subtomos).to(torch.float32)
-                            if rank == 0 and i_batch%100 == 0 :
-                                debug_matrix(preds, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
-                                debug_matrix(pred_y, filename=f"{training_params['output_dir']}/debug_pred_y_{i_batch}.mrc")
-                                debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")
-                                debug_matrix(mw_rotated_subtomos, filename=f"{training_params['output_dir']}/debug_mw_rotated_subtomos_{i_batch}.mrc")
-                                debug_matrix(mw, filename=f"{training_params['output_dir']}/debug_mw.mrc")
-                                debug_matrix(rotated_mw, filename=f"{training_params['output_dir']}/debug_rotated_mw.mrc")
-
-                            if training_params['method'] ==  'isonet2':
-                                loss = loss_func(pred_y,rotated_subtomo)
-                                outside_mw_loss = loss
-                                inside_mw_loss = loss                            
-                            elif training_params['method'] ==  'isonet2-n2n':
-                                # outside_mw_loss = loss_func(rot_subtomo2, pred_y)
-                                # inside_mw_loss = outside_mw_loss
-                                outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
-                                # outside_mw_loss2, inside_mw_loss2 = masked_loss(pred_y, rotated_subtomo, rotated_mw, mw, loss_func = loss_func)
-                                # outside_mw_loss2, inside_mw_loss2 = masked_loss(x1_rot, x2_rot, rotated_mw, mw, loss_func = loss_func)
-                                # print("x1",outside_mw_loss2,inside_mw_loss2)
-                                # outside_mw_loss2, inside_mw_loss2 = masked_loss(second_x1_rot, x2_rot, rotated_mw, mw, loss_func = loss_func)
-                                # print("second_x1",outside_mw_loss2,inside_mw_loss2)
-                                # inside_mw_loss = inside_mw_loss + inside_mw_loss2 # test_6
-                                loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss# + consistency_loss                             
+                        if training_params['method'] ==  'isonet2':
+                            loss = loss_func(pred_y,rotated_subtomo)
+                            outside_mw_loss = loss
+                            inside_mw_loss = loss                            
+                        elif training_params['method'] ==  'isonet2-n2n':
+                            # outside_mw_loss = loss_func(rot_subtomo2, pred_y)
+                            # inside_mw_loss = outside_mw_loss
+                            outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
+                            # outside_mw_loss2, inside_mw_loss2 = masked_loss(pred_y, rotated_subtomo, rotated_mw, mw, loss_func = loss_func)
+                            # outside_mw_loss2, inside_mw_loss2 = masked_loss(x1_rot, x2_rot, rotated_mw, mw, loss_func = loss_func)
+                            # print("x1",outside_mw_loss2,inside_mw_loss2)
+                            # outside_mw_loss2, inside_mw_loss2 = masked_loss(second_x1_rot, x2_rot, rotated_mw, mw, loss_func = loss_func)
+                            # print("second_x1",outside_mw_loss2,inside_mw_loss2)
+                            # inside_mw_loss = inside_mw_loss + inside_mw_loss2 # test_6
+                            loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss# + consistency_loss                             
                             
 
                 loss = loss / training_params['acc_batches']
@@ -382,109 +347,58 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
         dist.barrier()
         dist.destroy_process_group()
 
-    # output = torch.zeros(steps_per_rank,data.shape[1],data.shape[2],data.shape[3],data.shape[4]).to(rank)
-    # with torch.no_grad():
-    #     for i in tqdm(range(rank * steps_per_rank, min((rank + 1) * steps_per_rank, num_data_points)),disable=(rank!=0)):
-    #         batch_input  = data[i:i+1]
-    #         batch_output  = model(batch_input.to(rank))
-    #         output[i - rank * steps_per_rank] = batch_output
-    # gathered_outputs = [torch.zeros_like(output) for _ in range(world_size)]
-    # dist.all_gather(gathered_outputs, output)
-    # dist.barrier()
-    # if rank == 0:
-    #     gathered_outputs = torch.cat(gathered_outputs).cpu().numpy()
-    #     gathered_outputs = gathered_outputs[:data.shape[0]]
-    #     np.save(tmp_data_path,gathered_outputs)
-    # dist.destroy_process_group()
 
 
-    # reverse_wedge_preds = apply_F_filter_torch(preds, 1-mw)
-                    # attempt="test5"
-                    # if attempt == "test1":
-                    #     if training_params['apply_mw_x1']:
-                    #         subtomos =  apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
-                    #         subtomos2 = apply_F_filter_torch(preds2, 1-mw) + apply_F_filter_torch(x2, mw)
-                    #     else:
-                    #         subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                    #         subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
+                        # if option == 1:
+                        #     x1 = apply_F_filter_torch(x1, mw)
+                        #     x2 = apply_F_filter_torch(x2, mw)
+                        #     x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
+                        #     x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
 
-                    #     # second_x1 = apply_F_filter_torch(subtomos, mw)
-                    #     rotated_subtomo = rotate_func(subtomos, rot)
-                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-                    #     # rotated_mw = rotate_func(mw, rot)
-                    #     # x2_rot = rotate_func(x2, rot)
-                    #     rot_subtomo2 = rotate_func(subtomos2, rot)
-                    #     # mw_x2 = apply_F_filter_torch(x2_rot,mw)
-                    #     # x1_rot = rotate_func(x1, rot)
-                    #     # second_x1_rot = rotate_func(second_x1, rot)
+                        #     with torch.no_grad():
+                        #         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
+                        #             preds = model(x1)
+                        #             preds2 = model(x2)
+                        #     preds = preds.to(torch.float32)
+                        #     preds2 = preds2.to(torch.float32)
 
-                    #     # mean_new = mw_rotated_subtomos.mean(dim=(-3,-2,-1), keepdim=True)
-                    #     # std_new = mw_rotated_subtomos.std(dim=(-3,-2,-1), keepdim=True)
-                    #     # mw_rotated_subtomos = (mw_rotated_subtomos - mean_new)/ std_new\
-                    #     #                             *x1_std_org + x1_mean_org
-                    # elif attempt == "test2":
-                    #     noise1 = x1 - apply_F_filter_torch(preds, mw)
-                    #     rotated_signal1 = rotate_func(preds, rot)
-                    #     mw_rotated_signal1 = apply_F_filter_torch(rotated_signal1, mw)
-                    #     mw_rotated_subtomos =  mw_rotated_signal1 + noise1
+                        #     if 'CTF_mode' in training_params and training_params['CTF_mode'] not in [None, "None"]:
+                        #         preds = apply_F_filter_torch(preds, torch.abs(ctf))
 
-                    #     subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
-                    #     rot_subtomo2 = rotate_func(subtomos2, rot)
+                        #     subtomos1 = apply_F_filter_torch(preds, 1-mw) + x1
+                        #     rotated_subtomo1 = rotate_func(subtomos1, rot)
 
-                    # elif attempt == "test3":
-                    #     noise1 = x1 - apply_F_filter_torch(preds, mw)
-                    #     rotated_signal1 = rotate_func(preds, rot)
-                    #     mw_rotated_signal1 = apply_F_filter_torch(rotated_signal1, mw)
-                    #     mw_rotated_subtomos =  mw_rotated_signal1 + noise1
+                        #     rotated_subtomo1_sd1 = rotated_subtomo1.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                        #     rotated_subtomo1 = rotated_subtomo1/rotated_subtomo1_sd1 * x1_std_org
 
-                    #     noise2 = x2 - apply_F_filter_torch(preds2, mw)
-                    #     rotated_signal2 = rotate_func(preds2, rot)
-                    #     rot_subtomo2 = rotated_signal2 + noise2
+                        #     mw_rotated_subtomos1=apply_F_filter_torch(rotated_subtomo1,mw)
+                        #     mw_rotated_subtomos_std1 = mw_rotated_subtomos1.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                        #     mw_rotated_subtomos1 = mw_rotated_subtomos1/mw_rotated_subtomos_std1 * x1_std_org
 
-                    # elif attempt == "test4":
-                    #     subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                    #     rotated_subtomo = rotate_func(subtomos, rot)
-                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+                        #     subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
+                        #     rotated_subtomo2 = rotate_func(subtomos2, rot)
 
-                    #     subtomos2 = apply_F_filter_torch(preds2, 1-mw) + x2
-                    #     rot_subtomo2 = rotate_func(subtomos2, rot)
-                    #     # mw_rotated_subtomos2=apply_F_filter_torch(rot_subtomo2,mw)
-                    # elif attempt == "test5":
-                    #     subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                    #     rotated_subtomo = rotate_func(subtomos, rot)
-                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+                        #     rotated_subtomo2_sd2 = rotated_subtomo2.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                        #     rotated_subtomo2 = rotated_subtomo2/rotated_subtomo2_sd2 * x2_std_org 
 
-                    #     rotated_mw = rotate_func(mw, rot)
-                    #     x2_rot = rotate_func(x2, rot)
+                        #     mw_rotated_subtomos2=apply_F_filter_torch(rotated_subtomo2,mw)
+                        #     mw_rotated_subtomos_std2 = mw_rotated_subtomos2.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                        #     mw_rotated_subtomos2 = mw_rotated_subtomos2/mw_rotated_subtomos_std2 * x2_std_org                    
+                            
 
-                    # elif attempt == "test8":
-                    #     if random.random()<0.5:
-                    #         noise1 = x1 - apply_F_filter_torch(preds, mw)
-                    #         rotated_signal1 = rotate_func(preds, rot)
-                    #         mw_rotated_signal1 = apply_F_filter_torch(rotated_signal1, mw)
-                    #         mw_rotated_subtomos =  mw_rotated_signal1 + noise1
-                    #     else:
-                    #         subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                    #         rotated_subtomo = rotate_func(subtomos, rot)
-                    #         mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+                        #     if training_params["noise_level"] > 0:
+                        #         noise_vol = apply_F_filter_torch(noise_vol, mw)
+                        #         mw_rotated_subtomos += x1_std_org * noise_vol * training_params["noise_level"] / torch.std(noise_vol, correction=0) * random.random()
 
-                    #     rotated_mw = rotate_func(mw, rot)
-                    #     x2_rot = rotate_func(x2, rot)
+                        #     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
+                        #         pred_y1 = model(mw_rotated_subtomos1).to(torch.float32)
+                        #         pred_y2 = model(mw_rotated_subtomos2).to(torch.float32)
 
-                    # elif attempt == "test9":
-                    #     subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                    #     rotated_subtomo = rotate_func(subtomos, rot)
-                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-
-                    #     rotated_mw = rotate_func(mw, rot)
-                    #     x2_rot = rotate_func(x2, rot)
-
-                    # elif attempt == "test10":
-                    #     o1 = apply_F_filter_torch(preds, mw)
-                    #     subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                    #     rotated_subtomo = rotate_func(subtomos, rot)
-                    #     mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
-                    #     consistency_loss = loss_func(o1, x2)
-
-                    #     rotated_mw = rotate_func(mw, rot)
-                    #     x2_rot = rotate_func(x2, rot)
+                        #         if training_params['method'] ==  'isonet2':
+                        #             loss = loss_func(pred_y,rotated_subtomo)
+                        #             outside_mw_loss = loss
+                        #             inside_mw_loss = loss                            
+                        #         elif training_params['method'] ==  'isonet2-n2n':
+                        #             outside_mw_loss = loss_func(pred_y1, rotated_subtomo2)
+                        #             inside_mw_loss = loss_func(pred_y2, rotated_subtomo1)
+                        #             loss = outside_mw_loss + inside_mw_loss

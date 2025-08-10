@@ -304,8 +304,7 @@ class ISONET:
                 gpuID: str = None, 
                 input_column: str = "rlnDeconvTomoName",
                 apply_mw_x1: bool=True, 
-                # correct_CTF: bool=False,
-                isCTFflipped: bool=False,
+                phaseflipped: bool=False,
                 padding_factor: float=1.5,
                 tomo_idx=None):
         """
@@ -345,7 +344,7 @@ class ISONET:
 
             # 2) Optionally incorporate CTF into the mask
             if CTF_mode == "wiener" or CTF_mode == "phase_only":
-                if isCTFflipped == False:
+                if phaseflipped == False:
                     defocus = row.rlnDefocus / 10000.0
                     ctf3d = np.sign(
                         get_ctf_3d(
@@ -402,115 +401,6 @@ class ISONET:
             desc="Predict",
             row_processor=predict_row
         )
-        # logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',
-        # datefmt="%m-%d %H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])
-
-
-        # from IsoNet.models.network import Net,DuoNet
-        # from IsoNet.utils.fileio import write_mrc
-        # import starfile
-        # import numpy as np
-        # from IsoNet.utils.processing import normalize
-        # if model2 not in ['None', None]:
-        #     network = DuoNet(pretrained_model1=model, pretrained_model2=model2,state='predict')
-        # else:
-        #     network = Net(pretrained_model=model,state='predict')
-        # create_folder(output_dir, remove=False)
-        # cube_size = network.cube_size
-        # inner_cube_size = cube_size//3*2
-        # star = starfile.read(star_file)
-
-        # out_column = "rlnCorrectedTomoName"
-        # if network.method == 'n2n':
-        #     out_column = "rlnDenoisedTomoName"
-        #     # out_column1 = "rlnDenoisedTomoHalf1"
-        #     # out_column2 = "rlnDenoisedTomoHalf2"
-
-        # if out_column not in star.columns:
-        #     star[out_column] = None
-
-        # def normalize_and_predict(network_model, tomo_name, F_mask=None):
-        #     tomo, _ = read_mrc(tomo_name)
-        #     tomo = normalize(tomo*-1)
-        #     # Z = tomo.shape[0]
-        #     # mean = np.mean(tomo.data[Z//2-16:Z//2+16])
-        #     # std = np.std(tomo.data[Z//2-16:Z//2+16])
-        #     # tomo = (mean-tomo)/std
-        #     outData = network_model.predict_map(tomo, output_dir, cube_size=inner_cube_size, crop_size=cube_size, \
-        #                                   F_mask=F_mask)
-        #     if len(outData) == 2:
-        #         return [x.astype(np.float32)*-1 for x in outData]
-        #     else:
-        #         return outData.astype(np.float32) * -1
-        
-        # def get_base_filename(tomo_name):
-        #     file_base_name = os.path.basename(tomo_name)
-        #     file_name, file_extension = os.path.splitext(file_base_name)
-        #     file_name = f"{output_dir}/corrected_{network.method}_{network.arch}_{file_name}"
-        #     return file_name
-        
-        # if isCTFflipped == True and correct_CTF == True:
-        #     print("Do not need to correct_CTF in prediction when tomogram is ctf phase-flipped")
-        #     print("Setting correct_CTF to False here")
-        #     print("This is expected, do not need to worry")
-        #     correct_CTF = False
-        # tomo_idx = idx2list(tomo_idx, list(star.rlnIndex))
-
-
-        # for index, tomo_row in star.iterrows():
-        #     # wedgevolume
-        #     if str(tomo_row.rlnIndex) in tomo_idx:
-        #         if apply_mw_x1:
-        #             min_angle, max_angle = float(tomo_row['rlnTiltMin']), float(tomo_row['rlnTiltMax'])
-        #             from IsoNet.utils.missing_wedge import mw3D
-        #             F_mask = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle])
-        #         else:
-        #             F_mask = None
-                
-        #         if correct_CTF:
-        #             from IsoNet.utils.CTF import get_ctf_3d
-        #             defocus = tomo_row['rlnDefocus']/10000.
-        #             ctf3d = get_ctf_3d(angpix=tomo_row['rlnPixelSize'], voltage=tomo_row['rlnVoltage'], \
-        #                             cs=tomo_row['rlnSphericalAberration'], defocus=defocus, phaseflipped=False,\
-        #                             phaseshift=0, amplitude=tomo_row['rlnAmplitudeContrast'],length=cube_size)
-        #             ctf3d = np.sign(ctf3d)
-        #             if F_mask is not None and F_mask != "None":
-        #                 F_mask = ctf3d * F_mask
-        #             else:
-        #                 F_mask = ctf3d
-
-        #         if network.method in ['regular','isonet2']:
-        #             star = starfile.read(star_file)
-        #             if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
-        #                 print("using rlnTomoName instead of rlnDeconvTomoName")
-        #                 input_column = "rlnTomoName"
-        #             outData_full = normalize_and_predict(network, tomo_row[input_column],F_mask=F_mask)
-        #             base_filename = get_base_filename(tomo_row[input_column])
-
-        #         if network.method in ['n2n','isonet2-n2n']:
-        #             base_filename = get_base_filename(tomo_row['rlnTomoReconstructedTomogramHalf1'])
-        #             out_half1 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf1"],F_mask=F_mask)
-        #             out_half2 = normalize_and_predict(network, tomo_row["rlnTomoReconstructedTomogramHalf2"],F_mask=F_mask)
-        #             if model2 in ['None', None]:
-        #                 outData_full = (out_half1 + out_half2) * (0.5)
-        #             else:
-                        
-        #                 out_file_net1_half1 = f"{base_filename}_net1_half1.mrc"
-        #                 out_file_net2_half1 = f"{base_filename}_net2_half1.mrc"
-        #                 out_file_net1_half2 = f"{base_filename}_net1_half2.mrc"
-        #                 out_file_net2_half2 = f"{base_filename}_net2_half2.mrc"
-                        
-        #                 write_mrc(out_file_net1_half1, out_half1[0])
-        #                 write_mrc(out_file_net2_half1, out_half1[1])
-        #                 write_mrc(out_file_net1_half2, out_half2[0])
-        #                 write_mrc(out_file_net2_half2, out_half2[1])
-
-        #                 outData_full = (out_half1[0] + out_half1[1] + out_half2[0] + out_half2[1])*0.25
-        #         out_file_name = f"{base_filename}.mrc"
-        #         write_mrc(out_file_name, outData_full)
-        #         star.at[index, out_column] = out_file_name            
-        # starfile.write(star,star_file)
-        # print("################predict completed#####################")
 
     def denoise(self, 
                    star_file: str,
@@ -526,19 +416,16 @@ class ISONET:
                    cube_size: int=96,
                    epochs: int=50,
 
-                   input_column: str = 'rlnTomoReconstructedTomogramHalf',
-
                    batch_size: int=None, 
                    acc_batches: int=1,
                    loss_func: str = "L2",
+                   save_interval: int=10,
                    learning_rate: float=3e-4,
-                   T_max: int=10,
                    learning_rate_min:float=3e-4,
-                   compile_model: bool=False,
                    mixed_precision: bool=True,
 
                    CTF_mode: str="None",
-                   isCTFflipped: bool=False,
+                   phaseflipped: bool=False,
 
                    snrfalloff: float=0,
                    deconvstrength: float=1,
@@ -559,10 +446,6 @@ class ISONET:
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus)
         steps_per_epoch = 200000000
-        if CTF_mode not in ["None", None]:
-            correct_CTF = True
-        else:
-            correct_CTF = False
 
         training_params = {
             "method":'n2n',
@@ -581,12 +464,12 @@ class ISONET:
             "random_rotation":True,
             'apply_mw_x1':True,
             'mixed_precision':mixed_precision,
-            'compile_model':compile_model,
-            'T_max':T_max,
+            'compile_model':False,
+            'T_max':save_interval,
             'learning_rate_min':learning_rate_min,
             'loss_func':loss_func,
             'CTF_mode':CTF_mode,
-            "isCTFflipped": isCTFflipped,
+            "phaseflipped": phaseflipped,
             "starting_epoch": 0,
             "noise_level": 0,
             "correct_between_tilts":False,
@@ -613,14 +496,14 @@ class ISONET:
                     model_file1 = f"{output_dir}/network_n2n_{arch}_{cube_size}_top.pt"
                     model_file2 = f"{output_dir}/network_n2n_{arch}_{cube_size}_bottom.pt"
                 self.predict(star_file=star_file, model=model_file1, model2=model_file2, output_dir=output_dir, gpuID=gpuID,\
-                                             correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
+                                             isCTFflipped=phaseflipped) 
             else:
                 if epochs == 0:
                     model_file = pretrained_model
                 else:
                     model_file = f"{output_dir}/network_n2n_{arch}_{cube_size}_full.pt"
                 self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                             correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
+                             isCTFflipped=phaseflipped) 
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
     def refine(self, 
@@ -637,7 +520,6 @@ class ISONET:
 
                    cube_size: int=96,
                    epochs: int=50,
-
                    
                    input_column: str= 'rlnDeconvTomoName',
                    batch_size: int=None, 
@@ -653,7 +535,7 @@ class ISONET:
                    mixed_precision: bool=True,
 
                    CTF_mode: str="None",
-                   isCTFflipped: bool=False,
+                   phaseflipped: bool=False,
 
                    correct_between_tilts: bool=True,
                    start_bt_size: int=128,
@@ -681,11 +563,6 @@ class ISONET:
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
         steps_per_epoch = 200000000
-        
-        if CTF_mode not in ["None", None]:
-            correct_CTF = True
-        else:
-            correct_CTF = False
         
         if method == "isonet2":
             star = starfile.read(star_file)
@@ -723,7 +600,7 @@ class ISONET:
             'learning_rate_min':learning_rate_min,
             'loss_func':loss_func,
             'CTF_mode':CTF_mode,
-            "isCTFflipped": isCTFflipped,
+            "phaseflipped": phaseflipped,
             "starting_epoch": 0,
             "noise_level": noise_level,
             "correct_between_tilts":correct_between_tilts,
@@ -746,11 +623,11 @@ class ISONET:
                 model_file1 = f"{output_dir}/network_{method}_{arch}_{cube_size}_top.pt"
                 model_file2 = f"{output_dir}/network_{method}_{arch}_{cube_size}_bottom.pt"
                 self.predict(star_file=star_file, model=model_file1, model2=model_file2, output_dir=output_dir, gpuID=gpuID,\
-                                             correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
+                                            isCTFflipped=phaseflipped) 
             else:
                 model_file = f"{output_dir}/network_{method}_{arch}_{cube_size}_full.pt"
                 self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                             correct_CTF=correct_CTF,isCTFflipped=isCTFflipped) 
+                            isCTFflipped=phaseflipped) 
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
     def refine_v1(self,

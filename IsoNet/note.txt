@@ -23,9 +23,6 @@ isonet.py denoise tomograms.star --gpuID 0,1 (runs)
 
 isonet.py denoise tomograms.star --gpuID 0,1 (runs)
 
-Current effort:
-denoise with CTF and with CTF intact until first peak
-
 if CTF_mode is "None": no ctf correction
 if CTF_mode is "network": CTF approximated within network. likely to be preferred
 if CTF_mode is "wiener": do amplititude and phase correction
@@ -38,7 +35,16 @@ generate_mask:
 4. user defined segmentation, membrain, dragonfly
 5. IsoNet1
 
+TODO:
 isonet.py slabify
 isonet.py make_mask option="slabify" parameters
 isonet.py make_mask option="density based" parameters
 isonet.py make_mask option="coordinate-based" parameters
+
+TODO:
+we need to test tomo_idx
+
+TODO:
+IsoNet.py resize need to implement for the half maps.
+
+TODO:
