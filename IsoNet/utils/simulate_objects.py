@@ -63,20 +63,22 @@ def create_sphere(size=16):
 def generate_3D_image(array_size=(256, 512, 512), num_objects=200, size_object=16, rotate=True):
     # Initialize the 3D array
     array = np.zeros(array_size, dtype=np.float32)
-
+    coord = []
     # Randomly place objects in the array with random orientation
     for _ in range(num_objects):
-        shape = random.choice(['cube', 'pyramid', 'sphere'])
-        center = (random.randint(size_object, array_size[0]-size_object),
-                random.randint(size_object, array_size[1]-size_object),
-                random.randint(size_object, array_size[2]-size_object))
+        #shape = random.choice(['cube', 'pyramid', 'sphere'])
+        shape = random.choice(['sphere'])
+        center = (random.randint(32, array_size[0]-32),
+                random.randint(32, array_size[1]-32),
+                random.randint(32, array_size[2]-32))
+        coord.append([center[2],center[1],center[0]])
         
         if shape == 'cube':
             obj = create_cube()
         elif shape == 'pyramid':
             obj = create_pyramid()
         elif shape == 'sphere':
-            obj = create_sphere()
+            obj = create_sphere(size=20)
 
         # Apply random rotation
         if rotate:
@@ -85,7 +87,7 @@ def generate_3D_image(array_size=(256, 512, 512), num_objects=200, size_object=1
         
         # Place the object into the main array
         place_object(array, obj, center)
-    return array
+    return array, coord
 
 
 def generate_2D_image(array_size=(256, 512, 512), num_objects=200, size_object=16, CTF_image=None):
@@ -97,19 +99,20 @@ def generate_2D_image(array_size=(256, 512, 512), num_objects=200, size_object=1
     return array_2D
     
 if __name__ == '__main__':
-    from IsoNet.util.CTF import ctf2d
+    # from IsoNet.util.CTF import ctf2d
     import mrcfile
-    from IsoNet.util.Fourier import apply_F_filter
+    # from IsoNet.util.Fourier import apply_F_filter
 
-    CTF_image = ctf2d(2,300,2.7,1, 0.1, 0, 0, 1024)
-    with mrcfile.new("CTF.mrc", overwrite=True) as mrc:
-        mrc.set_data(CTF_image)
-    array = generate_2D_image(array_size=(128, 1024, 1024),num_objects=600, CTF_image=None)
-    array = array+np.random.randn(1024,1024).astype(np.float32)*0.1
+    # CTF_image = ctf2d(2,300,2.7,1, 0.1, 0, 0, 1024)
+    # with mrcfile.new("CTF.mrc", overwrite=True) as mrc:
+    #     mrc.set_data(CTF_image)
+    array, coord = generate_3D_image(array_size=(128, 512, 512),num_objects=20)
+    #array = array+np.random.randn(1024,1024).astype(np.float32)*0.1
     with mrcfile.new("test.mrc", overwrite=True) as mrc:
         mrc.set_data(array)
-    array = apply_F_filter(array, CTF_image)
-    with mrcfile.new("test_filtered.mrc", overwrite=True) as mrc:
-        mrc.set_data(array)
+    np.savetxt('particles.txt',coord)
+    # array = apply_F_filter(array, CTF_image)
+    # with mrcfile.new("test_filtered.mrc", overwrite=True) as mrc:
+    #     mrc.set_data(array)
 
 

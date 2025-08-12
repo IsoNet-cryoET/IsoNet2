@@ -526,7 +526,7 @@ class ISONET:
                    acc_batches: int=1,
                    loss_func: str = "L2",
                    learning_rate: float=3e-4,
-                   T_max: int=10,
+                   save_interval: int=10,
                    learning_rate_min:float=3e-4,
                    random_rotation: bool=True, 
                    mw_weight: float=20,
@@ -596,7 +596,7 @@ class ISONET:
             'apply_mw_x1':apply_mw_x1,
             'mixed_precision':mixed_precision,
             'compile_model':compile_model,
-            'T_max':T_max,
+            'T_max':save_interval,
             'learning_rate_min':learning_rate_min,
             'loss_func':loss_func,
             'CTF_mode':CTF_mode,
@@ -623,11 +623,11 @@ class ISONET:
                 model_file1 = f"{output_dir}/network_{method}_{arch}_{cube_size}_top.pt"
                 model_file2 = f"{output_dir}/network_{method}_{arch}_{cube_size}_bottom.pt"
                 self.predict(star_file=star_file, model=model_file1, model2=model_file2, output_dir=output_dir, gpuID=gpuID,\
-                                            isCTFflipped=phaseflipped) 
+                                            phaseflipped=phaseflipped) 
             else:
                 model_file = f"{output_dir}/network_{method}_{arch}_{cube_size}_full.pt"
                 self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                            isCTFflipped=phaseflipped) 
+                            phaseflipped=phaseflipped) 
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
     def refine_v1(self,

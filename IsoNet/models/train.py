@@ -109,36 +109,27 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             for i_batch, batch in enumerate(train_loader):  
                 optimizer.zero_grad(set_to_none=True) 
                 x1, x2, mw, ctf, wiener, noise_vol = process_batch(batch)
+                if training_params["phaseflipped"]:
+                    ctf = torch.abs(ctf)
+                    wiener = torch.abs(wiener)
 
-
-                if 'CTF_mode' in training_params and training_params['CTF_mode'] not in [None, "None"]:
-                    
-                    if training_params['CTF_mode'] == "phase_only":
-                        # the result is all x1 and x2 are phaseflipped
-                        if not training_params["phaseflipped"]:
-                            x1 = apply_F_filter_torch(x1, torch.sign(ctf))
-                            x2 = apply_F_filter_torch(x2, torch.sign(ctf))
-
-                    elif training_params['CTF_mode'] in ['wiener']:
-                        # the result is x1 is phaseflipped and x2 is wiener filtered
-                        if not training_params["phaseflipped"]:
-                            x1 = apply_F_filter_torch(x1, torch.sign(ctf))
-                            x2 = apply_F_filter_torch(x2, wiener)
-                        else:
-                            x2 = apply_F_filter_torch(x2, torch.abs(wiener))
+                if training_params['CTF_mode'] == "phase_only":
+                    x1 = apply_F_filter_torch(x1, torch.sign(ctf))
+                    x2 = apply_F_filter_torch(x2, torch.sign(ctf))
+                elif  training_params['CTF_mode'] == 'wiener':
+                    x1 = apply_F_filter_torch(x1, torch.sign(ctf))
+                    x2 = apply_F_filter_torch(x2, wiener)
                     
 
                 if training_params['method'] in ["n2n", "regular"]:                       
                     with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
                         preds = model(x1)
-                        loss = loss_func(x2, preds)
-
-                    if training_params['CTF_mode']=='network':
-                        if training_params["phaseflipped"]:
-                            ctf = abs(ctf)
                         preds = preds.to(torch.float32)
+
+                    if training_params['CTF_mode']=='network':    
                         preds = apply_F_filter_torch(preds, ctf)
-                        loss = loss_func(x2, preds)
+
+                    loss = loss_func(x2, preds)
 
                     if rank == 0 and i_batch%100 == 0 :
                         debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
@@ -169,17 +160,11 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     preds = preds.to(torch.float32)
                     
                     if 'CTF_mode' in training_params:
-                        if training_params['CTF_mode'] in ['wiener', "phase_only"]:
-                            #  amplititute modulation
+                        if training_params['CTF_mode'] in ['wiener']:
                             preds = apply_F_filter_torch(preds, torch.abs(ctf))
 
                         if training_params['CTF_mode'] == 'network':
-                            if training_params['phaseflipped']:
-                                #  amplititute modulation
-                                preds = apply_F_filter_torch(preds, torch.abs(ctf))
-                            else:
-                                #  amplititute and phase modulation
-                                preds = apply_F_filter_torch(preds, ctf)
+                            preds = apply_F_filter_torch(preds, ctf)
 
                     subtomos = apply_F_filter_torch(preds, 1-mw) + x1
                     rotated_subtomo = rotate_func(subtomos, rot)
@@ -200,10 +185,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         pred_y = model(mw_rotated_subtomos).to(torch.float32)
 
                         if training_params['CTF_mode'] == 'network':
-                            if training_params['phaseflipped']:
-                                preds = apply_F_filter_torch(preds, torch.abs(ctf))
-                            else:
-                                preds = apply_F_filter_torch(preds, ctf)
+                            preds = apply_F_filter_torch(preds, ctf)
 
                         if rank == 0 and i_batch%100 == 0 :
                             debug_matrix(preds, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
@@ -218,15 +200,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             outside_mw_loss = loss
                             inside_mw_loss = loss                            
                         elif training_params['method'] ==  'isonet2-n2n':
-                            # outside_mw_loss = loss_func(rot_subtomo2, pred_y)
-                            # inside_mw_loss = outside_mw_loss
                             outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
-                            # outside_mw_loss2, inside_mw_loss2 = masked_loss(pred_y, rotated_subtomo, rotated_mw, mw, loss_func = loss_func)
-                            # outside_mw_loss2, inside_mw_loss2 = masked_loss(x1_rot, x2_rot, rotated_mw, mw, loss_func = loss_func)
-                            # print("x1",outside_mw_loss2,inside_mw_loss2)
-                            # outside_mw_loss2, inside_mw_loss2 = masked_loss(second_x1_rot, x2_rot, rotated_mw, mw, loss_func = loss_func)
-                            # print("second_x1",outside_mw_loss2,inside_mw_loss2)
-                            # inside_mw_loss = inside_mw_loss + inside_mw_loss2 # test_6
                             loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss# + consistency_loss                             
                             
 
