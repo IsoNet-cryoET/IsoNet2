@@ -8,7 +8,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 from IsoNet.utils.utils import debug_matrix
 import random
-from IsoNet.models.masked_loss import masked_loss
+from IsoNet.models.masked_loss import masked_loss, apply_fourier_mask_to_tomo
 from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
@@ -99,7 +99,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
         if train_sampler:
             train_sampler.set_epoch(epoch)
         model.train()
-        
+        optimizer.zero_grad() 
         with tqdm(total=total_steps, unit="batch", disable=(rank!=0),desc=f"Epoch {epoch+1}") as progress_bar:
             # have to convert to tensor because reduce needed it
             average_loss = torch.tensor(0, dtype=torch.float).to(rank)
@@ -107,7 +107,6 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             average_outside_mw_loss = torch.tensor(0, dtype=torch.float).to(rank)
 
             for i_batch, batch in enumerate(train_loader):  
-                optimizer.zero_grad(set_to_none=True) 
                 x1, x2, mw, ctf, wiener, noise_vol = process_batch(batch)
                 if training_params["phaseflipped"]:
                     ctf = torch.abs(ctf)
@@ -143,13 +142,14 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                 elif training_params['method'] in ["isonet2",'isonet2-n2n']:
 
-                    if training_params['random_rotation'] == True and random.random()<0.9:
+                    if training_params['random_rotation'] == True and random.random()<0.8:
                         rotate_func = rotate_vol_around_axis_torch
                         rot = sample_rot_axis_and_angle()
                     else:
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
-
+                    x1_org = x1
+                    x2_org = x2
                     x1 = apply_F_filter_torch(x1, mw)
                     x2 = apply_F_filter_torch(x2, mw)
                     x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
@@ -158,7 +158,6 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
                             preds = model(x1)
                     preds = preds.to(torch.float32)
-                    
                     if 'CTF_mode' in training_params:
                         if training_params['CTF_mode'] in ['wiener']:
                             preds = apply_F_filter_torch(preds, torch.abs(ctf))
@@ -166,41 +165,69 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         if training_params['CTF_mode'] == 'network':
                             preds = apply_F_filter_torch(preds, ctf)
 
-                    subtomos = apply_F_filter_torch(preds, 1-mw) + x1
-                    rotated_subtomo = rotate_func(subtomos, rot)
-                    mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
+                    # subtomos = apply_F_filter_torch(preds, 1-mw) + x1
+                    # rotated_subtomo = rotate_func(subtomos, rot)
+                    # mw_rotated_subtomos=apply_F_filter_torch(rotated_subtomo,mw)
                     
-                    mw_rotated_subtomos_std = mw_rotated_subtomos.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                    mw_rotated_subtomos = mw_rotated_subtomos/mw_rotated_subtomos_std * x1_std_org
+                    # mw_rotated_subtomos_std = mw_rotated_subtomos.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                    # mw_rotated_subtomos = mw_rotated_subtomos/mw_rotated_subtomos_std * x1_std_org
 
-                    rotated_mw = rotate_func(mw, rot)
-                    x2_rot = rotate_func(x2, rot)
+                    # mw_rotated_subtomos = rotate_func(x1_org, rot)
+                    # mw_rotated_subtomos=apply_F_filter_torch(mw_rotated_subtomos,mw)
+                    # mw_rotated_subtomos = apply_F_filter_torch(x1_org,mw)
+
                     
+                    # outside_mw_mask = rotated_mw * mw
+                    # outside_mw_tomo = apply_F_filter_torch(x1_rot, outside_mw_mask)
+                    # outside_mw_mask = rotated_mw * mw
+                    # outside_mw_tomo = apply_F_filter_torch(x1_rot, outside_mw_mask)
+
+                    # x1_rot = rotate_func(x1_org, rot)
+                    # rotated_mw = rotate_func(mw, rot)
+                    # x1_mw = apply_F_filter_torch(x1_rot, mw)
+                    # x1_mw = apply_F_filter_torch(x1_org, mw)
+                    # x1_mw = apply_F_filter_torch(x1_org, mw)
+
+                    net_input = x1
+                    net_target = x1_org
+
 
                     if training_params["noise_level"] > 0:
                         noise_vol = apply_F_filter_torch(noise_vol, mw)
                         mw_rotated_subtomos += x1_std_org * noise_vol * training_params["noise_level"] / torch.std(noise_vol, correction=0) * random.random()
 
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
-                        pred_y = model(mw_rotated_subtomos).to(torch.float32)
+                        pred_y = model(net_input).to(torch.float32)
 
                         if training_params['CTF_mode'] == 'network':
-                            preds = apply_F_filter_torch(preds, ctf)
+                            pred_y = apply_F_filter_torch(pred_y, ctf)
 
                         if rank == 0 and i_batch%100 == 0 :
-                            debug_matrix(preds, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
+                            # debug_matrix(outside_mw_tomo, filename=f"{training_params['output_dir']}/debug_outside_mw_tomo_{i_batch}.mrc")
+
+                            debug_matrix(x1_org, filename=f"{training_params['output_dir']}/debug_x1_org_{i_batch}.mrc")
+                            debug_matrix(x2_org, filename=f"{training_params['output_dir']}/debug_x2_org_{i_batch}.mrc")
+
+                            # debug_matrix(preds, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
                             debug_matrix(pred_y, filename=f"{training_params['output_dir']}/debug_pred_y_{i_batch}.mrc")
                             debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")
-                            debug_matrix(mw_rotated_subtomos, filename=f"{training_params['output_dir']}/debug_mw_rotated_subtomos_{i_batch}.mrc")
-                            debug_matrix(mw, filename=f"{training_params['output_dir']}/debug_mw.mrc")
-                            debug_matrix(rotated_mw, filename=f"{training_params['output_dir']}/debug_rotated_mw.mrc")
+                            # debug_matrix(mw_rotated_subtomos, filename=f"{training_params['output_dir']}/debug_mw_rotated_subtomos_{i_batch}.mrc")
+                            # debug_matrix(x1_rot, filename=f"{training_params['output_dir']}/debug_x1_rot.mrc")
+                            # debug_matrix(rotated_mw, filename=f"{training_params['output_dir']}/debug_rotated_mw.mrc")
 
                         if training_params['method'] ==  'isonet2':
                             loss = loss_func(pred_y,rotated_subtomo)
                             outside_mw_loss = loss
                             inside_mw_loss = loss                            
                         elif training_params['method'] ==  'isonet2-n2n':
-                            outside_mw_loss, inside_mw_loss = masked_loss(pred_y, x2_rot, rotated_mw, mw, loss_func = loss_func)
+                            # r = 24
+                            # outside_mw_loss = loss_func(pred_y[..., pred_y.size(-2)//2-r:pred_y.size(-2)//2+r, pred_y.size(-1)//2-r:pred_y.size(-1)//2+r], \
+                            #                            net_target[..., net_target.size(-2)//2-r:net_target.size(-2)//2+r, net_target.size(-1)//2-r:net_target.size(-1)//2+r])
+
+                            outside_mw_loss = loss_func(pred_y, net_target)
+                            inside_mw_loss = outside_mw_loss
+                            # outside_mw_loss, inside_mw_loss = masked_loss(pred_y, net_target, rotated_mw, mw, loss_func = loss_func)
+                            training_params['mw_weight'] = 2
                             loss =  outside_mw_loss + training_params['mw_weight'] * inside_mw_loss# + consistency_loss                             
                             
 
@@ -219,6 +246,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         scaler.update()
                     else:
                         optimizer.step()
+                optimizer.zero_grad() 
 
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):        
                     loss_str = (
@@ -235,7 +263,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 
                 if i_batch + 1 >= steps_per_epoch_train*training_params['acc_batches']:
                     break
-
+        optimizer.step()            
         scheduler.step()
 
         if world_size > 1:

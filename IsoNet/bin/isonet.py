@@ -523,7 +523,6 @@ class ISONET:
                    
                    input_column: str= 'rlnDeconvTomoName',
                    batch_size: int=None, 
-                   acc_batches: int=1,
                    loss_func: str = "L2",
                    learning_rate: float=3e-4,
                    save_interval: int=10,
@@ -560,6 +559,10 @@ class ISONET:
         mixed_precision: use mixed precision to reduce VRAM and increase speed
         loss_func: L2, Huber
         '''
+        
+        # there is some questions about this parameter, relate to the placement of the zerograd
+        acc_batches=1
+
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
         steps_per_epoch = 200000000

@@ -174,7 +174,6 @@ class Net:
                                         cube_size=training_params['cube_size'], input_column=training_params['input_column'],\
                                         split=training_params['split'], noise_dir=noise_dir, clip_first_peak=clip_first_peak,\
                                         start_bt_size=training_params["start_bt_size"])
-        # try: 
         if self.world_size > 1:
             mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, train_dataset, training_params), nprocs=self.world_size)
         else:

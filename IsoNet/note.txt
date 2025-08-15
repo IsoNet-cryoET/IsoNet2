@@ -48,3 +48,7 @@ TODO:
 IsoNet.py resize need to implement for the half maps.
 
 TODO:
+
+
+apply_F_filter_torch is identital to apply_fourier_mask_to_tomo
+masked_loss is identital to ddw mask_loss

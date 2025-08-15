@@ -111,8 +111,8 @@ def masked_loss(model_output, target, rot_mw_mask, mw_mask, loss_func=None):
 #         .pow(2)
 #         .mean()
 #     )
-#     loss = outside_mw_loss + mw_weight * inside_mw_loss
-#     return loss
+#     # loss = outside_mw_loss + mw_weight * inside_mw_loss
+#     return outside_mw_loss, inside_mw_loss
 
 def fft_3d(tomo, norm="ortho"):
     fft_dim = (-1, -2, -3)

@@ -82,15 +82,16 @@ class Train_sets_n2n(Dataset):
 
         # Initialize tqdm progress bar
         for _, row in tqdm(self.star.iterrows(), total=len(self.star), desc="Preprocess tomograms", ncols=100):
-            n_samples = row['rlnNumberSubtomo']
-            if self.split in ["top", "bottom"]:
-                n_samples = n_samples // 2
-            self.n_samples_per_tomo.append(n_samples)
             mask = self._load_statistics_and_mask(row, column_name_list)
             if 'rlnBoxFile' not in row or row['rlnBoxFile'] in [None, "None"]:
+                n_samples = row['rlnNumberSubtomo']
+                if self.split in ["top", "bottom"]:
+                    n_samples = n_samples // 2
+                self.n_samples_per_tomo.append(n_samples)
                 coords = self.create_random_coords(mask.shape, mask, n_samples)
             else:
-                coords = np.loadtxt(row['rlnBoxFile'])
+                coords = np.loadtxt(row['rlnBoxFile'], dtype=int)[:, [2, 1, 0]]
+                self.n_samples_per_tomo.append(len(coords))
             self.coords.append(coords)
 
             min_angle, max_angle, tilt_step = row['rlnTiltMin'], row['rlnTiltMax'], row['rlnTiltStep']

@@ -68,9 +68,9 @@ def generate_3D_image(array_size=(256, 512, 512), num_objects=200, size_object=1
     for _ in range(num_objects):
         #shape = random.choice(['cube', 'pyramid', 'sphere'])
         shape = random.choice(['sphere'])
-        center = (random.randint(32, array_size[0]-32),
-                random.randint(32, array_size[1]-32),
-                random.randint(32, array_size[2]-32))
+        center = (random.randint(41, array_size[0]-41),
+                random.randint(41, array_size[1]-41),
+                random.randint(41, array_size[2]-41))
         coord.append([center[2],center[1],center[0]])
         
         if shape == 'cube':
@@ -101,16 +101,31 @@ def generate_2D_image(array_size=(256, 512, 512), num_objects=200, size_object=1
 if __name__ == '__main__':
     # from IsoNet.util.CTF import ctf2d
     import mrcfile
-    # from IsoNet.util.Fourier import apply_F_filter
+    from IsoNet.utils.missing_wedge import mw3D
+    from IsoNet.utils.Fourier import apply_F_filter
+    cube_size = 64
+    diameter = 20
+    MW = mw3D(cube_size)
+    sphere = np.zeros((cube_size,cube_size,cube_size))
+    S = create_sphere(size=diameter)
 
+    sphere[cube_size//2-diameter//2:cube_size//2+diameter//2,cube_size//2-diameter//2:cube_size//2+diameter//2,cube_size//2-diameter//2:cube_size//2+diameter//2] = S
+    data = apply_F_filter(sphere, MW)
+    for i in range(20):
+        with mrcfile.new(f"GT_{i}.mrc", overwrite=True) as mrc:
+            mrc.set_data((sphere*-1).astype(np.float32))
+        with mrcfile.new(f"sphere_{i}.mrc", overwrite=True) as mrc:
+            mrc.set_data(data*-1)
+    with mrcfile.new("missingwedge.mrc", overwrite=True) as mrc:
+        mrc.set_data(MW)
     # CTF_image = ctf2d(2,300,2.7,1, 0.1, 0, 0, 1024)
     # with mrcfile.new("CTF.mrc", overwrite=True) as mrc:
     #     mrc.set_data(CTF_image)
-    array, coord = generate_3D_image(array_size=(128, 512, 512),num_objects=20)
+    # array, coord = generate_3D_image(array_size=(128, 512, 512),num_objects=20)
     #array = array+np.random.randn(1024,1024).astype(np.float32)*0.1
-    with mrcfile.new("test.mrc", overwrite=True) as mrc:
-        mrc.set_data(array)
-    np.savetxt('particles.txt',coord)
+    # with mrcfile.new("test.mrc", overwrite=True) as mrc:
+    #     mrc.set_data(array*-1)
+    # np.savetxt('particles.txt',coord, fmt='%f')
     # array = apply_F_filter(array, CTF_image)
     # with mrcfile.new("test_filtered.mrc", overwrite=True) as mrc:
     #     mrc.set_data(array)
