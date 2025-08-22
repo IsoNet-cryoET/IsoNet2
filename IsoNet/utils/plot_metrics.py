@@ -1,5 +1,5 @@
 
-def plot_metrics(metrics, filename):
+def plot_metrics(metrics, filename, bottom=None, top=None):
     import numpy as np
     import matplotlib.pyplot as plt
     plt.set_loglevel("warning") 
@@ -23,6 +23,8 @@ def plot_metrics(metrics, filename):
     #if len(tl) > 20:
     #    ma = np.percentile(tl,95)
     #    plt.ylim(top=ma)
+    if bottom is not None:
+        plt.ylim(bottom, top)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))

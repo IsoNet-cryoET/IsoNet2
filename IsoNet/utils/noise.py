@@ -111,7 +111,6 @@ class NoiseMap:
         return NoiseMap.noise_map[start[0]:start[0]+size, start[1]:start[1]+size,start[2]:start[2]+size]
 
 #filters = ['ramp', 'shepp-logan', 'cosine', 'hamming', 'hann']
-angles = np.arange(-90,90,1)
 
 def part_iradon_ramp(x):
     return iradon(x, angles, filter_name = 'ramp' )
@@ -130,6 +129,10 @@ def part_iradon_nofilter(x):
 
 def simulate_noise(params):
     size = params[0]
+    global angles
+    angles = np.arange(-60,61,3)
+    print(angles)
+
     sinograms = np.random.normal(size=(size,int(size*1.4),len(angles)))
     start=int(params[0]*0.2)
     from multiprocessing import Pool

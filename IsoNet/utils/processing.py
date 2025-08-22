@@ -1,7 +1,7 @@
 import numpy as np
 import mrcfile
 
-def normalize(x, percentile = True, pmin=5.0, pmax=95.0, axis=None, clip=False, eps=1e-20):
+def normalize(x, percentile = True, pmin=4.0, pmax=96.0, axis=None, clip=False, eps=1e-20):
     """Percentile-based image normalization."""
 
     if percentile:

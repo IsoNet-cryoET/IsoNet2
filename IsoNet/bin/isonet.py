@@ -375,7 +375,8 @@ class ISONET:
             for tomo_p in tomo_paths:
                 print(tomo_p)
                 tomo_vol, _ = read_mrc(tomo_p)
-                tomo_vol = normalize(tomo_vol * -1, percentile=False)
+                # now we are using precentile again similar to isonet1
+                tomo_vol = normalize(tomo_vol * -1, percentile=True)
                 out_data.append(network.predict_map(
                     tomo_vol, output_dir,
                     cube_size= int(cube_size / padding_factor+0.1),
@@ -523,7 +524,7 @@ class ISONET:
                    
                    input_column: str= 'rlnDeconvTomoName',
                    batch_size: int=None, 
-                   loss_func: str = "L2",
+                   loss_func: str = "L1",
                    learning_rate: float=3e-4,
                    save_interval: int=10,
                    learning_rate_min:float=3e-4,
@@ -540,7 +541,7 @@ class ISONET:
                    start_bt_size: int=128,
 
                    noise_level: float=0, 
-                   noise_mode: str="ramp",
+                   noise_mode: str="None",
 
                    with_predict: bool=True,
                    split_halves: bool=False,

@@ -52,3 +52,37 @@ TODO:
 
 apply_F_filter_torch is identital to apply_fourier_mask_to_tomo
 masked_loss is identital to ddw mask_loss
+
+
+The mrcdataloader performs better than the dataset_n2n dataloader
+The reason could be:
+1. the output of the dataloader are different
+2. there are something relevent to the edge of the subtomograms, if the tomograms are crowded the algorithum does not work as good;
+ or this is related to the rotation?
+
+
+
+ IsoNet1 loss in IsoNet2 is much better than the mask loss 
+
+ IsoNet1 whether there is normalize problem
+ predict:
+             data.append(real_data)
+            data = np.array(data)
+            predicted=model.predict(data[:,:,:,:,np.newaxis], batch_size= settings.predict_batch_size,verbose=0)
+            predicted = predicted.reshape(predicted.shape[0:-1])
+            for j,outData in enumerate(predicted):
+                count = i + j - N + 1
+                if count < len(settings.mrc_list):
+                    m_name = settings.mrc_list[count]
+
+                    root_name = m_name.split('/')[-1].split('.')[0]
+                    end_size = pad_size1+cube_size
+                    outData1 = outData[pad_size1:end_size, pad_size1:end_size, pad_size1:end_size]
+                    outData1 = normalize(outData1, percentile = settings.normalize_percentile)
+                    with mrcfile.new('{}/{}_iter{:0>2d}.mrc'.format(settings.result_dir,root_name,settings.iter_count-1), overwrite=True) as output_mrc:
+                        output_mrc.set_data(-outData1)
+            data = []
+
+
+I change the normalization to the place similar to IsoNet1. So we can compare the loss betweeen IsoNet1 and 2
+I temperarlly reverse the rotation to IsoNet1 rotation 

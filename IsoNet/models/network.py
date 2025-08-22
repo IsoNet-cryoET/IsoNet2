@@ -169,20 +169,22 @@ class Net:
             else:
                 noise_dir = None
 
-            from IsoNet.models.data_sequence import Train_sets_n2n
+            from IsoNet.models.data_sequence import Train_sets_n2n, MRCDataset
             train_dataset = Train_sets_n2n(training_params['star_file'],method=training_params['method'], 
                                         cube_size=training_params['cube_size'], input_column=training_params['input_column'],\
                                         split=training_params['split'], noise_dir=noise_dir, clip_first_peak=clip_first_peak,\
                                         start_bt_size=training_params["start_bt_size"])
-        if self.world_size > 1:
-            mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, train_dataset, training_params), nprocs=self.world_size)
-        else:
-            ddp_train(0, self.world_size, self.port_number, self.model, train_dataset, training_params)
+            # train_dataset = MRCDataset('sphere','GT')
+        try:
+            if self.world_size > 1:
+                mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, train_dataset, training_params), nprocs=self.world_size)
+            else:
+                ddp_train(0, self.world_size, self.port_number, self.model, train_dataset, training_params)
 
-        # except KeyboardInterrupt:
-        #    logging.info('KeyboardInterrupt: Terminating all processes...')
-        #    dist.destroy_process_group() 
-        #    os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
+        except KeyboardInterrupt:
+           logging.info('KeyboardInterrupt: Terminating all processes...')
+           dist.destroy_process_group() 
+           os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
         self.load(f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt")
 
         

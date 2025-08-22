@@ -85,8 +85,6 @@ class Train_sets_n2n(Dataset):
         self.n_samples_per_tomo = []
         self.tomo_paths_odd = []
         self.tomo_paths_even = []
-        self.tomo_paths_gt = []
-
         self.tomo_paths = []
         self.coords = []
         self.mean = []
@@ -99,7 +97,6 @@ class Train_sets_n2n(Dataset):
         self.snrfalloff=snrfalloff
         self.deconvstrength=deconvstrength
         self.highpassnyquist=highpassnyquist
-        self.has_groundtruth = False
 
 
         self._initialize_data()
@@ -116,8 +113,6 @@ class Train_sets_n2n(Dataset):
 
         # Initialize tqdm progress bar
         for _, row in tqdm(self.star.iterrows(), total=len(self.star), desc="Preprocess tomograms", ncols=100):
-            if 'rlnGroundTruth' in row and row['rlnGroundTruth'] not in [None, "None"]:
-                self.has_groundtruth = True
             mask = self._load_statistics_and_mask(row, column_name_list)
             if 'rlnBoxFile' not in row or row['rlnBoxFile'] in [None, "None"]:
                 n_samples = row['rlnNumberSubtomo']
@@ -154,11 +149,7 @@ class Train_sets_n2n(Dataset):
 
         self.tomo_paths_even.append(row[even_column])
         self.tomo_paths_odd.append(row[odd_column])
-        if self.has_groundtruth:
-            self.tomo_paths_gt.append(row['rlnGroundTruth'])
 
-        # with mrcfile.mmap(row[even_column], mode='r', permissive=True) as tomo_even:
-        #     tomo_shape = tomo_even.data.shape
         with mrcfile.mmap(row[even_column], mode='r', permissive=True) as tomo_even, \
              mrcfile.mmap(row[odd_column], mode='r', permissive=True) as tomo_odd:
             tomo_shape = tomo_even.data.shape
@@ -257,7 +248,7 @@ class Train_sets_n2n(Dataset):
         even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
         odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
 
-        x1_volume, x2_volume = self.random_swap(
+        x, y = self.random_swap(
             np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...], 
             np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
         )
@@ -272,13 +263,8 @@ class Train_sets_n2n(Dataset):
         else:
             noise_volume = np.array([0], dtype=np.float32)
 
-        if self.has_groundtruth:
-            gt_subvolume = self.load_and_normalize(self.tomo_paths_gt, tomo_index, z, y, x, eo_idx=1)[np.newaxis, ...]
-        else:
-            gt_subvolume = np.array([0], dtype=np.float32)
-        return x1_volume, x2_volume, gt_subvolume, self.mw_list[tomo_index][np.newaxis, ...], \
-            self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...], noise_volume[np.newaxis, ...]        
-
+        return x, y, self.mw_list[tomo_index][np.newaxis, ...], \
+                self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...], noise_volume[np.newaxis, ...]
 
 
 
