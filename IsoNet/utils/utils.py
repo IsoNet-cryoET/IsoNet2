@@ -18,9 +18,10 @@ def process_tomograms(star_path, output_dir, idx_str, desc, row_processor):
     starfile.write(new_star, star_path)
 
 def debug_matrix(mat, filename='debug.mrc'):
-    out_mat = mat.detach().cpu().numpy().squeeze()
-    with mrcfile.new(filename, overwrite=True) as mrc:
-        mrc.set_data(out_mat)
+    if len(mat.shape) > 2:
+        out_mat = mat.detach().cpu().numpy().squeeze()
+        with mrcfile.new(filename, overwrite=True) as mrc:
+            mrc.set_data(out_mat)
 
 def process_gpuID(gpuID):
     if gpuID == None or gpuID == "None":

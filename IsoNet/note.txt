@@ -86,3 +86,22 @@ The reason could be:
 
 I change the normalization to the place similar to IsoNet1. So we can compare the loss betweeen IsoNet1 and 2
 I temperarlly reverse the rotation to IsoNet1 rotation 
+
+
+TODO
+1. we need to fix line 134 in noise.py to make it the match isonet1,not with fixed angles
+ def simulate_noise(params):
+    size = params[0]
+    global angles
+    angles = np.arange(-60,61,3)
+    print(angles)
+
+3. The protocol to test:
+    a. modify the code such as 
+        A. change the rotation 
+        B move the normalization in different place
+        C adding noise_level for noise2noise training
+        D different network 
+    b. To see whether the GT_cross correlation using similuate data improves; 
+    c. if b True check the isonet with HIV tutorial dataset improves
+    d. if c true we can keep the change

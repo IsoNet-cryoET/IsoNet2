@@ -568,11 +568,18 @@ class ISONET:
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
         steps_per_epoch = 200000000
         
+        star = starfile.read(star_file)
+        if not 'rlnTomoReconstructedTomogramHalf1' in star.columns or star.iloc[0]['rlnTomoReconstructedTomogramHalf1'] in [None, "None"]:
+            print("regular isonet2 without noise2noise denoising")
+            method = 'isonet2'
+            
         if method == "isonet2":
             star = starfile.read(star_file)
             if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
                 print("using rlnTomoName instead of rlnDeconvTomoName")
                 input_column = "rlnTomoName"
+            if noise_level <= 0:
+                print("Your noise_level is 0, we recommand to increase noise_level for denoising")
 
         num_noise_volume = 1000
         if noise_level > 0:
@@ -583,7 +590,7 @@ class ISONET:
             make_noise_folder(noise_dir,noise_mode,cube_size,num_noise_volume,ncpus=ncpus)
 
         training_params = {
-            "method":method,
+            "method": method,
             "input_column": input_column,
             "arch": arch,
             "ncpus": ncpus,

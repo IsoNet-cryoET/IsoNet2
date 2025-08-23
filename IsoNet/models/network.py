@@ -27,8 +27,8 @@ class Net:
         else:
             self.initialize(method, arch,cube_size)
             self.metrics = {"average_loss":[],
-                       "inside_mw_loss":[],
-                       "outside_mw_loss":[]}
+                       "inside_loss":[],
+                       "outside_loss":[]}
         if state == "train":
             torch.backends.cudnn.benchmark = True    
     
