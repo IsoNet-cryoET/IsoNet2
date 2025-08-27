@@ -8,6 +8,25 @@ import mrcfile
 from tqdm import tqdm
 import random
 from IsoNet.utils.missing_wedge import mw3D
+
+def normalize_percentage(volume, percentile=4, lower_bound = None, upper_bound=None):
+    # original_shape = tensor.shape
+    
+    # batch_size = tensor.size(0)
+    # flattened_tensor = tensor.reshape(1, -1)
+
+    factor = percentile/100.
+    # lower_bound_subtomo = np.quantile(volume, factor, dim=1, keepdim=True)
+    # upper_bound_subtomo = np.quantile(volume, 1-factor, dim=1, keepdim=True)
+    lower_bound_subtomo = np.percentile(volume,factor,axis=None,keepdims=True)
+    upper_bound_subtomo = np.percentile(volume,1-factor,axis=None,keepdims=True)
+    if lower_bound is None: 
+        normalized_volume = (volume - lower_bound_subtomo) / (upper_bound_subtomo - lower_bound_subtomo)
+    else:
+        normalized_volume = (volume - lower_bound) / (upper_bound - lower_bound)
+    
+    return normalized_volume, lower_bound_subtomo, upper_bound_subtomo
+
 class MRCDataset(Dataset):
     def __init__(self, input_dir, target_dir, transform=None):
         self.input_files = sorted([os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.endswith(".mrc")])
@@ -91,6 +110,10 @@ class Train_sets_n2n(Dataset):
         self.coords = []
         self.mean = []
         self.std = []
+
+        self.upperbounds = []
+        self.lowerbounds = []
+
         self.mw_list = []
         self.wiener_list = []
         self.CTF_list = []
@@ -163,11 +186,21 @@ class Train_sets_n2n(Dataset):
              mrcfile.mmap(row[odd_column], mode='r', permissive=True) as tomo_odd:
             tomo_shape = tomo_even.data.shape
             Z = tomo_shape[0]
+
+            # _, lower_evn, upper_evn = normalize_percentage(tomo_even.data)
+            # _, lower_odd, upper_odd = normalize_percentage(tomo_odd.data)
+
+            # _, upper_evn, lower_evn = normalize_percentage(tomo_even.data[Z//2-16:Z//2+16])
+            # _, upper_odd, lower_odd = normalize_percentage(tomo_odd.data[Z//2-16:Z//2+16])
+
             mean = [np.mean(tomo_even.data[Z//2-16:Z//2+16]), np.mean(tomo_odd.data[Z//2-16:Z//2+16])]
             std = [np.std(tomo_even.data[Z//2-16:Z//2+16]), np.std(tomo_odd.data[Z//2-16:Z//2+16])]
 
         self.mean.append(mean)
         self.std.append(std)
+
+        # self.upperbounds.append([upper_evn, upper_odd])
+        # self.lowerbounds.append([lower_evn, lower_odd])
         if "rlnMaskName" not in column_name_list or row.get("rlnMaskName") in [None, "None"]:
             mask = np.ones(tomo_shape, dtype=np.float32)
         else:
@@ -239,6 +272,13 @@ class Train_sets_n2n(Dataset):
         half_size = self.cube_size // 2
         with mrcfile.mmap(tomo_paths[tomo_index], mode='r', permissive=True) as tomo:
             subvolume = tomo.data[z-half_size:z+half_size, y-half_size:y+half_size, x-half_size:x+half_size]
+        
+        # if invert:
+        #     #return 1 - (subvolume - self.lowerbounds[tomo_index][eo_idx]) / (self.upperbounds[tomo_index][eo_idx]- self.lowerbounds[tomo_index][eo_idx])
+        #     return (self.upperbounds[tomo_index][eo_idx] - subvolume) / (self.upperbounds[tomo_index][eo_idx]- self.lowerbounds[tomo_index][eo_idx])
+
+        # else:
+        #     return (subvolume - self.lowerbounds[tomo_index][eo_idx]) / (self.upperbounds[tomo_index][eo_idx]- self.lowerbounds[tomo_index][eo_idx])
         if invert:
             return (self.mean[tomo_index][eo_idx] - subvolume) / self.std[tomo_index][eo_idx]
         else:

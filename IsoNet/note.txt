@@ -105,3 +105,5 @@ TODO
     b. To see whether the GT_cross correlation using similuate data improves; 
     c. if b True check the isonet with HIV tutorial dataset improves
     d. if c true we can keep the change
+
+4. test normalize the entire tomogram not the individual subtomo in the training loop.

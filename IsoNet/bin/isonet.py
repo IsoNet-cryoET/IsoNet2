@@ -303,7 +303,7 @@ class ISONET:
                 output_dir: str='./corrected_tomos', 
                 gpuID: str = None, 
                 input_column: str = "rlnDeconvTomoName",
-                apply_mw_x1: bool=True, 
+                apply_mw_x1: bool=False, 
                 phaseflipped: bool=False,
                 padding_factor: float=1.5,
                 tomo_idx=None):
@@ -376,7 +376,7 @@ class ISONET:
                 print(tomo_p)
                 tomo_vol, _ = read_mrc(tomo_p)
                 # now we are using precentile again similar to isonet1
-                tomo_vol = normalize(tomo_vol * -1, percentile=True)
+                tomo_vol = normalize(tomo_vol * -1, percentile=False)
                 out_data.append(network.predict_map(
                     tomo_vol, output_dir,
                     cube_size= int(cube_size / padding_factor+0.1),
@@ -529,7 +529,7 @@ class ISONET:
                    save_interval: int=10,
                    learning_rate_min:float=3e-4,
                    random_rotation: bool=True, 
-                   mw_weight: float=20,
+                   mw_weight: float=-1,
                    apply_mw_x1: bool=True, 
                    compile_model: bool=False,
                    mixed_precision: bool=True,
@@ -588,6 +588,10 @@ class ISONET:
             noise_dir = f"{output_dir}/noise_volumes"
             # Note: the angle for this noise generation is range(-90,90,3)
             make_noise_folder(noise_dir,noise_mode,cube_size,num_noise_volume,ncpus=ncpus)
+
+        if mw_weight > 0:
+            print("enable mw_weight")
+            print("using masked loss seperating in and out of the missing wedge")
 
         training_params = {
             "method": method,
