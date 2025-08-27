@@ -303,7 +303,7 @@ class ISONET:
                 output_dir: str='./corrected_tomos', 
                 gpuID: str = None, 
                 input_column: str = "rlnDeconvTomoName",
-                apply_mw_x1: bool=False, 
+                apply_mw_x1: bool=True, 
                 phaseflipped: bool=False,
                 padding_factor: float=1.5,
                 tomo_idx=None):
