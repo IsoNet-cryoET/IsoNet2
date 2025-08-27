@@ -256,20 +256,20 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                 elif training_params['method'] in ['isonet2-n2n']:
 
-                    if training_params['random_rotation'] == True and random.random()<1:
+                    if training_params['random_rotation'] == True and random.random()<0.8:
                         rotate_func = rotate_vol_around_axis_torch
                         rot = sample_rot_axis_and_angle()
                     else:
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
 
-                    # x1 = apply_F_filter_torch(x1, mw)
-                    # x2 = apply_F_filter_torch(x2, mw)
+                    x1 = apply_F_filter_torch(x1, mw)
+                    x2 = apply_F_filter_torch(x2, mw)
                     # x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-                    x1,_,_ = normalize_mean_std(x1)
-                    x2,_,_ = normalize_mean_std(x2)
+                    # x1,_,_ = normalize_mean_std(x1)
+                    # x2,_,_ = normalize_mean_std(x2)
                     x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-                    x2_std_org, x2_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
+                    x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
 
 
                     with torch.no_grad():
@@ -285,8 +285,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     # preds_x2,_,_ = normalize_percentage(preds_x2)
 
 
-                    x1_filled = apply_F_filter_torch(preds_x1, 1-mw) + apply_F_filter_torch(x1, mw)
-                    x2_filled = apply_F_filter_torch(preds_x2, 1-mw) + apply_F_filter_torch(x2, mw)
+                    x1_filled = apply_F_filter_torch(preds_x1, 1-mw) + x1#apply_F_filter_torch(x1, mw)
+                    x2_filled = apply_F_filter_torch(preds_x2, 1-mw) + x2#apply_F_filter_torch(x2, mw)
 
                     # x1_filled,_,_ = normalize_mean_std(x1_filled)
                     # x2_filled,_,_ = normalize_mean_std(x2_filled)
@@ -299,11 +299,14 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     x2_filled_rot_mw = apply_F_filter_torch(x2_filled_rot, mw)
 
 
-                    x1_filled_rot_mw_std = x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                    x2_filled_rot_mw_std = x2_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                    x1_filled_rot_mw_mean, x1_filled_rot_mw_std = x1_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                    x2_filled_rot_mw_mean, x2_filled_rot_mw_std = x2_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x2_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
 
-                    x1_filled_rot_mw = x1_filled_rot_mw/x1_filled_rot_mw_std * x1_std_org
-                    x2_filled_rot_mw = x2_filled_rot_mw/x2_filled_rot_mw_std * x2_std_org
+                    x1_filled_rot_mw = (x1_filled_rot_mw-x1_filled_rot_mw_mean)/x1_filled_rot_mw_std * x1_std_org + x1_mean_org
+                    x2_filled_rot_mw = (x2_filled_rot_mw-x2_filled_rot_mw_mean)/x2_filled_rot_mw_std * x2_std_org + x2_mean_org
+
+                    # x1_filled_rot_mw = x1_filled_rot_mw/x1_filled_rot_mw_std * x1_std_org
+                    # x2_filled_rot_mw = x2_filled_rot_mw/x2_filled_rot_mw_std * x2_std_org
 
                     rotated_mw = rotate_func(mw, rot)
                     
@@ -316,7 +319,10 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     if training_params["noise_level"] > 0:
                         perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
                         noise_vol = noise_vol[:, :, :, perm, :]
-                        net_input = net_input + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
+                        N = training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
+                        net_input1 = net_input1 + N
+                        net_input2 = net_input2 + N
+
 
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y1 = model(net_input1).to(torch.float32)
