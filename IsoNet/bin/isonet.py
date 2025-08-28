@@ -305,6 +305,7 @@ class ISONET:
                 input_column: str = "rlnDeconvTomoName",
                 apply_mw_x1: bool=True, 
                 phaseflipped: bool=False,
+                do_phaseflip_input: bool=True,
                 padding_factor: float=1.5,
                 tomo_idx=None):
         """
@@ -343,7 +344,7 @@ class ISONET:
             )
 
             # 2) Optionally incorporate CTF into the mask
-            if CTF_mode == "wiener" or CTF_mode == "phase_only":
+            if CTF_mode in ["wiener","phase_only","network"] and do_phaseflip_input:
                 if phaseflipped == False:
                     defocus = row.rlnDefocus / 10000.0
                     ctf3d = np.sign(
@@ -376,7 +377,14 @@ class ISONET:
                 print(tomo_p)
                 tomo_vol, _ = read_mrc(tomo_p)
                 # now we are using precentile again similar to isonet1
-                tomo_vol = normalize(tomo_vol * -1, percentile=False)
+                if network.method =='isonet2':
+                    tomo_vol = normalize(tomo_vol * -1, percentile=True)
+                else:
+                    Z = tomo_vol.shape[0]
+                    tomo_vol = tomo_vol*-1
+                    mean = np.mean(tomo_vol[Z//2-16:Z//2+16])
+                    std = np.std(tomo_vol[Z//2-16:Z//2+16])
+                    tomo_vol = (tomo_vol-mean)/std#normalize(tomo_vol * -1, percentile=False)
                 out_data.append(network.predict_map(
                     tomo_vol, output_dir,
                     cube_size= int(cube_size / padding_factor+0.1),
@@ -427,7 +435,8 @@ class ISONET:
 
                    CTF_mode: str="None",
                    phaseflipped: bool=False,
-
+                   do_phaseflip_input: bool=True,
+                   
                    snrfalloff: float=0,
                    deconvstrength: float=1,
                    highpassnyquist:float=0.02,
@@ -462,7 +471,6 @@ class ISONET:
             "learning_rate":learning_rate,
             "cube_size": cube_size,
             "mw_weight": 0,
-            "random_rotation":True,
             'apply_mw_x1':True,
             'mixed_precision':mixed_precision,
             'compile_model':False,
@@ -477,7 +485,8 @@ class ISONET:
             "start_bt_size":128,
             'snrfalloff':snrfalloff,
             "deconvstrength": deconvstrength,
-            "highpassnyquist":highpassnyquist
+            "highpassnyquist":highpassnyquist,
+            "do_phaseflip_input":do_phaseflip_input,
         }
         if split_halves:
             from IsoNet.models.network import DuoNet
@@ -528,20 +537,21 @@ class ISONET:
                    learning_rate: float=3e-4,
                    save_interval: int=10,
                    learning_rate_min:float=3e-4,
-                   random_rotation: bool=True, 
                    mw_weight: float=-1,
                    apply_mw_x1: bool=True, 
-                   compile_model: bool=False,
                    mixed_precision: bool=True,
 
                    CTF_mode: str="None",
                    phaseflipped: bool=False,
+                   do_phaseflip_input: bool=True,
 
                    correct_between_tilts: bool=True,
                    start_bt_size: int=128,
 
                    noise_level: float=0, 
                    noise_mode: str="None",
+
+                   random_rot_weight: float=0.8,
 
                    with_predict: bool=True,
                    split_halves: bool=False,
@@ -560,7 +570,7 @@ class ISONET:
         mixed_precision: use mixed precision to reduce VRAM and increase speed
         loss_func: L2, Huber
         '''
-        
+        compile_model=False,
         # there is some questions about this parameter, relate to the placement of the zerograd
         acc_batches=1
 
@@ -607,7 +617,6 @@ class ISONET:
             "learning_rate":learning_rate,
             "cube_size": cube_size,
             "mw_weight": mw_weight,
-            "random_rotation":random_rotation,
             'apply_mw_x1':apply_mw_x1,
             'mixed_precision':mixed_precision,
             'compile_model':compile_model,
@@ -622,7 +631,9 @@ class ISONET:
             "start_bt_size":start_bt_size,
             'snrfalloff':snrfalloff,
             "deconvstrength": deconvstrength,
-            "highpassnyquist":highpassnyquist
+            "highpassnyquist":highpassnyquist,
+            "random_rot_weight":random_rot_weight,
+            'do_phaseflip_input':do_phaseflip_input
         }
         if split_halves:
             from IsoNet.models.network import DuoNet
@@ -638,11 +649,11 @@ class ISONET:
                 model_file1 = f"{output_dir}/network_{method}_{arch}_{cube_size}_top.pt"
                 model_file2 = f"{output_dir}/network_{method}_{arch}_{cube_size}_bottom.pt"
                 self.predict(star_file=star_file, model=model_file1, model2=model_file2, output_dir=output_dir, gpuID=gpuID,\
-                                            phaseflipped=phaseflipped) 
+                                            phaseflipped=phaseflipped, do_phaseflip_input=do_phaseflip_input) 
             else:
                 model_file = f"{output_dir}/network_{method}_{arch}_{cube_size}_full.pt"
                 self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                            phaseflipped=phaseflipped) 
+                            phaseflipped=phaseflipped, do_phaseflip_input=do_phaseflip_input) 
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
     def refine_v1(self,
