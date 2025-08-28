@@ -14,6 +14,7 @@ from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rot
 import torch.optim.lr_scheduler as lr_scheduler
 import shutil
 from packaging import version
+from IsoNet.utils.fileio import write_mrc
 if version.parse(torch.__version__) >= version.parse("2.3.0"):
     from torch.amp import GradScaler
 else:
@@ -138,18 +139,16 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             for i_batch, batch in enumerate(train_loader):  
                 x1, x2, gt, mw, ctf, wiener, noise_vol = process_batch(batch)
 
-                if training_params["phaseflipped"]:
-                    ctf = torch.abs(ctf)
-                    wiener = torch.abs(wiener)
-
-                if training_params['CTF_mode'] in  ["phase_only", 'wiener']:
-                    # if the CTF is enabled, do the phaseflipping first
-                    x1 = apply_F_filter_torch(x1, torch.sign(ctf))
-                    x2 = apply_F_filter_torch(x2, torch.sign(ctf))
-                # elif  training_params['CTF_mode'] == 'wiener':
-                #     x1 = apply_F_filter_torch(x1, torch.sign(ctf))
-                #     x2 = apply_F_filter_torch(x2, wiener)
-                    
+                if training_params['CTF_mode'] in  ["phase_only", 'wiener','network']:
+                    if not training_params["phaseflipped"]:
+                        ctf = torch.abs(ctf)
+                        wiener = torch.abs(wiener) 
+                    else:
+                        if training_params['do_phaseflip_input']:
+                            x1 = apply_F_filter_torch(x1, torch.sign(ctf))
+                            x2 = apply_F_filter_torch(x2, torch.sign(ctf))
+                            ctf = torch.abs(ctf)
+                            wiener = torch.abs(wiener) 
 
                 if training_params['method'] in ["n2n", "regular"]:   
                     x1,_,_ = normalize_percentage(x1)    
@@ -158,11 +157,10 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         preds = model(x1)
                         preds = preds.to(torch.float32)
 
-                    # if training_params['CTF_mode']=='network':    
-                    #     preds = apply_F_filter_torch(preds, ctf)
-
-                    if training_params['CTF_mode']  == 'wiener':
-                        x2 = apply_F_filter_torch(x2, torch.abs(wiener))
+                    if training_params['CTF_mode']  == 'network':
+                        preds = apply_F_filter_torch(preds, ctf)
+                    elif training_params['CTF_mode']  == 'wiener':
+                        x2 = apply_F_filter_torch(x2, wiener)
 
                     loss = loss_func(x2, preds)
 
@@ -177,7 +175,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                 elif training_params['method'] in ["isonet2"]:
 
-                    if training_params['random_rotation'] == True and random.random()<0:
+                    if random.random()<training_params['random_rot_weight']:
                         rotate_func = rotate_vol_around_axis_torch
                         rot = sample_rot_axis_and_angle()
                     else:
@@ -195,8 +193,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
                             preds = model(x1)
 
-                    if training_params['CTF_mode']  == 'wiener':
-                        preds = apply_F_filter_torch(preds, torch.abs(ctf))
+                    if training_params['CTF_mode'] in ['network', 'wiener']:
+                        preds = apply_F_filter_torch(preds, ctf)
 
                     preds = preds.to(torch.float32)
 
@@ -217,9 +215,6 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     net_input = x1_filled_rot_mw
                     net_target = x1_filled_rot
 
-                    if training_params['CTF_mode']  == 'wiener':
-                        net_target = apply_F_filter_torch(net_target, torch.abs(wiener))
-
                     if training_params["noise_level"] > 0:
                         perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
                         noise_vol = noise_vol[:, :, :, perm, :]
@@ -227,6 +222,11 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y = model(net_input).to(torch.float32)
+
+                        if training_params['CTF_mode']  == 'network':
+                            pred_y = apply_F_filter_torch(pred_y, ctf)
+                        elif training_params['CTF_mode']  == 'wiener':
+                            net_target = apply_F_filter_torch(net_target, wiener)
 
                         outside_loss, inside_loss = masked_loss(pred_y, net_target, rotated_mw, mw, loss_func = loss_func)
                         loss = loss_func(pred_y, net_target)
@@ -256,7 +256,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                 elif training_params['method'] in ['isonet2-n2n']:
 
-                    if training_params['random_rotation'] == True and random.random()<0.8:
+                    if random.random()<training_params['random_rot_weight']:
                         rotate_func = rotate_vol_around_axis_torch
                         rot = sample_rot_axis_and_angle()
                     else:
@@ -279,6 +279,11 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     preds_x1 = preds_x1.to(torch.float32)
                     preds_x2 = preds_x2.to(torch.float32)
+                    preds_x1_preCTF = preds_x1.clone().detach()
+                    preds_x2_preCTF = preds_x2.clone().detach()
+                    if training_params['CTF_mode'] in ['network', 'wiener']:
+                        preds_x1 = apply_F_filter_torch(preds_x1, ctf)
+                        preds_x2 = apply_F_filter_torch(preds_x2, ctf)
 
                     # may not be necessary
                     # preds_x1,_,_ = normalize_percentage(preds_x1)
@@ -328,6 +333,12 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         pred_y1 = model(net_input1).to(torch.float32)
                         pred_y2 = model(net_input2).to(torch.float32)
 
+                        if training_params['CTF_mode']  == 'network':
+                            pred_y1 = apply_F_filter_torch(pred_y1, ctf)
+                            pred_y2 = apply_F_filter_torch(pred_y2, ctf)
+                        elif training_params['CTF_mode']  == 'wiener':
+                            net_target1 = apply_F_filter_torch(net_target1, wiener)
+                            net_target2 = apply_F_filter_torch(net_target2, wiener)
 
                         outside_loss1, inside_loss1 = masked_loss(pred_y1, net_target2, rotated_mw, mw, loss_func = loss_func)
                         outside_loss2, inside_loss2 = masked_loss(pred_y2, net_target1, rotated_mw, mw, loss_func = loss_func)
@@ -354,6 +365,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
                             debug_matrix(gt, filename=f"{training_params['output_dir']}/debug_gt_{i_batch}.mrc")
                             debug_matrix(net_input1, filename=f"{training_params['output_dir']}/debug_net_input1_{i_batch}.mrc")
+                            debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
+
                             if training_params["noise_level"] > 0:
                                 debug_matrix(noise_vol, filename=f"{training_params['output_dir']}/debug_noise_vol_{i_batch}.mrc")
 
@@ -361,6 +374,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             debug_matrix(x1_filled_rot, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_{i_batch}.mrc")
                             debug_matrix(x1_filled_rot_mw, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_mw_{i_batch}.mrc")
                             debug_matrix(x2_filled_rot, filename=f"{training_params['output_dir']}/debug_x2_filled_rot_{i_batch}.mrc")
+
+                            debug_matrix(preds_x1_preCTF, filename=f"{training_params['output_dir']}/debug_preds_prectf_{i_batch}.mrc")
 
                             debug_matrix(preds_x1, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
                             debug_matrix(pred_y1, filename=f"{training_params['output_dir']}/debug_pred_y1_{i_batch}.mrc")
@@ -463,7 +478,6 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
     steps_per_rank = (num_data_points + world_size - 1) // world_size
 
     outputs = []
-
     with torch.no_grad():
         for i in tqdm(
             range(rank * steps_per_rank, min((rank + 1) * steps_per_rank, num_data_points)),
@@ -471,10 +485,13 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
         ):
             batch_input = data[i:i + 1].to(rank)
             if F_mask is not None:
+                write_mrc('testmask.mrc', F_mask)
                 F_m = torch.from_numpy(F_mask[np.newaxis,np.newaxis,:,:,:]).to(rank)
                 batch_input = apply_F_filter_torch(batch_input, F_m)
             batch_output = model(batch_input).cpu()  # Move output to CPU immediately
-
+            if rank == 0:
+                write_mrc('testIN.mrc', batch_input[0][0].cpu().numpy().astype(np.float32))
+                write_mrc('testOUT.mrc', batch_output[0][0].numpy().astype(np.float32))
             outputs.append(batch_output)
 
     output = torch.cat(outputs, dim=0).cpu().numpy().astype(np.float32)
