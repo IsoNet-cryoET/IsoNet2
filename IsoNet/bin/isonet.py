@@ -551,7 +551,7 @@ class ISONET:
                    noise_level: float=0, 
                    noise_mode: str="None",
 
-                   random_rot_weight: float=0.8,
+                   random_rot_weight: float=0.2,
 
                    with_predict: bool=True,
                    split_halves: bool=False,
