@@ -48,13 +48,7 @@ const api = {
             callback(data)
         })
     },
-    // offJson: () => {
-    //     ipcRenderer.removeAllListeners('json-star')
-    // },
 
-    // offPythonStderr: () => {
-    //     ipcRenderer.removeAllListeners('python-stderr')
-    // },
     killJob: (pid) => {
         return new Promise((resolve, reject) => {
             ipcRenderer.once('kill-job-response', (event, success) => {
@@ -98,7 +92,9 @@ const api = {
             console.error('Error fetching jobs:', error)
             return null // Handle error gracefully
         }
-    }
+    },
+    onJobStatusUpdated: (callback) =>
+        ipcRenderer.on('job-status-updated', (event, data) => callback(data))
 
     // offJson: (callback) => {
     //     ipcRenderer.removeListener('json-star', callback)

@@ -23,7 +23,9 @@ function createWindow() {
             preload: join(__dirname, '../preload/preload.js'),
             sandbox: false,
             devTools: true
-        }
+        },
+        focusable: true, // make sure it's focusable
+        alwaysOnTop: false // avoid conflicts
     })
 
     mainWindow.on('ready-to-show', () => {
@@ -133,12 +135,14 @@ ipcMain.on('view', (event, file) => {
         event.sender.send('python-stderr', { cmd: 'prepare_star', output: data.toString() })
     })
 })
-// window adaptation
+// app.disableHardwareAcceleration()
+// app.commandLine.appendSwitch('disable-gpu-compositing')
 app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.electron')
     app.on('browser-window-created', (_, window) => {
         optimizer.watchWindowShortcuts(window)
     })
+
     createWindow()
     app.on('activate', function () {
         if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -14,14 +14,9 @@ import DrawerDenoise from './components/DrawerDenoise'
 import DrawerPredict from './components/DrawerPredict'
 import DrawerDeconv from './components/DrawerDeconv'
 import DrawerMask from './components/DrawerMask'
-import PageRefine from './components/PageRefine'
-import PageRefine_v1 from './components/PageRefine_v1'
-import PageDenoise from './components/PageDenoise'
 import PagePrepare from './components/PagePrepare'
-import PagePredict from './components/PagePredict'
-import PageMask from './components/PageMask'
-import PageDeconv from './components/PageDeconv'
-import PagePost from './components/PagePost'
+import PageCommon from './components/PageCommon'
+
 import PageJobs from './components/PageJobs'
 import { mergeMsg, processMessage } from './utils/utils'
 
@@ -50,99 +45,98 @@ const App = () => {
         make_mask: false,
         predict: false
     })
-    const [messages, setMessages] = useState({
-        prepare_star: [],
-        denoise: [],
-        refine_v1: [],
-        refine: [],
-        deconv: [],
-        make_mask: [],
-        predict: []
-    })
-    const [runningProcesses, setRunningProcesses] = useState({
-        prepare_star: false,
-        refine: false,
-        refine_v1: false,
-        denoise: false,
-        deconv: false,
-        make_mask: false,
-        predict: false
-    })
+
+    //message is from the python stdout and stderr
+    // we should clear message once the job is finished
+    const [messages, setMessages] = useState([])
+
+    //the list of all jobs
+    const [jobs, setJobs] = useState([])
+
+    // selectedJobs
+    const [selectedJob, setSelectedJob] = useState(null)
     const [starName, setStarName] = useState('')
     const [selectedPrimaryMenu, setSelectedPrimaryMenu] = useState(0)
-    const [selectedSecondaryMenu, setSelectedSecondaryMenu] = useState(0)
 
-    // const toggleDrawer = (drawer, open) => {
-    //     setDrawerState((prev) => ({ ...prev, [drawer]: open }))
-    // }
     const toggleDrawer = useCallback((drawer, open) => {
         setDrawerState((prev) => ({ ...prev, [drawer]: open }))
     }, [])
 
-    // const handleSubmit = (type, data) => {
-    //     try {
-    //         if (type === 'prepare') setStarName(data.star_name)
-    //         api.run(data)
-    //     } catch (error) {
-    //         console.error(`Error submitting ${type} form:`, error)
-    //     }
-    //     toggleDrawer(type, false)
-    // }
     const handleSubmit = useCallback(
         (type, data) => {
             try {
+                const { inqueue, ...restData } = data
+                const status = inqueue === true ? 'queued' : 'running'
+
+                const newJob = {
+                    id: jobs.length + 1,
+                    type,
+                    data: restData, // cleansed data
+                    output_dir: data.output_dir,
+                    status
+                }
+
+                setJobs((prev) => [...prev, newJob])
                 if (type === 'prepare_star') setStarName(data.star_name)
-                api.run(data)
+
+                window.api.run(newJob) // Ensure this triggers ipcMain.handle
             } catch (error) {
                 console.error(`Error submitting ${type} form:`, error)
             }
+
             toggleDrawer(type, false)
         },
-        [toggleDrawer]
+        [toggleDrawer, jobs]
     )
 
     useEffect(() => {
-        const handleIncomingMessage = (data) => {
-            setMessages((prev) => ({
-                ...prev,
-                [data.cmd]: mergeMsg(prev[data.cmd] || [], processMessage(data))
-            }))
-        }
-        window.api.onPythonStderr(handleIncomingMessage)
-        window.api.onPythonStdout(handleIncomingMessage)
-
-        const handleRunning = (data) =>
-            setRunningProcesses((prev) => ({
-                ...prev,
-                [data.cmd]: true
-            }))
-
-        const handleClosed = (data) =>
-            setRunningProcesses((prev) => ({
-                ...prev,
-                [data.cmd]: false
-            }))
-
-        window.api.onPythonRunning(handleRunning)
-        window.api.onPythonClosed(handleClosed)
-
-        return () => {
-            window.api.offPythonStderr(handleIncomingMessage)
-            window.api.offPythonStdout(handleIncomingMessage)
-            window.api.offPythonRunning(handleRunning)
-            window.api.offPythonClosed(handleClosed)
-        }
+        window.api.onJobStatusUpdated((data) => {
+            console.log('Job status updated:', data)
+            setJobs((prevJobs) =>
+                prevJobs.map((job) => (job.id === data.id ? { ...job, status: data.status } : job))
+            )
+            console.log(jobs)
+        })
     }, [])
 
-    const primaryMenus = useMemo(
-        () => [
-            { icon: <CameraIcon sx={{ color: '#14446e' }} />, label: 'Camera' },
-            { icon: <AppsIcon sx={{ color: '#14446e' }} />, label: 'Apps' }
-        ],
-        []
-    )
+    useEffect(() => {
+        if (!selectedJob?.output_dir) return
 
-    const secondaryMenus = useMemo(
+        const logPath = `${selectedJob.output_dir}/log.txt`
+
+        let isMounted = true
+
+        const interval = setInterval(() => {
+            window.api.readFile(logPath).then((fileContent) => {
+                if (!isMounted) return
+
+                if (!fileContent) {
+                    setMessages([]) // Clear messages if log.txt is missing
+                    return
+                }
+
+                const lines = fileContent.split(/\r?\n|\r/g).filter(Boolean)
+                const newMessages = []
+
+                for (const line of lines) {
+                    const msg = { cmd: selectedJob.type, output: line }
+                    const processed = processMessage(msg)
+                    const merged = mergeMsg(newMessages, processed)
+                    newMessages.length = 0
+                    newMessages.push(...merged)
+                }
+
+                setMessages(newMessages)
+            })
+        }, 100) // poll every 100 ms
+
+        return () => {
+            isMounted = false
+            clearInterval(interval)
+        }
+    }, [selectedJob])
+
+    const primaryMenus = useMemo(
         () => [
             { key: 'prepare_star', label: 'Prepare' },
             { key: 'denoise', label: 'Denoise' },
@@ -156,49 +150,28 @@ const App = () => {
         ],
         []
     )
-    const Contents = [
-        [
-            PagePrepare,
-            PageDenoise,
-            PageDeconv,
-            PageMask,
-            PageRefine,
-            PageRefine_v1,
-            PagePredict,
-            PagePost,
-            PageJobs
-        ],
-        [null, null]
-    ]
+    let PageComponent = null
 
-    const CurrentComponent = Contents[selectedPrimaryMenu][selectedSecondaryMenu]
-
-    // const handlePrimaryMenuClick = (index) => {
-    //     setSelectedPrimaryMenu(index)
-    //     setSelectedSecondaryMenu(0) // Reset secondary menu selection
-    // }
-
-    // const handleSecondaryMenuClick = (event, index) => {
-    //     setSelectedSecondaryMenu(index)
-    // }
-
-    // const selectedStyle = {
-    //     '&.Mui-selected': {
-    //         backgroundColor: '#D5E2F4',
-    //         borderRadius: '24px'
-    //     }
-    // }
-
+    if (selectedPrimaryMenu === 0) {
+        PageComponent = PagePrepare
+    } else if (selectedPrimaryMenu >= 1 && selectedPrimaryMenu <= 6) {
+        PageComponent = PageCommon
+    } else if (selectedPrimaryMenu === 8) {
+        PageComponent = PageJobs
+    }
     return (
         <div className="outer-container">
             <div className="top-bar">IsoNet 2</div>
             <div className="main-content">
                 <div className="primary-menu">
                     <List>
-                        {primaryMenus.map((menu, index) => (
-                            <ListItem disablePadding key={index}>
+                        {primaryMenus.map(({ key, label }, index) => (
+                            <ListItem
+                                disablePadding
+                                key={index}
+                                sx={{ '&:hover': { backgroundColor: '#eaebef' } }}
+                            >
                                 <ListItemButton
-                                    onClick={() => setSelectedPrimaryMenu(index)}
                                     selected={selectedPrimaryMenu === index}
                                     sx={{
                                         '&.Mui-selected': {
@@ -206,102 +179,73 @@ const App = () => {
                                             borderRadius: '24px'
                                         }
                                     }}
+                                    onClick={() => {
+                                        setSelectedPrimaryMenu(index)
+                                        setMessages([]) // ✅ Clear messages
+                                        setSelectedJob(null) // ✅ Clear selected job
+                                    }}
                                 >
-                                    {menu.icon}
+                                    <ListItemText primary={label} />
+
+                                    {index < 7 && (
+                                        <IconButton
+                                            onClick={() => toggleDrawer(key, true)}
+                                            sx={{
+                                                backgroundColor:
+                                                    index === 2 || index === 3 || index === 5
+                                                        ? '#f8edeb'
+                                                        : '#D5E2F4', // Replace 'defaultBackgroundColor' with your default color
+
+                                                '&:hover': { backgroundColor: '#e0e0e0' },
+                                                borderRadius: '50%',
+                                                width: 40,
+                                                height: 40,
+                                                display: 'flex',
+                                                justifyContent: 'center',
+                                                alignItems: 'center'
+                                            }}
+                                        >
+                                            <EditIcon sx={{ color: '#14446e', fontSize: 24 }} />
+                                        </IconButton>
+                                    )}
                                 </ListItemButton>
                             </ListItem>
                         ))}
                     </List>
                 </div>
-
-                <div className="secondary-menu">
-                    {selectedPrimaryMenu === 0 && (
+                {['denoise', 'deconv', 'make_mask', 'refine', 'refine_v1', 'predict'].includes(
+                    primaryMenus[selectedPrimaryMenu]?.key
+                ) && (
+                    <div className="secondary-menu">
                         <List>
-                            {secondaryMenus.map(({ key, label }, index) => (
-                                <ListItem
-                                    disablePadding
-                                    key={index}
-                                    sx={{ '&:hover': { backgroundColor: '#eaebef' } }}
-                                >
+                            {jobs
+                                .filter(
+                                    (job) => job.type === primaryMenus[selectedPrimaryMenu]?.key
+                                )
+                                .map((job) => (
                                     <ListItemButton
-                                        selected={selectedSecondaryMenu === index}
-                                        sx={{
-                                            '&.Mui-selected': {
-                                                backgroundColor: '#D5E2F4',
-                                                borderRadius: '24px'
-                                            }
-                                        }}
-                                        onClick={() => setSelectedSecondaryMenu(index)}
+                                        key={job.id}
+                                        selected={selectedJob?.id === job.id}
+                                        onClick={() => setSelectedJob(job)}
                                     >
-                                        {runningProcesses[key] && (
-                                            <CircularProgress size={20} color="inherit" />
-                                        )}
-                                        <ListItemText primary={label} />
-                                        {index < 7 && (
-                                            <IconButton
-                                                onClick={() => toggleDrawer(key, true)}
-                                                sx={{
-                                                    // backgroundColor: '#eaf1fb',
-                                                    backgroundColor:
-                                                        index === 2 || index === 3 || index === 5
-                                                            ? '#f8edeb'
-                                                            : '#D5E2F4', // Replace 'defaultBackgroundColor' with your default color
-
-                                                    '&:hover': { backgroundColor: '#e0e0e0' },
-                                                    borderRadius: '50%',
-                                                    width: 40,
-                                                    height: 40,
-                                                    display: 'flex',
-                                                    justifyContent: 'center',
-                                                    alignItems: 'center'
-                                                }}
-                                            >
-                                                <EditIcon sx={{ color: '#14446e', fontSize: 24 }} />
-                                            </IconButton>
-                                        )}
+                                        {job.status === 'running' && <CircularProgress size={16} />}
+                                        <ListItemText primary={`[${job.type}] Job ${job.id}`} />
                                     </ListItemButton>
-                                </ListItem>
-                            ))}
+                                ))}
                         </List>
-                    )}
+                    </div>
+                )}
 
-                    {selectedPrimaryMenu === 1 && (
-                        <List>
-                            {['Page 1', 'Page 2'].map((label, index) => (
-                                <ListItem disablePadding key={index}>
-                                    <ListItemButton
-                                        selected={selectedSecondaryMenu === index}
-                                        sx={{
-                                            '&.Mui-selected': {
-                                                backgroundColor: '#D5E2F4',
-                                                borderRadius: '24px'
-                                            }
-                                        }}
-                                        onClick={() => setSelectedSecondaryMenu(index)}
-                                    >
-                                        <ListItemText primary={label} />
-                                    </ListItemButton>
-                                </ListItem>
-                            ))}
-                        </List>
-                    )}
-                </div>
-                <div className="content-area">
-                    {CurrentComponent ? (
-                        <CurrentComponent
+                {PageComponent && (
+                    <div className="content-area">
+                        <PageComponent
                             starName={starName}
                             setStarName={setStarName}
-                            messages={messages}
+                            messages={messages || []}
                             setMessages={setMessages}
                         />
-                    ) : (
-                        <iframe
-                            src="https://isonetcryoet.com/"
-                            style={{ width: '100%', height: '100vh', border: 'none' }}
-                            title="Embedded Webpage"
-                        />
-                    )}
-                </div>
+                    </div>
+                )}
 
                 {Object.keys(drawerState).map((key) => {
                     const DrawerComponent = drawerComponents[key]

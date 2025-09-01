@@ -19,12 +19,13 @@ const PagePrepare = (props) => {
     // }, [])
 
     useEffect(() => {
+        if (!props.starName) return
         api.run({
             command: 'star2json',
             json_file: '.to_node.json',
             star_file: props.starName
         })
-    }, [])
+    }, [props.starName])
     const handleClear = () => {
         props.setMessages((prev) => ({ ...prev, prepare_star: [] }))
     }

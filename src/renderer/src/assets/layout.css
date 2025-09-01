@@ -50,16 +50,6 @@ body{
 
 /* Primary Menu */
 .primary-menu {
-  width: 70px;
-  background-color: #eaf1fb;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* padding-top: 5px; */
-}
-
-/* Secondary Menu */
-.secondary-menu {
   width: 180px;
   background-color: #f6f8fc;
   display: flex;
@@ -67,20 +57,24 @@ body{
   margin: 0 8px;
 }
 
-.primary-menu li:hover, .secondary-menu li:hover{
+.primary-menu li:hover{
   background-color: #eaebef;
 }
 
-.secondary-menu li{
+.primary-menu li{
   border-radius: 24px;
 }
 .primary-menu li{
   border-radius: 24px;
 }
-.secondary-menu li button{
+.primary-menu li button{
   padding: 0;
 }
-
+.secondary-menu {
+    width: 140px;
+    border-right: 1px solid #ddd;
+    background-color: #f8f8f8;
+}
 /* Main Content Area */
 .content-area {
   flex: 1;
