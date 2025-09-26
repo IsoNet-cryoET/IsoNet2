@@ -1,6 +1,6 @@
-
 from numpy.fft import fftshift, fftn, ifftn, fft2, ifft2
 import numpy as np
+import torch
 
 def apply_F_filter(input_map,F_map):
     # TODO if the two input size does not match
@@ -12,6 +12,13 @@ def apply_F_filter(input_map,F_map):
     #TODO test something like this line 
     #deconv = np.real(scipy.fft.ifftn(scipy.fft.fftn(vol, overwrite_x=True, workers=ncpu) * ramp, overwrite_x=True, workers=ncpu))
 
+    return out
+
+def apply_F_filter_torch(input_map,F_map):
+    fft_input = torch.fft.fftshift(torch.fft.fftn(input_map, dim=(-1, -2, -3)),dim=(-1, -2, -3))
+    # mw_shift = torch.fft.fftshift(F_map, dim=(-1, -2, -3))
+    out = torch.fft.ifftn(torch.fft.fftshift(fft_input*F_map, dim=(-1, -2, -3)),dim=(-1, -2, -3))
+    out = torch.real(out)
     return out
 
 # def apply_wedge(ori_data, mw=None, ld1 = 1, ld2 =0):

@@ -146,3 +146,9 @@ def rotate_vol_around_axis_torch(volume, rot):
         rotated_volume = F.grid_sample(volume, grid, mode='bilinear', padding_mode='reflection', align_corners=True)
 
     return rotated_volume
+
+def rotate_vol(volume, rotation):
+    # B, C, Z, Y, X
+    new_vol = torch.rot90(volume, rotation[0][1], [rotation[0][0][0]-3,rotation[0][0][1]-3])
+    new_vol = torch.rot90(new_vol, rotation[1][1], [rotation[1][0][0]-3,rotation[1][0][1]-3])
+    return new_vol

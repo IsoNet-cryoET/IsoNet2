@@ -79,7 +79,6 @@ class reform3D:
         restored = np.zeros((self._sidelen[0]*self.cubesize+self.edge_depth*2,
                         self._sidelen[1]*self.cubesize+self.edge_depth*2,
                         self._sidelen[2]*self.cubesize+self.edge_depth*2), dtype = np.float32)
-        print("size restored", restored.shape)
         mask_cube = self.mask(self.cubesize+self.edge_depth*2,self.cubesize+self.edge_depth*2,self.cubesize+self.edge_depth*2)
         for i in range(self._sidelen[0]):
             for j in range(self._sidelen[1]):
