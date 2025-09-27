@@ -263,14 +263,15 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
 
-                    x1 = apply_F_filter_torch(x1, mw)
-                    x2 = apply_F_filter_torch(x2, mw)
+
                     # x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
                     # x1,_,_ = normalize_mean_std(x1)
                     # x2,_,_ = normalize_mean_std(x2)
                     x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
                     x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
 
+                    x1 = apply_F_filter_torch(x1, mw)
+                    x2 = apply_F_filter_torch(x2, mw)
 
                     with torch.no_grad():
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
@@ -279,8 +280,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     preds_x1 = preds_x1.to(torch.float32)
                     preds_x2 = preds_x2.to(torch.float32)
-                    preds_x1_preCTF = preds_x1.clone().detach()
-                    preds_x2_preCTF = preds_x2.clone().detach()
+                    # preds_x1_preCTF = preds_x1.clone().detach()
+                    # preds_x2_preCTF = preds_x2.clone().detach()
                     if training_params['CTF_mode'] in ['network', 'wiener']:
                         preds_x1 = apply_F_filter_torch(preds_x1, ctf)
                         preds_x2 = apply_F_filter_torch(preds_x2, ctf)
@@ -375,7 +376,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             debug_matrix(x1_filled_rot_mw, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_mw_{i_batch}.mrc")
                             debug_matrix(x2_filled_rot, filename=f"{training_params['output_dir']}/debug_x2_filled_rot_{i_batch}.mrc")
 
-                            debug_matrix(preds_x1_preCTF, filename=f"{training_params['output_dir']}/debug_preds_prectf_{i_batch}.mrc")
+                            # debug_matrix(preds_x1_preCTF, filename=f"{training_params['output_dir']}/debug_preds_prectf_{i_batch}.mrc")
 
                             debug_matrix(preds_x1, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
                             debug_matrix(pred_y1, filename=f"{training_params['output_dir']}/debug_pred_y1_{i_batch}.mrc")
@@ -485,7 +486,6 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
         ):
             batch_input = data[i:i + 1].to(rank)
             if F_mask is not None:
-                write_mrc('testmask.mrc', F_mask)
                 F_m = torch.from_numpy(F_mask[np.newaxis,np.newaxis,:,:,:]).to(rank)
                 batch_input = apply_F_filter_torch(batch_input, F_m)
             batch_output = model(batch_input).cpu()  # Move output to CPU immediately
