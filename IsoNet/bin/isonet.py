@@ -533,7 +533,7 @@ class ISONET:
                    
                    input_column: str= 'rlnDeconvTomoName',
                    batch_size: int=None, 
-                   loss_func: str = "L1",
+                   loss_func: str = "L2",
                    learning_rate: float=3e-4,
                    save_interval: int=10,
                    learning_rate_min:float=3e-4,
