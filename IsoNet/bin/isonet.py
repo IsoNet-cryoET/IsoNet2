@@ -542,6 +542,8 @@ class ISONET:
                    mixed_precision: bool=True,
 
                    CTF_mode: str="None",
+                   clip_first_peak_mode: int=1,
+
                    phaseflipped: bool=False,
                    do_phaseflip_input: bool=True,
 
@@ -558,7 +560,9 @@ class ISONET:
 
                    snrfalloff: float=0,
                    deconvstrength: float=1,
-                   highpassnyquist:float=0.02
+                   highpassnyquist:float=0.02,
+
+                   move_norm: bool=False,
 
                    ):
         '''
@@ -633,7 +637,9 @@ class ISONET:
             "deconvstrength": deconvstrength,
             "highpassnyquist":highpassnyquist,
             "random_rot_weight":random_rot_weight,
-            'do_phaseflip_input':do_phaseflip_input
+            'do_phaseflip_input':do_phaseflip_input,
+            "clip_first_peak_mode":clip_first_peak_mode,
+            "move_norm":move_norm
         }
         if split_halves:
             from IsoNet.models.network import DuoNet

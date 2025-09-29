@@ -21,7 +21,7 @@ def get_ctf1d_old(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, 
     bfactor = np.exp(-bfactor * k2 * 0.25)
     return (pcurve + acurve)*bfactor
 
-def get_ctf1d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, length=2048, clip_first_peak=False):
+def get_ctf1d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, length=2048, clip_first_peak_mode=0):
     angpix = angpix * 1e-10  # Å to meters
     voltage = voltage * 1e3  # kV to V
     cs = cs * 1e-3           # mm to meters
@@ -46,15 +46,29 @@ def get_ctf1d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, leng
     bfactor_term = np.exp(-bfactor * k2 * 0.25)
     ctf *= bfactor_term
 
-    if clip_first_peak:
+    if clip_first_peak_mode > 0:
         for item in range(len(ctf)-1):
             if ctf[item-1] < ctf[item] and ctf[item+1]<=ctf[item]:
                 break
-        ctf[:item] = ctf[item]
+        # 
+        # print(ctf[item])
+        print(clip_first_peak_mode)
+        if clip_first_peak_mode == 1:
+            ctf[:item] = ctf[item]
+        elif clip_first_peak_mode == 2:
+            for item_reassign in range(item):
+                new_val = 1 - np.sin(item_reassign/item * np.pi/2)
+                new_val = new_val*ctf[item]
+                ctf[item_reassign] = max(ctf[item_reassign], new_val)
+        elif clip_first_peak_mode == 3:
+            for item_reassign in range(item):
+                new_val = np.cos(item_reassign/item * np.pi/2)
+                new_val = new_val*ctf[item]
+                ctf[item_reassign] = max(ctf[item_reassign], new_val)
     return ctf
 
 
-def get_ctf2d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, shape, clip_first_peak):
+def get_ctf2d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, shape, clip_first_peak_mode):
     """
     Returns 2D CTF array interpolated from 1D CTF curve.
 
@@ -74,7 +88,7 @@ def get_ctf2d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, shap
         phaseshift=phaseshift,
         bfactor=bfactor,
         length=length,
-        clip_first_peak=clip_first_peak
+        clip_first_peak_mode=clip_first_peak_mode
     )
 
     # Normalized radius map over [0,1]
@@ -90,7 +104,7 @@ def get_ctf2d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, shap
 
 import numpy as np
 
-def get_ctf3d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, shape, clip_first_peak=False):
+def get_ctf3d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, shape, clip_first_peak_mode=0):
     """
     Returns 3D CTF array interpolated from 1D CTF curve.
 
@@ -110,7 +124,7 @@ def get_ctf3d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, shap
         phaseshift=phaseshift,
         bfactor=bfactor,
         length=length,
-        clip_first_peak=clip_first_peak
+        clip_first_peak_mode=clip_first_peak_mode
     )
 
     # Normalized 3D radius map over [0,1]

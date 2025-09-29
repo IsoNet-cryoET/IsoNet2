@@ -125,6 +125,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
     steps_per_epoch_train = training_params['steps_per_epoch']
     total_steps = min(len(train_loader)//training_params['acc_batches'], training_params['steps_per_epoch'])
 
+    move_norm = training_params["move_norm"]
+
     for epoch in range(training_params['epochs']):
         if train_sampler:
             train_sampler.set_epoch(epoch)
@@ -267,12 +269,17 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     # x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
                     # x1,_,_ = normalize_mean_std(x1)
                     # x2,_,_ = normalize_mean_std(x2)
+                    if move_norm:
+                        x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
+                        x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
+
                     noise_std = torch.std(x1-x2)/1.414
                     x1 = apply_F_filter_torch(x1, mw)
                     x2 = apply_F_filter_torch(x2, mw)
 
-                    x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-                    x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
+                    if not move_norm:
+                        x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
+                        x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
 
                     with torch.no_grad():
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
@@ -303,7 +310,12 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     # x1_filled,_,_ = normalize_mean_std(x1_filled)
                     # x2_filled,_,_ = normalize_mean_std(x2_filled)
+                    if move_norm:
+                        x1_filled_mean, x1_filled_std = x1_filled.mean(dim=(-3,-2,-1), keepdim=True), x1_filled.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                        x2_filled_mean, x2_filled_std = x2_filled.mean(dim=(-3,-2,-1), keepdim=True), x2_filled.std(correction=0,dim=(-3,-2,-1), keepdim=True)
 
+                        x1_filled = (x1_filled-x1_filled_mean)/x1_filled_std * x1_std_org + x1_mean_org
+                        x2_filled = (x2_filled-x2_filled_mean)/x2_filled_std * x2_std_org + x2_mean_org
 
                     x1_filled_rot = rotate_func(x1_filled, rot)
                     x2_filled_rot = rotate_func(x2_filled, rot)
@@ -317,12 +329,12 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     x1_filled_rot_mw = apply_F_filter_torch(x1_filled_rot, mw)
                     x2_filled_rot_mw = apply_F_filter_torch(x2_filled_rot, mw)
 
+                    if not move_norm:
+                        x1_filled_rot_mw_mean, x1_filled_rot_mw_std = x1_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                        x2_filled_rot_mw_mean, x2_filled_rot_mw_std = x2_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x2_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
 
-                    x1_filled_rot_mw_mean, x1_filled_rot_mw_std = x1_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                    x2_filled_rot_mw_mean, x2_filled_rot_mw_std = x2_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x2_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-
-                    x1_filled_rot_mw = (x1_filled_rot_mw-x1_filled_rot_mw_mean)/x1_filled_rot_mw_std * x1_std_org + x1_mean_org
-                    x2_filled_rot_mw = (x2_filled_rot_mw-x2_filled_rot_mw_mean)/x2_filled_rot_mw_std * x2_std_org + x2_mean_org
+                        x1_filled_rot_mw = (x1_filled_rot_mw-x1_filled_rot_mw_mean)/x1_filled_rot_mw_std * x1_std_org + x1_mean_org
+                        x2_filled_rot_mw = (x2_filled_rot_mw-x2_filled_rot_mw_mean)/x2_filled_rot_mw_std * x2_std_org + x2_mean_org
 
 
                     rotated_mw = rotate_func(mw, rot)
