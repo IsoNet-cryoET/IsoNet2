@@ -190,11 +190,11 @@ class Train_sets_n2n(Dataset):
             # _, lower_evn, upper_evn = normalize_percentage(tomo_even.data)
             # _, lower_odd, upper_odd = normalize_percentage(tomo_odd.data)
 
-            # _, upper_evn, lower_evn = normalize_percentage(tomo_even.data[Z//2-16:Z//2+16])
-            # _, upper_odd, lower_odd = normalize_percentage(tomo_odd.data[Z//2-16:Z//2+16])
+            # _, upper_evn, lower_evn = normalize_percentage(tomo_even.data[Z//2-30:Z//2+30])
+            # _, upper_odd, lower_odd = normalize_percentage(tomo_odd.data[Z//2-30:Z//2+30])
 
-            mean = [np.mean(tomo_even.data[Z//2-16:Z//2+16]), np.mean(tomo_odd.data[Z//2-16:Z//2+16])]
-            std = [np.std(tomo_even.data[Z//2-16:Z//2+16]), np.std(tomo_odd.data[Z//2-16:Z//2+16])]
+            mean = [np.mean(tomo_even.data[Z//2-30:Z//2+30]), np.mean(tomo_odd.data[Z//2-30:Z//2+30])]
+            std = [np.std(tomo_even.data[Z//2-30:Z//2+30]), np.std(tomo_odd.data[Z//2-30:Z//2+30])]
 
         self.mean.append(mean)
         self.std.append(std)
