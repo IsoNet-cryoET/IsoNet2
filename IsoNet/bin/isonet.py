@@ -382,8 +382,8 @@ class ISONET:
                 else:
                     Z = tomo_vol.shape[0]
                     tomo_vol = tomo_vol*-1
-                    mean = np.mean(tomo_vol[Z//2-16:Z//2+16])
-                    std = np.std(tomo_vol[Z//2-16:Z//2+16])
+                    mean = np.mean(tomo_vol[Z//2-30:Z//2+30])
+                    std = np.std(tomo_vol[Z//2-30:Z//2+30])
                     tomo_vol = (tomo_vol-mean)/std#normalize(tomo_vol * -1, percentile=False)
                 out_data.append(network.predict_map(
                     tomo_vol, output_dir,
