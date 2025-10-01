@@ -168,39 +168,29 @@ class Train_sets_n2n(Dataset):
 
     def _load_statistics_and_mask(self, row, column_name_list):
         """Load tomogram data and corresponding mask."""
-        if self.method in ['isonet2-n2n','n2n']:
-            even_column = 'rlnTomoReconstructedTomogramHalf1'
-            odd_column = 'rlnTomoReconstructedTomogramHalf2'
-        else:
-            even_column = self.input_column
-            odd_column = self.input_column
-
-        self.tomo_paths_even.append(row[even_column])
-        self.tomo_paths_odd.append(row[odd_column])
         if self.has_groundtruth:
             self.tomo_paths_gt.append(row['rlnGroundTruth'])
 
-        # with mrcfile.mmap(row[even_column], mode='r', permissive=True) as tomo_even:
-        #     tomo_shape = tomo_even.data.shape
-        with mrcfile.mmap(row[even_column], mode='r', permissive=True) as tomo_even, \
-             mrcfile.mmap(row[odd_column], mode='r', permissive=True) as tomo_odd:
-            tomo_shape = tomo_even.data.shape
-            Z = tomo_shape[0]
-
-            # _, lower_evn, upper_evn = normalize_percentage(tomo_even.data)
-            # _, lower_odd, upper_odd = normalize_percentage(tomo_odd.data)
-
-            # _, upper_evn, lower_evn = normalize_percentage(tomo_even.data[Z//2-30:Z//2+30])
-            # _, upper_odd, lower_odd = normalize_percentage(tomo_odd.data[Z//2-30:Z//2+30])
-
-            mean = [np.mean(tomo_even.data[Z//2-30:Z//2+30]), np.mean(tomo_odd.data[Z//2-30:Z//2+30])]
-            std = [np.std(tomo_even.data[Z//2-30:Z//2+30]), np.std(tomo_odd.data[Z//2-30:Z//2+30])]
+        if self.method in ['isonet2-n2n','n2n']:
+            self.tomo_paths_even.append(row['rlnTomoReconstructedTomogramHalf1'])
+            self.tomo_paths_odd.append(row['rlnTomoReconstructedTomogramHalf2'])
+            with mrcfile.mmap(row['rlnTomoReconstructedTomogramHalf1'], mode='r', permissive=True) as tomo_even, \
+            mrcfile.mmap(row['rlnTomoReconstructedTomogramHalf2'], mode='r', permissive=True) as tomo_odd:
+                tomo_shape = tomo_even.data.shape
+                Z = tomo_shape[0]
+                mean = [np.mean(tomo_even.data[Z//2-30:Z//2+30]), np.mean(tomo_odd.data[Z//2-30:Z//2+30])]
+                std = [np.std(tomo_even.data[Z//2-30:Z//2+30]), np.std(tomo_odd.data[Z//2-30:Z//2+30])]
+        else:
+            self.tomo_paths.append((row[self.input_column]))
+            with mrcfile.mmap(row[self.input_column], mode='r', permissive=True) as tomo:
+                tomo_shape = tomo.data.shape
+                Z = tomo_shape[0]
+                mean = [np.mean(tomo.data[Z//2-30:Z//2+30])]
+                std = [np.std(tomo.data[Z//2-30:Z//2+30])]
 
         self.mean.append(mean)
         self.std.append(std)
 
-        # self.upperbounds.append([upper_evn, upper_odd])
-        # self.lowerbounds.append([lower_evn, lower_odd])
         if "rlnMaskName" not in column_name_list or row.get("rlnMaskName") in [None, "None"]:
             mask = np.ones(tomo_shape, dtype=np.float32)
         else:
@@ -267,23 +257,16 @@ class Train_sets_n2n(Dataset):
             return y, x
         return x, y
 
-    def load_and_normalize(self, tomo_paths, tomo_index, z, y, x, eo_idx, invert=True):
+    def load_and_normalize(self, tomo_paths, tomo_index, z, y, x, eo_idx = 0, invert=True):
         """Load and normalize a subvolume from a tomogram."""
         half_size = self.cube_size // 2
         with mrcfile.mmap(tomo_paths[tomo_index], mode='r', permissive=True) as tomo:
             subvolume = tomo.data[z-half_size:z+half_size, y-half_size:y+half_size, x-half_size:x+half_size]
         
-        # if invert:
-        #     #return 1 - (subvolume - self.lowerbounds[tomo_index][eo_idx]) / (self.upperbounds[tomo_index][eo_idx]- self.lowerbounds[tomo_index][eo_idx])
-        #     return (self.upperbounds[tomo_index][eo_idx] - subvolume) / (self.upperbounds[tomo_index][eo_idx]- self.lowerbounds[tomo_index][eo_idx])
-
-        # else:
-        #     return (subvolume - self.lowerbounds[tomo_index][eo_idx]) / (self.upperbounds[tomo_index][eo_idx]- self.lowerbounds[tomo_index][eo_idx])
-        if invert:
-            return (self.mean[tomo_index][eo_idx] - subvolume) / self.std[tomo_index][eo_idx]
-        else:
-            return (subvolume - self.mean[tomo_index][eo_idx]) / self.std[tomo_index][eo_idx]
-
+        normalized_subvolume = (subvolume - self.mean[tomo_index][eo_idx]) / self.std[tomo_index][eo_idx]        
+        
+        return -normalized_subvolume if invert else normalized_subvolume
+    
     def __len__(self):
         return self.length
 
@@ -294,14 +277,20 @@ class Train_sets_n2n(Dataset):
         coord_index = idx - (self.cumulative_samples[tomo_index - 1] if tomo_index > 0 else 0)
 
         z, y, x = self.coords[tomo_index][coord_index]
-        even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
-        odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
 
-        x1_volume, x2_volume = self.random_swap(
-            np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...], 
-            np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
-        )
+        if self.method in ['isonet2-n2n','n2n']:
+            even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
+            odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
 
+            x1_volume, x2_volume = self.random_swap(
+                np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...], 
+                np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
+            )
+        else:
+            input_subvolume = self.load_and_normalize(self.tomo_paths, tomo_index, z, y, x)
+            x1_volume = np.array(input_subvolume, dtype=np.float32)[np.newaxis, ...]
+            x2_volume = np.array([0], dtype=np.float32)
+            
         if self.noise_dir != None:
             noise_file = random.choice(self.noise_files)
             noise_volume, _ = read_mrc(noise_file)

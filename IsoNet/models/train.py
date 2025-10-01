@@ -10,7 +10,7 @@ from IsoNet.utils.utils import debug_matrix
 import random
 from IsoNet.models.masked_loss import masked_loss, apply_fourier_mask_to_tomo
 from IsoNet.utils.plot_metrics import plot_metrics
-from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
+from IsoNet.utils.rotations import rotation_list_90, generate_random_rotation, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
 import shutil
 from packaging import version
@@ -64,7 +64,7 @@ def cross_correlate(M1, M2):
     return (M1_norm*M2_norm).mean()
 
 
-def rotate_vol(volume, rotation):
+def rotate_vol_90(volume, rotation):
     # B, C, Z, Y, X
     new_vol = torch.rot90(volume, rotation[0][1], [rotation[0][0][0]-3,rotation[0][0][1]-3])
     new_vol = torch.rot90(new_vol, rotation[1][1], [rotation[1][0][0]-3,rotation[1][0][1]-3])
@@ -152,68 +152,72 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             ctf = torch.abs(ctf)
                             wiener = torch.abs(wiener) 
 
-                if training_params['method'] in ["n2n", "regular"]:   
-                    x1,_,_ = normalize_percentage(x1)    
-                    x2,_,_ = normalize_percentage(x2)                                    
-                    with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                        preds = model(x1)
-                        preds = preds.to(torch.float32)
+                # if training_params['method'] in ["n2n", "regular"]:   
+                #     x1,_,_ = normalize_percentage(x1)    
+                #     x2,_,_ = normalize_percentage(x2)                                    
+                #     with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
+                #         preds = model(x1)
+                #         preds = preds.to(torch.float32)
 
-                    if training_params['CTF_mode']  == 'network':
-                        preds = apply_F_filter_torch(preds, ctf)
-                    elif training_params['CTF_mode']  == 'wiener':
-                        x2 = apply_F_filter_torch(x2, wiener)
+                #     if training_params['CTF_mode']  == 'network':
+                #         preds = apply_F_filter_torch(preds, ctf)
+                #     elif training_params['CTF_mode']  == 'wiener':
+                #         x2 = apply_F_filter_torch(x2, wiener)
 
-                    loss = loss_func(x2, preds)
+                #     loss = loss_func(x2, preds)
 
-                    if rank == 0 and i_batch%100 == 0 :
-                        debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
-                        debug_matrix(preds, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
-                        debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")
-                        debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
+                #     if rank == 0 and i_batch%100 == 0 :
+                #         debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
+                #         debug_matrix(preds, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
+                #         debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")
+                #         debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
                     
-                    outside_loss = loss
-                    inside_loss = loss
+                #     outside_loss = loss
+                #     inside_loss = loss
 
-                elif training_params['method'] in ["isonet2"]:
+                if random.random()<training_params['random_rot_weight']:
+                    rotate_func = rotate_vol_around_axis_torch
+                    rot = generate_random_rotation()
+                else:
+                    rotate_func = rotate_vol_90
+                    rot = random.choice(rotation_list_90)
 
-                    if random.random()<training_params['random_rot_weight']:
-                        rotate_func = rotate_vol_around_axis_torch
-                        rot = sample_rot_axis_and_angle()
-                    else:
-                        rotate_func = rotate_vol
-                        rot = random.choice(rotation_list)
+                if training_params['method'] in ["isonet2"]:
+                    # x1half1 = x1[:, :, :, ::2, :]
+                    # x1half2 = x1[:, :, :, 1::2, :]
+                    # noise_std = torch.std(x1half1-x1half2)/1.414
 
-                    # assert x1 == x2
+                    x1 = apply_F_filter_torch(x1, mw)
 
-                    # x1 = apply_F_filter_torch(x1, mw)
-                    x1,_,_ = normalize_percentage(x1)
-                    # def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None):
-                    # x1 , lowerbound, upperbound= normalize_percentage(x1)
+                    x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
 
                     with torch.no_grad():
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                            preds = model(x1)
+                            preds_x1 = model(x1).to(torch.float32)
+
+                    # preds_x1half1 = preds_x1[:, :, :, ::2, :]
+                    # preds_x1half2 = preds_x1[:, :, :, 1::2, :]
+                    # new_noise_std = torch.std(preds_x1half1-preds_x1half2)/1.414
+                    # delta_noise_std = torch.sqrt(torch.abs(noise_std**2 - new_noise_std**2))
+
+                    # preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
 
                     if training_params['CTF_mode'] in ['network', 'wiener']:
-                        preds = apply_F_filter_torch(preds, ctf)
+                        preds_x1 = apply_F_filter_torch(preds_x1, ctf)
 
-                    preds = preds.to(torch.float32)
-
-                    # This normalization may be better to remove
-                    # preds,_,_ = normalize_percentage(preds)
-                    # preds,_,_ = normalize_percentage(preds, lower_bound=lowerbound, upper_bound=upperbound)
-                    x1_filled = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
-
-                    # This normalization may be needed
-                    x1_filled,_,_ = normalize_percentage(x1_filled)
-                    # x1_filled,_,_ = normalize_percentage(x1_filled, lower_bound=lowerbound, upper_bound=upperbound)
+                    x1_filled = apply_F_filter_torch(preds_x1, 1-mw) + x1 
 
                     x1_filled_rot = rotate_func(x1_filled, rot)
+
                     x1_filled_rot_mw = apply_F_filter_torch(x1_filled_rot, mw)
 
+                    x1_filled_rot_mw_mean, x1_filled_rot_mw_std = x1_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+
+                    x1_filled_rot_mw = (x1_filled_rot_mw-x1_filled_rot_mw_mean)/x1_filled_rot_mw_std * x1_std_org + x1_mean_org
+
+
                     rotated_mw = rotate_func(mw, rot)
-                    
+
                     net_input = x1_filled_rot_mw
                     net_target = x1_filled_rot
 
@@ -225,69 +229,30 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y = model(net_input).to(torch.float32)
 
-                        if training_params['CTF_mode']  == 'network':
-                            pred_y = apply_F_filter_torch(pred_y, ctf)
-                        elif training_params['CTF_mode']  == 'wiener':
-                            net_target = apply_F_filter_torch(net_target, wiener)
+                    if training_params['CTF_mode']  == 'network':
+                        pred_y = apply_F_filter_torch(pred_y, ctf)
+                    elif training_params['CTF_mode']  == 'wiener':
+                        net_target = apply_F_filter_torch(net_target, wiener)
 
-                        outside_loss, inside_loss = masked_loss(pred_y, net_target, rotated_mw, mw, loss_func = loss_func)
-                        loss = loss_func(pred_y, net_target)
-                        if len(gt.shape) > 2:
-                            gt_inside_loss = cross_correlate(apply_F_filter_torch(gt, mw), apply_F_filter_torch(preds, mw))
-                            gt_outside_loss = cross_correlate(apply_F_filter_torch(gt, 1-mw), apply_F_filter_torch(preds, 1-mw))
-                            inside_loss = gt_inside_loss
-                            outside_loss = gt_outside_loss     
+                    outside_loss, inside_loss = masked_loss(pred_y, net_target, rotated_mw, mw, loss_func = loss_func)
+
+                    loss = inside_loss + training_params['mw_weight'] * outside_loss if training_params['mw_weight'] > 0 else loss_func(pred_y, net_target)
                              
-                    if rank == 0 and i_batch%100 == 0 :
-                        # debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
-                        debug_matrix(gt, filename=f"{training_params['output_dir']}/debug_gt_{i_batch}.mrc")
-                        # debug_matrix(net_input1, filename=f"{training_params['output_dir']}/debug_net_input1_{i_batch}.mrc")
-                        if training_params["noise_level"] > 0:
-                            debug_matrix(noise_vol, filename=f"{training_params['output_dir']}/debug_noise_vol_{i_batch}.mrc")
-
-                        debug_matrix(x1_filled, filename=f"{training_params['output_dir']}/debug_x1_filled_{i_batch}.mrc")
-                        debug_matrix(x1_filled_rot, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_{i_batch}.mrc")
-                        debug_matrix(x1_filled_rot_mw, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_mw_{i_batch}.mrc")
-                        # debug_matrix(x2_filled_rot, filename=f"{training_params['output_dir']}/debug_x2_filled_rot_{i_batch}.mrc")
-
-                        debug_matrix(preds, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
-                        # debug_matrix(pred_y1, filename=f"{training_params['output_dir']}/debug_pred_y1_{i_batch}.mrc")
-                        # debug_matrix(preds_x2, filename=f"{training_params['output_dir']}/debug_preds_x2_{i_batch}.mrc")
-
-                        debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")                
-
                 elif training_params['method'] in ['isonet2-n2n']:
-
-                    if random.random()<training_params['random_rot_weight']:
-                        rotate_func = rotate_vol_around_axis_torch
-                        rot = sample_rot_axis_and_angle()
-                    else:
-                        rotate_func = rotate_vol
-                        rot = random.choice(rotation_list)
-
-
                     # x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
                     # x1,_,_ = normalize_mean_std(x1)
                     # x2,_,_ = normalize_mean_std(x2)
-                    if move_norm:
-                        x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-                        x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
-
                     noise_std = torch.std(x1-x2)/1.414
                     x1 = apply_F_filter_torch(x1, mw)
                     x2 = apply_F_filter_torch(x2, mw)
 
-                    if not move_norm:
-                        x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-                        x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
+                    x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
+                    x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
 
                     with torch.no_grad():
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                            preds_x1 = model(x1)
-                            preds_x2 = model(x2)
-
-                    preds_x1 = preds_x1.to(torch.float32)
-                    preds_x2 = preds_x2.to(torch.float32)
+                            preds_x1 = model(x1).to(torch.float32)
+                            preds_x2 = model(x2).to(torch.float32)
 
                     new_noise_std = torch.std(preds_x1-preds_x2)/1.414
                     delta_noise_std = torch.sqrt(torch.abs(noise_std**2 - new_noise_std**2))
@@ -295,46 +260,24 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
                     preds_x2 = preds_x2 + torch.randn_like(preds_x2) * delta_noise_std
 
-                    # preds_x1_preCTF = preds_x1.clone().detach()
-                    # preds_x2_preCTF = preds_x2.clone().detach()
                     if training_params['CTF_mode'] in ['network', 'wiener']:
                         preds_x1 = apply_F_filter_torch(preds_x1, ctf)
                         preds_x2 = apply_F_filter_torch(preds_x2, ctf)
-                    # may not be necessary
-                    # preds_x1,_,_ = normalize_percentage(preds_x1)
-                    # preds_x2,_,_ = normalize_percentage(preds_x2)
-
 
                     x1_filled = apply_F_filter_torch(preds_x1, 1-mw) + x1#apply_F_filter_torch(x1, mw)
                     x2_filled = apply_F_filter_torch(preds_x2, 1-mw) + x2#apply_F_filter_torch(x2, mw)
 
-                    # x1_filled,_,_ = normalize_mean_std(x1_filled)
-                    # x2_filled,_,_ = normalize_mean_std(x2_filled)
-                    if move_norm:
-                        x1_filled_mean, x1_filled_std = x1_filled.mean(dim=(-3,-2,-1), keepdim=True), x1_filled.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                        x2_filled_mean, x2_filled_std = x2_filled.mean(dim=(-3,-2,-1), keepdim=True), x2_filled.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-
-                        x1_filled = (x1_filled-x1_filled_mean)/x1_filled_std * x1_std_org + x1_mean_org
-                        x2_filled = (x2_filled-x2_filled_mean)/x2_filled_std * x2_std_org + x2_mean_org
-
                     x1_filled_rot = rotate_func(x1_filled, rot)
                     x2_filled_rot = rotate_func(x2_filled, rot)
-
-                    # x1_filled_rot_mean, x1_filled_rot_std = x1_filled_rot.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                    # x2_filled_rot_mean, x2_filled_rot_std = x2_filled_rot.mean(dim=(-3,-2,-1), keepdim=True), x2_filled_rot.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-
-                    # x1_filled_rot = (x1_filled_rot-x1_filled_rot_mean)/x1_filled_rot_std * x1_std_org + x1_mean_org
-                    # x2_filled_rot = (x2_filled_rot-x2_filled_rot_mean)/x2_filled_rot_std * x2_std_org + x2_mean_org
 
                     x1_filled_rot_mw = apply_F_filter_torch(x1_filled_rot, mw)
                     x2_filled_rot_mw = apply_F_filter_torch(x2_filled_rot, mw)
 
-                    if not move_norm:
-                        x1_filled_rot_mw_mean, x1_filled_rot_mw_std = x1_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                        x2_filled_rot_mw_mean, x2_filled_rot_mw_std = x2_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x2_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                    x1_filled_rot_mw_mean, x1_filled_rot_mw_std = x1_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+                    x2_filled_rot_mw_mean, x2_filled_rot_mw_std = x2_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x2_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
 
-                        x1_filled_rot_mw = (x1_filled_rot_mw-x1_filled_rot_mw_mean)/x1_filled_rot_mw_std * x1_std_org + x1_mean_org
-                        x2_filled_rot_mw = (x2_filled_rot_mw-x2_filled_rot_mw_mean)/x2_filled_rot_mw_std * x2_std_org + x2_mean_org
+                    x1_filled_rot_mw = (x1_filled_rot_mw-x1_filled_rot_mw_mean)/x1_filled_rot_mw_std * x1_std_org + x1_mean_org
+                    x2_filled_rot_mw = (x2_filled_rot_mw-x2_filled_rot_mw_mean)/x2_filled_rot_mw_std * x2_std_org + x2_mean_org
 
 
                     rotated_mw = rotate_func(mw, rot)
@@ -357,57 +300,75 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         pred_y1 = model(net_input1).to(torch.float32)
                         pred_y2 = model(net_input2).to(torch.float32)
 
-                        if training_params['CTF_mode']  == 'network':
-                            pred_y1 = apply_F_filter_torch(pred_y1, ctf)
-                            pred_y2 = apply_F_filter_torch(pred_y2, ctf)
-                        elif training_params['CTF_mode']  == 'wiener':
-                            net_target1 = apply_F_filter_torch(net_target1, wiener)
-                            net_target2 = apply_F_filter_torch(net_target2, wiener)
+                    if training_params['CTF_mode']  == 'network':
+                        pred_y1 = apply_F_filter_torch(pred_y1, ctf)
+                        pred_y2 = apply_F_filter_torch(pred_y2, ctf)
+                    elif training_params['CTF_mode']  == 'wiener':
+                        net_target1 = apply_F_filter_torch(net_target1, wiener)
+                        net_target2 = apply_F_filter_torch(net_target2, wiener)
 
-                        outside_loss1, inside_loss1 = masked_loss(pred_y1, net_target2, rotated_mw, mw, loss_func = loss_func)
-                        outside_loss2, inside_loss2 = masked_loss(pred_y2, net_target1, rotated_mw, mw, loss_func = loss_func)
-                        outside_loss = (outside_loss1 + outside_loss2)/2.
-                        inside_loss = (inside_loss1+ inside_loss2)/2.
-                        
-                        loss1 = loss_func(pred_y1, net_target2)
-                        loss2 = loss_func(pred_y2, net_target1)
-                        
+                    outside_loss1, inside_loss1 = masked_loss(pred_y1, net_target2, rotated_mw, mw, loss_func = loss_func)
+                    outside_loss2, inside_loss2 = masked_loss(pred_y2, net_target1, rotated_mw, mw, loss_func = loss_func)
+                    outside_loss = (outside_loss1 + outside_loss2)/2.
+                    inside_loss = (inside_loss1+ inside_loss2)/2.
+                    
+                    loss1 = loss_func(pred_y1, net_target2)
+                    loss2 = loss_func(pred_y2, net_target1)
+                    
 
-                        if training_params['mw_weight'] > 0:
-                            loss = inside_loss + training_params['mw_weight'] * outside_loss
-                        else:
-                            loss = (loss1 + loss2)/2.
+                    if training_params['mw_weight'] > 0:
+                        loss = inside_loss + training_params['mw_weight'] * outside_loss
+                    else:
+                        loss = (loss1 + loss2)/2.
 
-                        if len(gt.shape) > 2:
-                            gt_inside_loss = cross_correlate(apply_F_filter_torch(gt, mw), apply_F_filter_torch(preds_x1, mw))
-                            gt_outside_loss = cross_correlate(apply_F_filter_torch(gt, 1-mw), apply_F_filter_torch(preds_x1, 1-mw))
-                            inside_loss = gt_inside_loss
-                            outside_loss = gt_outside_loss       
+                    # if len(gt.shape) > 2:
+                    #     gt_inside_loss = cross_correlate(apply_F_filter_torch(gt, mw), apply_F_filter_torch(preds, mw))
+                    #     gt_outside_loss = cross_correlate(apply_F_filter_torch(gt, 1-mw), apply_F_filter_torch(preds, 1-mw))
+                    #     inside_loss = gt_inside_loss
+                    #     outside_loss = gt_outside_loss     
+ 
 
 
-                        # if rank == 0 and i_batch%100 == 0 :
-                        #     print(delta_noise_std, noise_std, new_noise_std)
+                # if rank == 0 and i_batch%100 == 0 :
+                #     print(delta_noise_std, noise_std, new_noise_std)
 
-                            # debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
-                            # debug_matrix(gt, filename=f"{training_params['output_dir']}/debug_gt_{i_batch}.mrc")
-                            # debug_matrix(net_input1, filename=f"{training_params['output_dir']}/debug_net_input1_{i_batch}.mrc")
-                            # debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
+                #     debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
+                #     debug_matrix(gt, filename=f"{training_params['output_dir']}/debug_gt_{i_batch}.mrc")
+                #     debug_matrix(net_input1, filename=f"{training_params['output_dir']}/debug_net_input1_{i_batch}.mrc")
+                #     debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
 
-                            # if training_params["noise_level"] > 0:
-                            #     debug_matrix(noise_vol, filename=f"{training_params['output_dir']}/debug_noise_vol_{i_batch}.mrc")
+                #     if training_params["noise_level"] > 0:
+                #         debug_matrix(noise_vol, filename=f"{training_params['output_dir']}/debug_noise_vol_{i_batch}.mrc")
 
-                            # debug_matrix(x1_filled, filename=f"{training_params['output_dir']}/debug_x1_filled_{i_batch}.mrc")
-                            # debug_matrix(x1_filled_rot, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_{i_batch}.mrc")
-                            # debug_matrix(x1_filled_rot_mw, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_mw_{i_batch}.mrc")
-                            # debug_matrix(x2_filled_rot, filename=f"{training_params['output_dir']}/debug_x2_filled_rot_{i_batch}.mrc")
+                #     debug_matrix(x1_filled, filename=f"{training_params['output_dir']}/debug_x1_filled_{i_batch}.mrc")
+                #     debug_matrix(x1_filled_rot, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_{i_batch}.mrc")
+                #     debug_matrix(x1_filled_rot_mw, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_mw_{i_batch}.mrc")
+                #     debug_matrix(x2_filled_rot, filename=f"{training_params['output_dir']}/debug_x2_filled_rot_{i_batch}.mrc")
 
-                            # # debug_matrix(preds_x1_preCTF, filename=f"{training_params['output_dir']}/debug_preds_prectf_{i_batch}.mrc")
+                #     # debug_matrix(preds_x1_preCTF, filename=f"{training_params['output_dir']}/debug_preds_prectf_{i_batch}.mrc")
 
-                            # debug_matrix(preds_x1, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
-                            # debug_matrix(pred_y1, filename=f"{training_params['output_dir']}/debug_pred_y1_{i_batch}.mrc")
-                            # debug_matrix(preds_x2, filename=f"{training_params['output_dir']}/debug_preds_x2_{i_batch}.mrc")
+                #     debug_matrix(preds_x1, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
+                #     debug_matrix(pred_y1, filename=f"{training_params['output_dir']}/debug_pred_y1_{i_batch}.mrc")
+                #     debug_matrix(preds_x2, filename=f"{training_params['output_dir']}/debug_preds_x2_{i_batch}.mrc")
 
-                            # debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")
+                #     debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")
+                # if rank == 0 and i_batch%100 == 0 :
+                #     # debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
+                #     debug_matrix(gt, filename=f"{training_params['output_dir']}/debug_gt_{i_batch}.mrc")
+                #     # debug_matrix(net_input1, filename=f"{training_params['output_dir']}/debug_net_input1_{i_batch}.mrc")
+                #     if training_params["noise_level"] > 0:
+                #         debug_matrix(noise_vol, filename=f"{training_params['output_dir']}/debug_noise_vol_{i_batch}.mrc")
+
+                #     debug_matrix(x1_filled, filename=f"{training_params['output_dir']}/debug_x1_filled_{i_batch}.mrc")
+                #     debug_matrix(x1_filled_rot, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_{i_batch}.mrc")
+                #     debug_matrix(x1_filled_rot_mw, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_mw_{i_batch}.mrc")
+                #     # debug_matrix(x2_filled_rot, filename=f"{training_params['output_dir']}/debug_x2_filled_rot_{i_batch}.mrc")
+
+                #     debug_matrix(pred_y, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
+                #     # debug_matrix(pred_y1, filename=f"{training_params['output_dir']}/debug_pred_y1_{i_batch}.mrc")
+                #     # debug_matrix(preds_x2, filename=f"{training_params['output_dir']}/debug_preds_x2_{i_batch}.mrc")
+
+                #     debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")                
 
                 loss = loss / training_params['acc_batches']
                 inside_loss = inside_loss / training_params['acc_batches']
