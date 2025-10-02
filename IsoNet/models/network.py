@@ -121,7 +121,7 @@ class Net:
         self.method = checkpoint['method']
         self.arch = checkpoint['arch']
         self.cube_size = checkpoint['cube_size']
-        self.CTF_mode = checkpoint['CTF_mode']
+        self.CTF_mode = checkpoint['CTF_mode'] if 'CTF_mode' in checkpoint else None
         self.initialize(self.method, self.arch, self.cube_size)
 
         self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -155,9 +155,11 @@ class Net:
 
         #### preparing data
         # from chatGPT: The DistributedSampler shuffles the indices of the entire dataset, not just the portion assigned to a specific GPU. 
-        clip_first_peak = False
-        if training_params['CTF_mode'] == 'network':
-            clip_first_peak = True
+        
+        if training_params['CTF_mode'] != 'network':
+            clip_first_peak_mode = 0
+        else:
+            clip_first_peak_mode = training_params['clip_first_peak_mode']
 
         if training_params['method'] == 'regular':
             from IsoNet.models.data_sequence import Train_sets_regular
@@ -172,7 +174,7 @@ class Net:
             from IsoNet.models.data_sequence import Train_sets_n2n, MRCDataset
             train_dataset = Train_sets_n2n(training_params['star_file'],method=training_params['method'], 
                                         cube_size=training_params['cube_size'], input_column=training_params['input_column'],\
-                                        split=training_params['split'], noise_dir=noise_dir, clip_first_peak=clip_first_peak,\
+                                        split=training_params['split'], noise_dir=noise_dir, clip_first_peak_mode=clip_first_peak_mode,\
                                         start_bt_size=training_params["start_bt_size"])
             # train_dataset = MRCDataset('sphere','GT')
         try:

@@ -382,8 +382,8 @@ class ISONET:
                 else:
                     Z = tomo_vol.shape[0]
                     tomo_vol = tomo_vol*-1
-                    mean = np.mean(tomo_vol[Z//2-16:Z//2+16])
-                    std = np.std(tomo_vol[Z//2-16:Z//2+16])
+                    mean = np.mean(tomo_vol[Z//2-30:Z//2+30])
+                    std = np.std(tomo_vol[Z//2-30:Z//2+30])
                     tomo_vol = (tomo_vol-mean)/std#normalize(tomo_vol * -1, percentile=False)
                 out_data.append(network.predict_map(
                     tomo_vol, output_dir,
@@ -533,7 +533,7 @@ class ISONET:
                    
                    input_column: str= 'rlnDeconvTomoName',
                    batch_size: int=None, 
-                   loss_func: str = "L1",
+                   loss_func: str = "L2",
                    learning_rate: float=3e-4,
                    save_interval: int=10,
                    learning_rate_min:float=3e-4,
@@ -542,6 +542,8 @@ class ISONET:
                    mixed_precision: bool=True,
 
                    CTF_mode: str="None",
+                   clip_first_peak_mode: int=1,
+
                    phaseflipped: bool=False,
                    do_phaseflip_input: bool=True,
 
@@ -558,7 +560,9 @@ class ISONET:
 
                    snrfalloff: float=0,
                    deconvstrength: float=1,
-                   highpassnyquist:float=0.02
+                   highpassnyquist:float=0.02,
+
+                   move_norm: bool=False,
 
                    ):
         '''
@@ -633,7 +637,9 @@ class ISONET:
             "deconvstrength": deconvstrength,
             "highpassnyquist":highpassnyquist,
             "random_rot_weight":random_rot_weight,
-            'do_phaseflip_input':do_phaseflip_input
+            'do_phaseflip_input':do_phaseflip_input,
+            "clip_first_peak_mode":clip_first_peak_mode,
+            "move_norm":move_norm
         }
         if split_halves:
             from IsoNet.models.network import DuoNet
