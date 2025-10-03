@@ -78,16 +78,47 @@ rotation_list_90 = [(((0,1),1),((1,2),0)), (((0,1),1),((1,2),1)), (((0,2),1),((1
 import torch
 import torch.nn.functional as F
 
-def generate_random_rotation():
-    rotvec = torch.randn(3, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))  # Random vector
+def generate_random_rotation(mw_angle=30.0, overlap=0.0):
+    # rotvec = torch.randn(3, device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))  # Random vector
+    # rot_axis = rotvec / rotvec.norm()
+    # rot_angle = torch.rand(1,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')) * 2 * torch.pi #rotvec.norm()  # This gives the angle in radians
     
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    exclusion_angle_deg = mw_angle * (1-overlap)
+    exclusion_angle_rad = torch.deg2rad(torch.tensor(4 * exclusion_angle_deg, device=device))
+    
+    # Generate random axis
+    rotvec = torch.randn(3, device=device)
     rot_axis = rotvec / rotvec.norm()
     
-    rot_angle = torch.rand(1,device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')) * 2 * torch.pi #rotvec.norm()  # This gives the angle in radians
+    axis_z = rot_axis[2]
+    if torch.abs(axis_z) >= torch.cos(exclusion_angle_rad):
+        # If axis is too close to Z, any rotation would violate constraint
+        # Force axis to be perpendicular to Z
+        xy_vec = torch.randn(2, device=device)
+        xy_axis = torch.tensor([xy_vec[0], xy_vec[1], 0.], device=device)
+        rot_axis = xy_axis / xy_axis.norm()
+        axis_z = torch.tensor(0., device=device)
     
-    #rot_angle_deg = torch.rad2deg(rot_angle)
+    # Calculate forbidden angle range
+    cos_half_forbidden = torch.cos(exclusion_angle_rad) / torch.abs(axis_z)
+    cos_half_forbidden = torch.clamp(cos_half_forbidden, -1.0, 1.0)
+    half_forbidden_angle = torch.acos(cos_half_forbidden)
     
-    return [rot_axis, rot_angle]
+    # Valid ranges: [0, π - half_forbidden] ∪ [π + half_forbidden, 2π]
+    valid_range_1 = torch.pi - half_forbidden_angle
+    valid_range_2 = 2 * torch.pi - (torch.pi + half_forbidden_angle)
+    total_valid_range = valid_range_1 + valid_range_2
+    
+    # Randomly choose which valid range to sample from
+    rand_val = torch.rand(1, device=device) * total_valid_range
+    
+    if rand_val <= valid_range_1:
+        rot_angle = rand_val
+    else:
+        rot_angle = torch.pi + half_forbidden_angle + (rand_val - valid_range_1)
+    
+    return [rot_axis, rot_angle]    
 
 
 def rotation_matrix(axis, angle):

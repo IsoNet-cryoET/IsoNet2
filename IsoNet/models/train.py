@@ -10,6 +10,7 @@ from IsoNet.utils.utils import debug_matrix
 import random
 from IsoNet.models.masked_loss import masked_loss, apply_fourier_mask_to_tomo
 from IsoNet.utils.plot_metrics import plot_metrics
+from IsoNet.utils.normalize import normalize_percentage, normalize_mean_std 
 from IsoNet.utils.rotations import rotation_list_90, generate_random_rotation, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
 import shutil
@@ -21,39 +22,39 @@ else:
     from torch.cuda.amp import GradScaler
 
 
-def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None):
-    original_shape = tensor.shape
+# def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None):
+#     original_shape = tensor.shape
     
-    batch_size = tensor.size(0)
-    flattened_tensor = tensor.reshape(batch_size, -1)
+#     batch_size = tensor.size(0)
+#     flattened_tensor = tensor.reshape(batch_size, -1)
 
-    factor = percentile/100.
-    lower_bound_subtomo = torch.quantile(flattened_tensor, factor, dim=1, keepdim=True)
-    upper_bound_subtomo = torch.quantile(flattened_tensor, 1-factor, dim=1, keepdim=True)
+#     factor = percentile/100.
+#     lower_bound_subtomo = torch.quantile(flattened_tensor, factor, dim=1, keepdim=True)
+#     upper_bound_subtomo = torch.quantile(flattened_tensor, 1-factor, dim=1, keepdim=True)
 
-    if lower_bound is None: 
-        normalized_flattened = (flattened_tensor - lower_bound_subtomo) / (upper_bound_subtomo - lower_bound_subtomo)
-        normalized_flattened = normalized_flattened.view(original_shape)
-    else:
-        normalized_flattened = (flattened_tensor - lower_bound) / (upper_bound - lower_bound)
-        normalized_flattened = normalized_flattened.view(original_shape)        
+#     if lower_bound is None: 
+#         normalized_flattened = (flattened_tensor - lower_bound_subtomo) / (upper_bound_subtomo - lower_bound_subtomo)
+#         normalized_flattened = normalized_flattened.view(original_shape)
+#     else:
+#         normalized_flattened = (flattened_tensor - lower_bound) / (upper_bound - lower_bound)
+#         normalized_flattened = normalized_flattened.view(original_shape)        
     
-    return normalized_flattened, lower_bound_subtomo, upper_bound_subtomo
+#     return normalized_flattened, lower_bound_subtomo, upper_bound_subtomo
 
 
-def normalize_mean_std(tensor, mean_val = None, std_val=None, matching = False):
-    # merge_factor = 0.99
-    mean_subtomo = tensor.mean()
-    std_subtomo = tensor.std(correction=0)
-    if mean_val is None: 
-        return (tensor - mean_subtomo) / std_subtomo, mean_subtomo, std_subtomo
-    else:
-        if matching:
-            return (tensor - mean_subtomo) / std_subtomo * std_val + mean_val, mean_subtomo, std_subtomo 
-        else:
-            # mean_val = mean_val*merge_factor + mean_subtomo*(1-merge_factor)
-            # std_val = std_val*merge_factor + std_subtomo*(1-merge_factor)
-            return (tensor - mean_val) / std_val, mean_subtomo, std_subtomo 
+# def normalize_mean_std(tensor, mean_val = None, std_val=None, matching = False):
+#     # merge_factor = 0.99
+#     mean_subtomo = tensor.mean()
+#     std_subtomo = tensor.std(correction=0)
+#     if mean_val is None: 
+#         return (tensor - mean_subtomo) / std_subtomo, mean_subtomo, std_subtomo
+#     else:
+#         if matching:
+#             return (tensor - mean_subtomo) / std_subtomo * std_val + mean_val, mean_subtomo, std_subtomo 
+#         else:
+#             # mean_val = mean_val*merge_factor + mean_subtomo*(1-merge_factor)
+#             # std_val = std_val*merge_factor + std_subtomo*(1-merge_factor)
+#             return (tensor - mean_val) / std_val, mean_subtomo, std_subtomo 
     
     # not (tensor - mean_val) / std_val
     
@@ -175,13 +176,9 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 #     outside_loss = loss
                 #     inside_loss = loss
 
-                if random.random()<training_params['random_rot_weight']:
-                    rotate_func = rotate_vol_around_axis_torch
-                    rot = generate_random_rotation()
-                else:
-                    rotate_func = rotate_vol_90
-                    rot = random.choice(rotation_list_90)
-
+                rotate_func = rotate_vol_around_axis_torch
+                rot = generate_random_rotation(mw_angle=30.0, overlap=training_params['random_rot_weight'])
+            
                 if training_params['method'] in ["isonet2"]:
                     # x1half1 = x1[:, :, :, ::2, :]
                     # x1half2 = x1[:, :, :, 1::2, :]
@@ -189,18 +186,16 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     x1 = apply_F_filter_torch(x1, mw)
 
-                    x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
+                    _, x1_std_orig, x1_mean_orig = normalize_mean_std(x1, normalize=False)
 
                     with torch.no_grad():
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
                             preds_x1 = model(x1).to(torch.float32)
 
-                    # preds_x1half1 = preds_x1[:, :, :, ::2, :]
-                    # preds_x1half2 = preds_x1[:, :, :, 1::2, :]
-                    # new_noise_std = torch.std(preds_x1half1-preds_x1half2)/1.414
-                    # delta_noise_std = torch.sqrt(torch.abs(noise_std**2 - new_noise_std**2))
-
-                    # preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
+                    if training_params["noise_level"] > 0:
+                        perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
+                        noise_vol = noise_vol[:, :, :, perm, :]
+                        preds_x1 = preds_x1 + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
 
                     if training_params['CTF_mode'] in ['network', 'wiener']:
                         preds_x1 = apply_F_filter_torch(preds_x1, ctf)
@@ -211,20 +206,17 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     x1_filled_rot_mw = apply_F_filter_torch(x1_filled_rot, mw)
 
-                    x1_filled_rot_mw_mean, x1_filled_rot_mw_std = x1_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-
-                    x1_filled_rot_mw = (x1_filled_rot_mw-x1_filled_rot_mw_mean)/x1_filled_rot_mw_std * x1_std_org + x1_mean_org
-
+                    x1_filled_rot_mw = normalize_mean_std(x1_filled_rot_mw, mean_val=x1_mean_orig, std_val=x1_std_orig, normalize=True)[0]
 
                     rotated_mw = rotate_func(mw, rot)
 
                     net_input = x1_filled_rot_mw
                     net_target = x1_filled_rot
 
-                    if training_params["noise_level"] > 0:
-                        perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
-                        noise_vol = noise_vol[:, :, :, perm, :]
-                        net_input = net_input + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
+                    # if training_params["noise_level"] > 0:
+                    #     perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
+                    #     noise_vol = noise_vol[:, :, :, perm, :]
+                    #     net_input = net_input + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
 
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y = model(net_input).to(torch.float32)
@@ -239,15 +231,15 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     loss = inside_loss + training_params['mw_weight'] * outside_loss if training_params['mw_weight'] > 0 else loss_func(pred_y, net_target)
                              
                 elif training_params['method'] in ['isonet2-n2n']:
-                    # x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
+                    # x1_std_orig, x1_mean_orig = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
                     # x1,_,_ = normalize_mean_std(x1)
                     # x2,_,_ = normalize_mean_std(x2)
                     noise_std = torch.std(x1-x2)/1.414
                     x1 = apply_F_filter_torch(x1, mw)
                     x2 = apply_F_filter_torch(x2, mw)
 
-                    x1_std_org, x1_mean_org = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-                    x2_std_org, x2_mean_org = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
+                    _, x1_std_orig, x1_mean_orig = normalize_mean_std(x1, normalize=False)
+                    _, x2_std_orig, x2_mean_orig = normalize_mean_std(x2, normalize=False)
 
                     with torch.no_grad():
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
@@ -273,12 +265,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     x1_filled_rot_mw = apply_F_filter_torch(x1_filled_rot, mw)
                     x2_filled_rot_mw = apply_F_filter_torch(x2_filled_rot, mw)
 
-                    x1_filled_rot_mw_mean, x1_filled_rot_mw_std = x1_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                    x2_filled_rot_mw_mean, x2_filled_rot_mw_std = x2_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x2_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-
-                    x1_filled_rot_mw = (x1_filled_rot_mw-x1_filled_rot_mw_mean)/x1_filled_rot_mw_std * x1_std_org + x1_mean_org
-                    x2_filled_rot_mw = (x2_filled_rot_mw-x2_filled_rot_mw_mean)/x2_filled_rot_mw_std * x2_std_org + x2_mean_org
-
+                    x1_filled_rot_mw = normalize_mean_std(x1_filled_rot_mw, mean_val=x1_mean_orig, std_val=x1_std_orig, normalize=True)[0]
+                    x2_filled_rot_mw = normalize_mean_std(x2_filled_rot_mw, mean_val=x2_mean_orig, std_val=x2_std_orig, normalize=True)[0]
 
                     rotated_mw = rotate_func(mw, rot)
                     
@@ -288,13 +276,12 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     net_target1 = x1_filled_rot
                     net_target2 = x2_filled_rot
 
-                    if training_params["noise_level"] > 0:
-                        perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
-                        noise_vol = noise_vol[:, :, :, perm, :]
-                        N = training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
-                        net_input1 = net_input1 + N
-                        net_input2 = net_input2 + N
-
+                    # if training_params["noise_level"] > 0:
+                    #     perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
+                    #     noise_vol = noise_vol[:, :, :, perm, :]
+                    #     N = training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
+                    #     net_input1 = net_input1 + N
+                    #     net_input2 = net_input2 + N
 
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y1 = model(net_input1).to(torch.float32)

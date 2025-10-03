@@ -38,7 +38,7 @@ def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=N
     return normalized, lower_bound_subtomo, upper_bound_subtomo
 
 
-def normalize_mean_std(tensor, mean_val = None, std_val=None, matching = False, normalize = True):
+def normalize_mean_std(tensor, mean_val = None, std_val=None, matching = True, normalize = True):
     # merge_factor = 0.99
     mean_subtomo = tensor.mean(dim=(-3, -2, -1), keepdim=True)
     std_subtomo = tensor.std(correction=False, dim=(-3, -2, -1), keepdim=True)
