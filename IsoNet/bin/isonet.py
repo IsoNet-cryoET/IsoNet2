@@ -562,8 +562,7 @@ class ISONET:
                    deconvstrength: float=1,
                    highpassnyquist:float=0.02,
 
-                   move_norm: bool=False,
-
+                   pseudo_n2n: bool=False
                    ):
         '''
         method: n2n isonet2 isonet2-n2n
@@ -605,7 +604,7 @@ class ISONET:
 
         if mw_weight > 0:
             print("enable mw_weight")
-            print("using masked loss seperating in and out of the missing wedge")
+            print("using masked loss separating in and out of the missing wedge")
 
         training_params = {
             "method": method,
@@ -639,7 +638,7 @@ class ISONET:
             "random_rot_weight":random_rot_weight,
             'do_phaseflip_input':do_phaseflip_input,
             "clip_first_peak_mode":clip_first_peak_mode,
-            "move_norm":move_norm
+            "pseudo_n2n":pseudo_n2n
         }
         if split_halves:
             from IsoNet.models.network import DuoNet

@@ -1,5 +1,5 @@
 import numpy as np
-# import torch
+import torch
 
 # def normalize_percentage(volume, percentile=4, lower_bound = None, upper_bound=None):
 #     original_shape = volume.shape
@@ -22,8 +22,8 @@ import numpy as np
 def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None, matching = False, normalize = True):
     
     factor = percentile/100.
-    lower_bound_subtomo = np.percentile(tensor, factor, axis=1, keepdims=True)
-    upper_bound_subtomo = np.percentile(tensor, 1-factor, axis=1, keepdims=True)
+    lower_bound_subtomo = tensor.quantile(q = factor, keepdim=True, interpolation='linear')
+    upper_bound_subtomo = tensor.quantile(q = 1-factor, keepdim=True, interpolation='linear')
     normalized = None
 
     if normalize:
