@@ -27,6 +27,7 @@ def get_ctf1d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, leng
     cs = cs * 1e-3           # mm to meters
     defocus = -defocus * 1e-6  # um to meters
     phaseshift = phaseshift / 180 * np.pi  # degrees to radians
+    bfactor = bfactor * 10**-20 # bfactors in A**2
 
     ny = 1 / angpix
     lambda1 = 12.2643247 / np.sqrt(voltage * (1.0 + voltage * 0.978466e-6)) * 1e-10
@@ -65,6 +66,11 @@ def get_ctf1d(angpix, voltage, cs, defocus, amplitude, phaseshift, bfactor, leng
                 new_val = np.cos(item_reassign/item * np.pi/2)
                 new_val = new_val*ctf[item]
                 ctf[item_reassign] = max(ctf[item_reassign], new_val)
+    print(bfactor)
+    bfactor_term = np.exp(-bfactor * k2 * 0.25)
+    # print(k2)
+    # print(bfactor_term)
+    ctf *= bfactor_term
     return ctf
 
 

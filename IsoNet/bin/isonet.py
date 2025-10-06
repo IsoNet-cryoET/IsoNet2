@@ -436,6 +436,7 @@ class ISONET:
                    CTF_mode: str="None",
                    phaseflipped: bool=False,
                    do_phaseflip_input: bool=True,
+                   bfactor: float=0,
                    
                    snrfalloff: float=0,
                    deconvstrength: float=1,
@@ -487,6 +488,8 @@ class ISONET:
             "deconvstrength": deconvstrength,
             "highpassnyquist":highpassnyquist,
             "do_phaseflip_input":do_phaseflip_input,
+            "bfactor":bfactor,
+            "move_norm": False
         }
         if split_halves:
             from IsoNet.models.network import DuoNet
@@ -543,6 +546,7 @@ class ISONET:
 
                    CTF_mode: str="None",
                    clip_first_peak_mode: int=1,
+                   bfactor: float=0,
 
                    phaseflipped: bool=False,
                    do_phaseflip_input: bool=True,
@@ -639,7 +643,8 @@ class ISONET:
             "random_rot_weight":random_rot_weight,
             'do_phaseflip_input':do_phaseflip_input,
             "clip_first_peak_mode":clip_first_peak_mode,
-            "move_norm":move_norm
+            "move_norm":move_norm,
+            "bfactor": bfactor
         }
         if split_halves:
             from IsoNet.models.network import DuoNet

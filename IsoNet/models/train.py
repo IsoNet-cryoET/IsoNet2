@@ -152,9 +152,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             ctf = torch.abs(ctf)
                             wiener = torch.abs(wiener) 
 
-                if training_params['method'] in ["n2n", "regular"]:   
-                    x1,_,_ = normalize_percentage(x1)    
-                    x2,_,_ = normalize_percentage(x2)                                    
+                if training_params['method'] in ["n2n", "regular"]:                                     
                     with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
                         preds = model(x1)
                         preds = preds.to(torch.float32)
@@ -385,13 +383,13 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             outside_loss = gt_outside_loss       
 
 
-                        # if rank == 0 and i_batch%100 == 0 :
+                        if rank == 0 and i_batch%100 == 0 :
                         #     print(delta_noise_std, noise_std, new_noise_std)
 
                             # debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
                             # debug_matrix(gt, filename=f"{training_params['output_dir']}/debug_gt_{i_batch}.mrc")
                             # debug_matrix(net_input1, filename=f"{training_params['output_dir']}/debug_net_input1_{i_batch}.mrc")
-                            # debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
+                            debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
 
                             # if training_params["noise_level"] > 0:
                             #     debug_matrix(noise_vol, filename=f"{training_params['output_dir']}/debug_noise_vol_{i_batch}.mrc")
