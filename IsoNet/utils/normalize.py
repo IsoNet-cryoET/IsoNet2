@@ -19,6 +19,24 @@ import torch
     
     # return normalized_volume, lower_bound_subtomo, upper_bound_subtomo
 
+def normalize_percentage_numpy(volume, percentile=4, lower_bound = None, upper_bound=None):
+    # original_shape = tensor.shape
+    
+    # batch_size = tensor.size(0)
+    # flattened_tensor = tensor.reshape(1, -1)
+
+    factor = percentile/100.
+    # lower_bound_subtomo = np.quantile(volume, factor, dim=1, keepdim=True)
+    # upper_bound_subtomo = np.quantile(volume, 1-factor, dim=1, keepdim=True)
+    lower_bound_subtomo = np.percentile(volume,factor,axis=None,keepdims=True)
+    upper_bound_subtomo = np.percentile(volume,1-factor,axis=None,keepdims=True)
+    if lower_bound is None: 
+        normalized_volume = (volume - lower_bound_subtomo) / (upper_bound_subtomo - lower_bound_subtomo)
+    else:
+        normalized_volume = (volume - lower_bound) / (upper_bound - lower_bound)
+    
+    return normalized_volume, lower_bound_subtomo, upper_bound_subtomo
+
 def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None, matching = False, normalize = True):
     
     factor = percentile/100.
@@ -27,7 +45,7 @@ def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=N
     normalized = None
 
     if normalize:
-        if lower_bound is None: 
+        if lower_bound is None:
             normalized = (tensor - lower_bound_subtomo) / (upper_bound_subtomo - lower_bound_subtomo)
         else:
             if matching:

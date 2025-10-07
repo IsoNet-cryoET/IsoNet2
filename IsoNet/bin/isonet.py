@@ -523,7 +523,7 @@ class ISONET:
                    gpuID: str=None,
                    ncpus: int=16, 
 
-                   method: str="isonet2-n2n",
+                   method: str=None,
                    arch: str='unet-medium',
                    pretrained_model: str=None,
                    pretrained_model2: str=None,
@@ -531,7 +531,7 @@ class ISONET:
                    cube_size: int=96,
                    epochs: int=50,
                    
-                   input_column: str= 'rlnDeconvTomoName',
+                   input_column: str= 'rlnTomoName',
                    batch_size: int=None, 
                    loss_func: str = "L2",
                    learning_rate: float=3e-4,
@@ -562,7 +562,8 @@ class ISONET:
                    deconvstrength: float=1,
                    highpassnyquist:float=0.02,
 
-                   pseudo_n2n: bool=False
+                   pseudo_n2n: bool=False,
+                   with_deconv: bool=False
                    ):
         '''
         method: n2n isonet2 isonet2-n2n
@@ -574,37 +575,50 @@ class ISONET:
         loss_func: L2, Huber
         '''
         compile_model=False,
-        # there is some questions about this parameter, relate to the placement of the zerograd
         acc_batches=1
+        # there is some questions about this parameter, relate to the placement of the zerograd
 
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
         steps_per_epoch = 200000000
         
         star = starfile.read(star_file)
-        if not 'rlnTomoReconstructedTomogramHalf1' in star.columns or star.iloc[0]['rlnTomoReconstructedTomogramHalf1'] in [None, "None"]:
-            print("regular isonet2 without noise2noise denoising")
-            method = 'isonet2'
-            
-        if method == "isonet2":
-            star = starfile.read(star_file)
-            if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
-                print("using rlnTomoName instead of rlnDeconvTomoName")
-                input_column = "rlnTomoName"
-            if noise_level <= 0:
-                print("Your noise_level is 0, we recommand to increase noise_level for denoising")
 
-        num_noise_volume = 1000
-        if noise_level > 0:
-            print("generating noise folder")
+        if method is None:
+            has_half = 'rlnTomoReconstructedTomogramHalf1' in star.columns and star.iloc[0]['rlnTomoReconstructedTomogramHalf1'] not in [None, "None"]
+            has_tomo = 'rlnTomoName' in star.columns and star.iloc[0]['rlnTomoName'] not in [None, "None"]
+            if has_half and has_tomo:
+                raise ValueError("Both 'rlnTomoReconstructedTomogramHalf1' and 'rlnTomoName' are present in the star file. Please specify the method explicitly (isonet2-n2n or isonet2).")
+            elif has_half:
+                print("Using noise2noise")
+                method = "isonet2-n2n"
+            else:
+                print("Using isonet2 without noise2noise")
+                method = "isonet2"
+
+        if method == "isonet2":
+            if with_deconv:
+                self.deconv(star_file=star_file, output_dir=f"{output_dir}/deconv")
+                self.make_mask(star_file=star_file, output_dir=f"{output_dir}/masks")
+                input_column = "rlnDeconvTomoName"
+            if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
+                print(f"{input_column} absent: Using rlnTomoName instead")
+                if input_column == "rlnDeconvTomoName": print("Please try running --with_deconv True to do CTF deconvolution first.")
+                input_column = "rlnTomoName"
+        
+        if noise_level <= 0:
+            print("We recommend a noise_level above 0 for denoising isonet2-only training")
+        else:
+            num_noise_volume = 1000
+            print("Generating noise folder")
             from IsoNet.utils.noise import make_noise_folder
             noise_dir = f"{output_dir}/noise_volumes"
             # Note: the angle for this noise generation is range(-90,90,3)
             make_noise_folder(noise_dir,noise_mode,cube_size,num_noise_volume,ncpus=ncpus)
 
         if mw_weight > 0:
-            print("enable mw_weight")
-            print("using masked loss separating in and out of the missing wedge")
+            print("Enabling mw_weight:")
+            print("Using masked loss to differentiate \"in\" (ground truth region) and \"out\" (missing wedge region)")
 
         training_params = {
             "method": method,
@@ -661,104 +675,104 @@ class ISONET:
                             phaseflipped=phaseflipped, do_phaseflip_input=do_phaseflip_input) 
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
-    def refine_v1(self,
-        star_file: str,
-        output_dir: str='results',
+    # def refine_v1(self,
+    #     star_file: str,
+    #     output_dir: str='results',
 
-        gpuID: str = None,
-        ncpus: int = 16,
+    #     gpuID: str = None,
+    #     ncpus: int = 16,
 
-        arch: str="unet-medium",
-        pretrained_model: str = None,
+    #     arch: str="unet-medium",
+    #     pretrained_model: str = None,
 
-        cube_size = 80,
+    #     cube_size = 80,
 
-        input_column: str= 'rlnDeconvTomoName',
-        batch_size: int = None,
-        loss_func: str= 'L2',
-        learning_rate: float = 3e-4,
-        T_max: int =  10,
-        learning_rate_min: float = 3e-4,
-        compile_model: bool = False,
-        mixed_precision: bool = True,
+    #     input_column: str= 'rlnDeconvTomoName',
+    #     batch_size: int = None,
+    #     loss_func: str= 'L2',
+    #     learning_rate: float = 3e-4,
+    #     T_max: int =  10,
+    #     learning_rate_min: float = 3e-4,
+    #     compile_model: bool = False,
+    #     mixed_precision: bool = True,
 
-        iterations: int = 30,
-        continue_from: str=None,
-        epochs: int = 10,
+    #     iterations: int = 30,
+    #     continue_from: str=None,
+    #     epochs: int = 10,
 
-        noise_level:  tuple = (0.05,0.1,0.15,0.2),
-        noise_mode: str = 'noFilter',
-        noise_start_iter: tuple = (10,15,20,25),
+    #     noise_level:  tuple = (0.05,0.1,0.15,0.2),
+    #     noise_mode: str = 'noFilter',
+    #     noise_start_iter: tuple = (10,15,20,25),
 
-        with_predict: bool = True,
+    #     with_predict: bool = True,
 
-        # temporarily fixed parameters
-        normalize_percentile: bool = True,
-        select_subtomo_number: int = None,
-        noise_dir: str = None,
-        split_halves: bool=False,
-        data_dir: str = None,
-        log_level: str = "info",
-        remove_intermediate: bool =False,
-        steps_per_epoch: int = None,
-        tomo_idx = None,
-        crop_size = None, 
-        random_rotation: bool =  False,
+    #     # temporarily fixed parameters
+    #     normalize_percentile: bool = True,
+    #     select_subtomo_number: int = None,
+    #     noise_dir: str = None,
+    #     split_halves: bool=False,
+    #     data_dir: str = None,
+    #     log_level: str = "info",
+    #     remove_intermediate: bool =False,
+    #     steps_per_epoch: int = None,
+    #     tomo_idx = None,
+    #     crop_size = None, 
+    #     random_rotation: bool =  False,
 
-    ):
+    # ):
 
-        """
-        \n\n
-        IsoNet.py map_refine half.mrc FSC3D.mrc --mask mask.mrc --limit_res 3.5 [--gpuID] [--ncpus] [--output_dir] [--fsc_file]...
-        :param i: Input half map 1
-        :param aniso_file: 3DFSC file
-        :param mask: Filename of a user-provided mask
-        :param independent: Independently process half1 and half2, this will disable the noise2noise-based denoising but will provide independent maps for gold-standard FSC
-        :param gpuID: The ID of gpu to be used during the training.
-        :param alpha: Ranging from 0 to inf. Weighting between the equivariance loss and consistency loss.
-        :param beta: Ranging from 0 to inf. Weighting of the denoising. Large number means more denoising. 
-        :param limit_res: Important! Resolution limit for IsoNet recovery. Information beyong this limit will not be modified.
-        :param ncpus: Number of cpu.
-        :param output_dir: The name of directory to save output maps
-        :param pretrained_model: The neural network model with ".pt" to continue training or prediction. 
-        :param reference: Retain the low resolution information from the reference in the IsoNet refine process.
-        :param ref_resolution: The limit resolution to keep from the reference. Ususlly  10-20 A resolution. 
-        :param epochs: Number of epochs.
-        :param n_subvolume: Number of subvolumes 
-        :param predict_crop_size: The size of subvolumes, should be larger then the cube_size
-        :param cube_size: Size of cubes for training, should be divisible by 16, e.g. 32, 64, 80.
-        :param batch_size: Size of the minibatch. If None, batch_size will be the max(2 * number_of_gpu,4). batch_size should be divisible by the number of gpu.
-        :param acc_batches: If this value is set to 2 (or more), accumulate gradiant will be used to save memory consumption.  
-        :param learning_rate: learning rate. Default learning rate is 3e-4 while previous IsoNet tomography used 3e-4 as learning rate
-        """
+    #     """
+    #     \n\n
+    #     IsoNet.py map_refine half.mrc FSC3D.mrc --mask mask.mrc --limit_res 3.5 [--gpuID] [--ncpus] [--output_dir] [--fsc_file]...
+    #     :param i: Input half map 1
+    #     :param aniso_file: 3DFSC file
+    #     :param mask: Filename of a user-provided mask
+    #     :param independent: Independently process half1 and half2, this will disable the noise2noise-based denoising but will provide independent maps for gold-standard FSC
+    #     :param gpuID: The ID of gpu to be used during the training.
+    #     :param alpha: Ranging from 0 to inf. Weighting between the equivariance loss and consistency loss.
+    #     :param beta: Ranging from 0 to inf. Weighting of the denoising. Large number means more denoising. 
+    #     :param limit_res: Important! Resolution limit for IsoNet recovery. Information beyong this limit will not be modified.
+    #     :param ncpus: Number of cpu.
+    #     :param output_dir: The name of directory to save output maps
+    #     :param pretrained_model: The neural network model with ".pt" to continue training or prediction. 
+    #     :param reference: Retain the low resolution information from the reference in the IsoNet refine process.
+    #     :param ref_resolution: The limit resolution to keep from the reference. Ususlly  10-20 A resolution. 
+    #     :param epochs: Number of epochs.
+    #     :param n_subvolume: Number of subvolumes 
+    #     :param predict_crop_size: The size of subvolumes, should be larger then the cube_size
+    #     :param cube_size: Size of cubes for training, should be divisible by 16, e.g. 32, 64, 80.
+    #     :param batch_size: Size of the minibatch. If None, batch_size will be the max(2 * number_of_gpu,4). batch_size should be divisible by the number of gpu.
+    #     :param acc_batches: If this value is set to 2 (or more), accumulate gradiant will be used to save memory consumption.  
+    #     :param learning_rate: learning rate. Default learning rate is 3e-4 while previous IsoNet tomography used 3e-4 as learning rate
+    #     """
 
 
-        from IsoNet.utils.utils import parse_params
-        from IsoNet.utils.dict2attr import load_args_from_json, filter_dict
-        params=filter_dict(locals())
-        if params['continue_from'] is not None:
-            logging.info('\n######Isonet Continues Refining######\n')
-            params = load_args_from_json(params.continue_from)
+    #     from IsoNet.utils.utils import parse_params
+    #     from IsoNet.utils.dict2attr import load_args_from_json, filter_dict
+    #     params=filter_dict(locals())
+    #     if params['continue_from'] is not None:
+    #         logging.info('\n######Isonet Continues Refining######\n')
+    #         params = load_args_from_json(params.continue_from)
 
-        params["batch_size"], params["ngpus"], params["ncpus"] = parse_params(batch_size, gpuID, ncpus)
-        # params["crop_size"] = params.get("crop_size") or params["cube_size"] + 16
-        params["crop_size"] = params.get("cube_size")
+    #     params["batch_size"], params["ngpus"], params["ncpus"] = parse_params(batch_size, gpuID, ncpus)
+    #     # params["crop_size"] = params.get("crop_size") or params["cube_size"] + 16
+    #     params["crop_size"] = params.get("cube_size")
 
-        params["data_dir"] = params.get("data_dir") or f'{params["output_dir"]}/data'
-        params["steps_per_epoch"] = params.get("steps_per_epoch") or 200
-        params["noise_dir"] = params.get("noise_dir") or f'{params["output_dir"]}/training_noise'
-        params["log_level"] = params.get("log_level") or "info"
+    #     params["data_dir"] = params.get("data_dir") or f'{params["output_dir"]}/data'
+    #     params["steps_per_epoch"] = params.get("steps_per_epoch") or 200
+    #     params["noise_dir"] = params.get("noise_dir") or f'{params["output_dir"]}/training_noise'
+    #     params["log_level"] = params.get("log_level") or "info"
 
-        if type(params["noise_level"]) not in [tuple, list]:
-            params["noise_level"] = [params["noise_level"]]
-        if type(params["noise_start_iter"]) not in [tuple, list]:
-            params["noise_start_iter"] = [params["noise_start_iter"]]
+    #     if type(params["noise_level"]) not in [tuple, list]:
+    #         params["noise_level"] = [params["noise_level"]]
+    #     if type(params["noise_start_iter"]) not in [tuple, list]:
+    #         params["noise_start_iter"] = [params["noise_start_iter"]]
 
-        from IsoNet.bin.refine import run
-        run(params)
+    #     from IsoNet.bin.refine import run
+    #     run(params)
 
-        # if with_predict:
-            # self.predict(star_file, params['])
+    #     # if with_predict:
+    #         # self.predict(star_file, params['])
 
 
     def simulate_noise_F(self, size=128, tilt_step=3, repeats=1000, ncpus=51):
