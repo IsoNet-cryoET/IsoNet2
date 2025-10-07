@@ -92,7 +92,7 @@ class Train_sets_n2n(Dataset):
 
     def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", 
                  split="full", noise_dir=None,correct_between_tilts=False, start_bt_size=48,
-                 snrfalloff=0, deconvstrength=1, highpassnyquist=0.02, clip_first_peak_mode=0):
+                 snrfalloff=0, deconvstrength=1, highpassnyquist=0.02, clip_first_peak_mode=0, bfactor = 0):
         self.star = starfile.read(tomo_star)
         self.method = method
         self.n_tomos = len(self.star)
@@ -123,7 +123,7 @@ class Train_sets_n2n(Dataset):
         self.deconvstrength=deconvstrength
         self.highpassnyquist=highpassnyquist
         self.has_groundtruth = False
-
+        self.bfactor = bfactor
 
         self._initialize_data()
         self.length = sum([coords.shape[0] for coords in self.coords])
@@ -245,7 +245,7 @@ class Train_sets_n2n(Dataset):
         from IsoNet.utils.CTF import get_wiener_3d
         from IsoNet.utils.CTF_new import get_ctf3d
         ctf3d = get_ctf3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
-                                    phaseshift=0, amplitude=row['rlnAmplitudeContrast'],bfactor=0, \
+                                    phaseshift=0, amplitude=row['rlnAmplitudeContrast'],bfactor=self.bfactor, \
                                         shape=[self.cube_size,self.cube_size,self.cube_size], clip_first_peak_mode=self.clip_first_peak_mode)
         wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
                                   snrfalloff=self.snrfalloff, deconvstrength=self.deconvstrength, highpassnyquist=self.highpassnyquist, \

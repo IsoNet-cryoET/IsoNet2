@@ -175,7 +175,7 @@ class Net:
             train_dataset = Train_sets_n2n(training_params['star_file'],method=training_params['method'], 
                                         cube_size=training_params['cube_size'], input_column=training_params['input_column'],\
                                         split=training_params['split'], noise_dir=noise_dir, clip_first_peak_mode=clip_first_peak_mode,\
-                                        start_bt_size=training_params["start_bt_size"])
+                                        start_bt_size=training_params["start_bt_size"], bfactor=training_params["bfactor"])
             # train_dataset = MRCDataset('sphere','GT')
         try:
             if self.world_size > 1:

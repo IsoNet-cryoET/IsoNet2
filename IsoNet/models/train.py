@@ -146,9 +146,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                             ctf = torch.abs(ctf)
                             wiener = torch.abs(wiener) 
 
-                if training_params['method'] in ["n2n", "regular"]:   
-                    x1,_,_ = normalize_percentage(x1)    
-                    x2,_,_ = normalize_percentage(x2)                                    
+                if training_params['method'] in ["n2n", "regular"]:                                     
                     with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
                         preds = model(x1)
                         preds = preds.to(torch.float32)
@@ -354,15 +352,29 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     #     inside_loss = gt_inside_loss
                     #     outside_loss = gt_outside_loss
 
-                if rank == 0 and i_batch%100 == 0 :
-                    debug_matrix(x1, filename=              f"{training_params['output_dir']}/01_debug_x1_{i_batch}.mrc")
-                    debug_matrix(preds_x1, filename=        f"{training_params['output_dir']}/02_debug_preds_x1_{i_batch}.mrc")
-                    debug_matrix(ctf, filename=             f"{training_params['output_dir']}/03_debug_ctf_{i_batch}.mrc") if training_params["CTF_mode"] in ['network', 'wiener'] else None
-                    debug_matrix(x1_filled, filename=       f"{training_params['output_dir']}/04_debug_x1_filled_{i_batch}.mrc")
-                    debug_matrix(x1_filled_rot, filename=   f"{training_params['output_dir']}/05_debug_x1_filled_rot_{i_batch}.mrc")
-                    debug_matrix(x1_filled_rot_mw, filename=f"{training_params['output_dir']}/06_debug_x1_filled_rot_mw_{i_batch}.mrc")
-                    debug_matrix(noise_vol, filename=       f"{training_params['output_dir']}/07_debug_noise_vol_{i_batch}.mrc") if training_params["noise_level"] > 0 else None
-                    debug_matrix(pred_y1, filename=         f"{training_params['output_dir']}/08_debug_pred_y1_{i_batch}.mrc")
+                        if rank == 0 and i_batch%100 == 0 :
+                        #     print(delta_noise_std, noise_std, new_noise_std)
+
+                            # debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
+                            # debug_matrix(gt, filename=f"{training_params['output_dir']}/debug_gt_{i_batch}.mrc")
+                            # debug_matrix(net_input1, filename=f"{training_params['output_dir']}/debug_net_input1_{i_batch}.mrc")
+                            debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
+
+                            # if training_params["noise_level"] > 0:
+                            #     debug_matrix(noise_vol, filename=f"{training_params['output_dir']}/debug_noise_vol_{i_batch}.mrc")
+
+                            # debug_matrix(x1_filled, filename=f"{training_params['output_dir']}/debug_x1_filled_{i_batch}.mrc")
+                            # debug_matrix(x1_filled_rot, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_{i_batch}.mrc")
+                            # debug_matrix(x1_filled_rot_mw, filename=f"{training_params['output_dir']}/debug_x1_filled_rot_mw_{i_batch}.mrc")
+                            # debug_matrix(x2_filled_rot, filename=f"{training_params['output_dir']}/debug_x2_filled_rot_{i_batch}.mrc")
+
+                            # # debug_matrix(preds_x1_preCTF, filename=f"{training_params['output_dir']}/debug_preds_prectf_{i_batch}.mrc")
+
+                            # debug_matrix(preds_x1, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
+                            # debug_matrix(pred_y1, filename=f"{training_params['output_dir']}/debug_pred_y1_{i_batch}.mrc")
+                            # debug_matrix(preds_x2, filename=f"{training_params['output_dir']}/debug_preds_x2_{i_batch}.mrc")
+
+                            # debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")
 
                 loss = loss / training_params['acc_batches']
                 inside_loss = inside_loss / training_params['acc_batches']

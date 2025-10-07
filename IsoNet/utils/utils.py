@@ -47,6 +47,7 @@ def process_gpuID(gpuID):
         gpuID = str(gpuID)
 
     import os    
+    os.environ["NCCL_P2P_DISABLE"]="1"
     os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"]=gpuID
     return ngpus, gpuID, gpuID_list
