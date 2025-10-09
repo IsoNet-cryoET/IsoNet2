@@ -27,36 +27,36 @@ def normalize_percentage(volume, percentile=4, lower_bound = None, upper_bound=N
     
     return normalized_volume, lower_bound_subtomo, upper_bound_subtomo
 
-class MRCDataset(Dataset):
-    def __init__(self, input_dir, target_dir, transform=None):
-        self.input_files = sorted([os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.endswith(".mrc")])
-        self.target_files = sorted([os.path.join(target_dir, f) for f in os.listdir(target_dir) if f.endswith(".mrc")])
-        print(len(self.input_files))
-        print(len(self.target_files))
+# class MRCDataset(Dataset):
+#     def __init__(self, input_dir, target_dir, transform=None):
+#         self.input_files = sorted([os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.endswith(".mrc")])
+#         self.target_files = sorted([os.path.join(target_dir, f) for f in os.listdir(target_dir) if f.endswith(".mrc")])
+#         print(len(self.input_files))
+#         print(len(self.target_files))
         
-        self.mw = mw3D(64, missingAngle=[30, 30], tilt_step=None, start_dim=100000)
-        self.mw = torch.from_numpy(self.mw).unsqueeze(0)
-        assert len(self.input_files) == len(self.target_files), "Mismatch in number of input and target files"
-        self.transform = transform
+#         self.mw = mw3D(64, missingAngle=[30, 30], tilt_step=None, start_dim=100000)
+#         self.mw = torch.from_numpy(self.mw).unsqueeze(0)
+#         assert len(self.input_files) == len(self.target_files), "Mismatch in number of input and target files"
+#         self.transform = transform
 
-    def __len__(self):
-        return len(self.input_files)
+#     def __len__(self):
+#         return len(self.input_files)
 
-    def __getitem__(self, idx):
-        with mrcfile.open(self.input_files[idx], permissive=True) as mrc:
-            input_vol = mrc.data.astype("float32")
-        with mrcfile.open(self.target_files[idx], permissive=True) as mrc:
-            target_vol = mrc.data.astype("float32")
+#     def __getitem__(self, idx):
+#         with mrcfile.open(self.input_files[idx], permissive=True) as mrc:
+#             input_vol = mrc.data.astype("float32")
+#         with mrcfile.open(self.target_files[idx], permissive=True) as mrc:
+#             target_vol = mrc.data.astype("float32")
 
-        # Add channel dimension for CNNs: (C, D, H, W) or (C, H, W)
-        input_tensor = torch.from_numpy(input_vol).unsqueeze(0)
-        target_tensor = torch.from_numpy(target_vol).unsqueeze(0)
+#         # Add channel dimension for CNNs: (C, D, H, W) or (C, H, W)
+#         input_tensor = torch.from_numpy(input_vol).unsqueeze(0)
+#         target_tensor = torch.from_numpy(target_vol).unsqueeze(0)
 
-        if self.transform:
-            input_tensor, target_tensor = self.transform(input_tensor, target_tensor)
-        # print(self.mw.shape)
-        mw = self.mw
-        return input_tensor, target_tensor, mw
+#         if self.transform:
+#             input_tensor, target_tensor = self.transform(input_tensor, target_tensor)
+#         # print(self.mw.shape)
+#         mw = self.mw
+#         return input_tensor, target_tensor, mw
 
 class Train_sets_regular(Dataset):
     def __init__(self, paths, shuffle=True):

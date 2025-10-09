@@ -173,8 +173,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 else:
                     rotate_func = rotate_vol_90
                     rot = random.choice(rotation_list_90)
-            
-                if training_params['method'] in ["isonet2"]:
+
+                if (training_params['method'] in ["isonet2"]): # and (not training_params["isonet2_switch"]):
                     if training_params["pseudo_n2n"]:
                         x1half1 = x1[:, :, :, ::2, :]
                         x1half2 = x1[:, :, :, 1::2, :]
@@ -189,15 +189,15 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]):
                             preds_x1 = model(x1).to(torch.float32)
 
-                    if training_params['CTF_mode'] in ['network', 'wiener']:
-                        preds_x1 = apply_F_filter_torch(preds_x1, ctf)
-
                     if training_params["pseudo_n2n"]:
                         preds_x1half1 = preds_x1[:, :, :, ::2, :]
                         preds_x1half2 = preds_x1[:, :, :, 1::2, :]
                         new_noise_std = torch.std(preds_x1half1-preds_x1half2)/1.414
                         delta_noise_std = torch.sqrt(torch.abs(noise_std**2 - new_noise_std**2))
                         preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
+
+                    if training_params['CTF_mode'] in ['network', 'wiener']:
+                        preds_x1 = apply_F_filter_torch(preds_x1, ctf)
                     
                     x1_filled = apply_F_filter_torch(preds_x1, 1-mw) + apply_F_filter_torch(x1, mw)
 
@@ -213,38 +213,6 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                     net_target = x1_filled_rot
                     
-                    # =================================================================================================================================================================================================================================================================================================================================================
-
-                    # x1,_,_ = normalize_percentage(x1)
-
-                    # with torch.no_grad():
-                    #     with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                    #         preds = model(x1)
-
-                    # if training_params['CTF_mode'] in ['network', 'wiener']:
-                    #     preds = apply_F_filter_torch(preds, ctf)
-
-                    # preds = preds.to(torch.float32)
-
-                    # x1_filled = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
-
-                    # x1_filled,_,_ = normalize_percentage(x1_filled)
-
-                    # x1_filled_rot = rotate_func(x1_filled, rot)
-                    # x1_filled_rot_mw = apply_F_filter_torch(x1_filled_rot, mw)
-
-                    # rotated_mw = rotate_func(mw, rot)
-                    
-                    # net_input = x1_filled_rot_mw
-                    # net_target = x1_filled_rot
-
-                    # if training_params["noise_level"] > 0:
-                    #     perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
-                    #     noise_vol = noise_vol[:, :, :, perm, :]
-                    #     net_input = net_input + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
-
-                    # =================================================================================================================================================================================================================================================================================================================================================
-
                     if training_params["noise_level"] > 0:
                         perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
                         noise_vol = noise_vol[:, :, :, perm, :]
@@ -267,6 +235,55 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         loss = loss_func(pred_y1, net_target)
                     else:
                         loss = inside_loss + training_params['mw_weight'] * outside_loss
+
+# # =================================================================================================================================================================================================================================================================================================================================================
+#                 elif (training_params['method'] in ["isonet2"]) and (training_params["isonet2_switch"]):
+#                     x1,_,_ = normalize_percentage(x1)
+
+#                     with torch.no_grad():
+#                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
+#                             preds = model(x1)
+
+#                     if training_params['CTF_mode'] in ['network', 'wiener']:
+#                         preds = apply_F_filter_torch(preds, ctf)
+
+#                     preds = preds.to(torch.float32)
+
+#                     x1_filled = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
+
+#                     x1_filled,_,_ = normalize_percentage(x1_filled)
+
+#                     x1_filled_rot = rotate_func(x1_filled, rot)
+#                     x1_filled_rot_mw = apply_F_filter_torch(x1_filled_rot, mw)
+
+#                     rotated_mw = rotate_func(mw, rot)
+                    
+#                     net_input = x1_filled_rot_mw
+#                     net_target = x1_filled_rot
+
+#                     if training_params["noise_level"] > 0:
+#                         perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
+#                         noise_vol = noise_vol[:, :, :, perm, :]
+#                         if not training_params["pseudo_n2n"]:
+#                             net_input = net_input + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
+#                         else:
+#                             net_input = net_input + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) * noise_std + noise_mean
+
+#                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
+#                         pred_y1 = model(net_input).to(torch.float32)
+
+#                     if training_params['CTF_mode']  == 'network':
+#                         pred_y1 = apply_F_filter_torch(pred_y1, ctf)
+#                     elif training_params['CTF_mode']  == 'wiener':
+#                         net_target = apply_F_filter_torch(net_target, wiener)
+
+#                     outside_loss, inside_loss = masked_loss(pred_y1, net_target, rotated_mw, mw, loss_func = loss_func)
+                    
+#                     if training_params['mw_weight'] < 0:
+#                         loss = loss_func(pred_y1, net_target)
+#                     else:
+#                         loss = inside_loss + training_params['mw_weight'] * outside_loss
+# # =================================================================================================================================================================================================================================================================================================================================================
 
                 elif training_params['method'] in ['isonet2-n2n']:
                     # x1_std_orig, x1_mean_orig = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
@@ -431,7 +448,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 f"outside_loss: {average_outside_loss:6.10f}, "
                 f"learning_rate: {scheduler.get_last_lr()[0]:.4e}")
 
-            plot_metrics(training_params["metrics"],f"{training_params['output_dir']}/loss_{training_params['split']}.png")
+            plot_metrics(training_params["metrics"], f"{training_params['output_dir']}/loss_{training_params['split']}.png", bottom=0, top=1)
+            
             if world_size > 1:
                 model_params = model.module.state_dict()
             else:

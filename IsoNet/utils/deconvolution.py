@@ -184,8 +184,8 @@ def deconv_one(tomo, out_tomo, voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.
     from functools import partial
     from IsoNet.utils.deconvolution import tom_deconv_tomo,Chunks
     import shutil
-    import time
-    t1 = time.time()
+    # import time
+    # t1 = time.time()
     if os.path.isdir('./deconv_temp'):
         shutil.rmtree('./deconv_temp')
     os.mkdir('./deconv_temp')
@@ -218,8 +218,8 @@ def deconv_one(tomo, out_tomo, voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.
             mrc.header.origin = header_input.origin
             mrc.header.nversion=header_input.nversion
     shutil.rmtree('./deconv_temp')
-    t2 = time.time()
-    logging.info('time consumed: {:10.4f} s'.format(t2-t1))
+    # t2 = time.time()
+    # logging.info('time consumed: {:10.4f} s'.format(t2-t1))
 
 
 
@@ -240,7 +240,7 @@ if __name__=='__main__':
     parser.add_argument("--tile",type=tuple,default=(1,4,4))
     parser.add_argument("--ncpu",type=int,default=8)
     args = parser.parse_args()
-    start = time.time()
+    # start = time.time()
 
     # deconv_one(args.mrcFile, args.outFile,defocus=args.defocus/10000.0, pixel_size=args.pixsize,snrfalloff=args.snrfalloff, deconvstrength=args.deconvstrength,tile=args.tile,ncpu=args.ncpu)
     tom_deconv_tomo(args.mrcFile, voltage=args.voltage, cs=args.cs, defocus=args.defocus/10000.0, angpix=args.pixsize,snrfalloff=args.snrfalloff, deconvstrength=args.deconvstrength,

@@ -20,7 +20,7 @@ def get_num_parameters(model):
     return sum(p.numel() for p in model.parameters())
 
 class Net:
-    def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model=None, state="train"):
+    def __init__(self, method=None, arch = 'unet-large', cube_size = 96, pretrained_model=None, state="train"):
         self.state = state
         if pretrained_model != None and pretrained_model != "None":
             self.load(pretrained_model)
@@ -97,7 +97,7 @@ class Net:
                 self.model.apply(self.model._init_weights)
 
         else:
-            print(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )
+            print(f"method {method} should be either unet-large, unet-small,unet-medium,HSFormer" )
         # elif self.arch == 'HSFormer':
         #     from IsoNet.models.HSFormer import swin_tiny_patch4_window8
         #     self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=128,num_classes =1)
@@ -171,7 +171,7 @@ class Net:
             else:
                 noise_dir = None
 
-            from IsoNet.models.data_sequence import Train_sets_n2n, MRCDataset
+            from IsoNet.models.data_sequence import Train_sets_n2n #MRCDataset
             train_dataset = Train_sets_n2n(training_params['star_file'],method=training_params['method'], 
                                         cube_size=training_params['cube_size'], input_column=training_params['input_column'],\
                                         split=training_params['split'], noise_dir=noise_dir, clip_first_peak_mode=clip_first_peak_mode,\
@@ -244,7 +244,7 @@ class Net:
     
 
 class DuoNet:
-    def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model1=None, pretrained_model2=None, state="train"):
+    def __init__(self, method=None, arch = 'unet-large', cube_size = 96, pretrained_model1=None, pretrained_model2=None, state="train"):
         self.net1 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model1, state=state)
         self.net2 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model2, state=state)
         self.method = method

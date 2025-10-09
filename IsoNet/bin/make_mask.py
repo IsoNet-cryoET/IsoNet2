@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import sys
 import mrcfile
 args = sys.argv
@@ -57,6 +58,12 @@ def make_mask(tomo_path, mask_name, mask_boundary = None, side = 5, density_perc
         #print(header_input)
         pixel_size = n.voxel_size
         tomo = n.data.astype(np.float32)
+
+    parent_dir = os.path.basename(os.path.dirname(tomo_path))
+    file_name = os.path.basename(tomo_path)
+    tomo_name = f"{parent_dir}/{file_name}"
+    logging.info('mask: {}| mask_boundary: {}| density_percentage: {}| std_percentage:{}| z_crop:{}'.format(tomo_name, mask_boundary, density_percentage, std_percentage, surface))
+
     sp=np.array(tomo.shape)
     sp2 = sp//2
     bintomo = resize(tomo,sp2,anti_aliasing=True)

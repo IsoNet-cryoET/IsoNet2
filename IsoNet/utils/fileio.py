@@ -11,13 +11,13 @@ def create_folder(folder, remove=True):
         os.makedirs(folder)
     except FileExistsError:
         if remove:
-            logging.warning(f"The {folder} folder already exists. The old {folder} folder will be moved to {folder}~")
+            logging.warning(f"The {folder} folder exists. The old {folder} folder will be moved to {folder}~")
             if os.path.exists(folder+'~'):
                 shutil.rmtree(folder+'~')
             os.system('mv {} {}'.format(folder, folder+'~'))
             os.makedirs(folder)
         else:
-            logging.info(f"The {folder} folder already exists, outputs will write into this folder")
+            logging.info(f"The {folder} folder exists, outputs will write into this folder")
 
 def read_mrc(filename, inplace=False):
     if inplace:

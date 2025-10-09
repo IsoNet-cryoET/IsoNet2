@@ -25,10 +25,27 @@ from IsoNet.utils.missing_wedge import mw3D
 from IsoNet.utils.CTF import get_ctf_3d
 class ISONET:
     """
-    ISONET: Train on tomograms and restore missing-wedge\n
-    for detail discription, run one of the following commands:
+    ISONET: Train on tomograms and restore missing-wedge.
 
-    IsoNet.py refine -h
+    Usage:
+        isonet.py [command] -h
+
+    Commands:
+        prepare_star      Generate a tomograms.star file from tomogram folders
+        star2json         Convert star file to JSON format
+        json2star         Convert JSON file to star format
+        deconv            CTF deconvolution for tomograms
+        make_mask         Generate masks for tomograms
+        predict           Predict tomograms using trained model
+        denoise           Train denoising model (noise2noise)
+        refine            Train missing wedge correction model
+        simulate_noise_F  Simulate Fourier domain noise statistics
+        postprocessing    Combine half-maps for postprocessing and FSC
+        resize            Rescale tomograms to a given pixel size
+        powerlaw_filtering Apply power-law filtering to a map
+        psf               Generate point spread function or missing wedge mask
+        check             Check IsoNet installation and GPU performance
+        gui               Launch the IsoNet graphical user interface
     """
 
     def prepare_star(self, full: str="None",
@@ -48,21 +65,53 @@ class ISONET:
                      create_average: bool=False,
                      number_subtomos = 1000):
         """
-        \n
-        If there is no evn odd seperation, please specify tomo_folder
-        If you have even and odd tomograms, please use the even_folder and odd_folder parameters
-        
-        This command generates a tomograms.star file from a folder containing only tomogram files (.mrc or .rec).\n
-        isonet.py prepare_star folder_name [--output_star] [--pixel_size] [--defocus] [--number_subtomos]
-        :param folder_name: (None) directory containing tomogram(s). Usually 1-5 tomograms are sufficient.
-        :param output_star: (tomograms.star) star file similar to that from "relion". You can modify this file manually or with gui.
-        :param pixel_size: (10) pixel size in angstroms. Usually you want to bin your tomograms to about 10A pixel size.
-        Too large or too small pixel sizes are not recommended, since the target resolution on Z-axis of corrected tomograms should be about 30A.
-        :param defocus: (0.0) defocus in Angstrom. Only need for ctf deconvolution. For phase plate data, you can leave defocus 0.
-        If you have multiple tomograms with different defocus, please modify them in star file or with gui.
-        :param number_subtomos: (100) Number of subtomograms to be extracted in later processes.
-        If you want to extract different number of subtomograms in different tomograms, you can modify them in the star file generated with this command or with gui.
+        Generate a tomograms.star file from folder(s) containing tomogram files.
 
+        Usage:
+            isonet.py prepare_star folder_name [--output_star] [--pixel_size] [--defocus] [--number_subtomos]
+
+        This command generates a tomograms.star file from a folder containing only tomogram files (.mrc or .rec).
+        If there is no even/odd separation, please specify full folder.
+        If you have even and odd tomograms, please use the even_folder and odd_folder parameters.
+
+        Parameters:
+            full
+            Directory containing full tomogram(s). Usually 1-5 tomograms are sufficient.
+
+            even
+            Directory containing even half tomograms.
+
+            odd
+            Directory containing odd half tomograms.
+
+            star_name
+            Output star file, similar to that from "relion". You can modify this file manually or with gui.
+
+            pixel_size
+            Pixel size in angstroms. Usually you want to bin your tomograms to about 10A pixel size.
+            Extreme deviations in pixel size are not recommended, since the target resolution on Z-axis should be about 30A.
+
+            number_subtomos
+            Number of subtomograms to be extracted during training.
+            You can directly modify this in the generated star file or with gui if you want different numbers extracted for different tomograms.
+
+            cs
+            Spherical aberration in mm.
+
+            voltage
+            Acceleration voltage in kV.
+
+            ac
+            Amplitude contrast.
+
+            tilt_min
+            Minimum tilt angle.
+
+            tilt_max
+            Maximum tilt angle.
+
+            tilt_step (float, default: 3)
+            Tilt step size.
         """
         import starfile
         import pandas as pd
@@ -167,10 +216,36 @@ class ISONET:
         df.to_json('.to_node.json')  # orient='records' gives a list of dictionaries
 
     def star2json(self, star_file="tomograms.star", json_file='tomograms.json'):
+        """
+        Convert star file to JSON format.
+
+        Usage:
+            isonet.py star2json [--star_file] [--json_file]
+
+        Parameters:
+            star_file (str, default: tomograms.star)
+            Input star file to convert.
+
+            json_file (str, default: tomograms.json)
+            Output JSON file name.
+        """
         star = starfile.read(star_file)
         star.to_json(json_file)
 
     def json2star(self, json_file, star_name="tomograms.star"):
+        """
+        Convert JSON file to star format.
+
+        Usage:
+            isonet.py json2star json_file [--star_name]
+
+        Parameters:
+            json_file (str)
+            Input JSON file to convert.
+
+            star_name (str, default: tomograms.star)
+            Output star file name.
+        """
         df = pd.read_json(json_file)
         starfile.write(df,star_name)
 
@@ -186,24 +261,51 @@ class ISONET:
         phaseflipped:bool=False,
         tomo_idx: str=None):
         """
-        \nCTF deconvolution for the tomograms.\n
-        isonet.py deconv star_file [--deconv_folder] [--snrfalloff] [--deconvstrength] [--highpassnyquist] [--overlap_rate] [--ncpu] [--tomo_idx]
-        This step is recommended because it enhances low resolution information for a better contrast. No need to do deconvolution for phase plate data.
-        :param deconv_folder: (./deconv) Folder created to save deconvoluted tomograms.
-        :param star_file: (None) Star file for tomograms.
-        :param voltage: (300.0) Acceleration voltage in kV.
-        :param cs: (2.7) Spherical aberration in mm.
-        :param snrfalloff: (1.0) SNR fall rate with the frequency. High values means losing more high frequency.
-        If this value is not set, the program will look for the parameter in the star file.
-        If this value is not set and not found in star file, the default value 1.0 will be used.
-        :param deconvstrength: (1.0) Strength of the deconvolution.
-        If this value is not set, the program will look for the parameter in the star file.
-        If this value is not set and not found in star file, the default value 1.0 will be used.
-        :param highpassnyquist: (0.02) Highpass filter for at very low frequency. We suggest to keep this default value.
-        :param chunk_size: (None) When your computer has enough memory, please keep the chunk_size as the default value: None . Otherwise, you can let the program crop the tomogram into multiple chunks for multiprocessing and assembly them into one. The chunk_size defines the size of individual chunk. This option may induce artifacts along edges of chunks. When that happen, you may use larger overlap_rate.
-        :param overlap_rate: (None) The overlapping rate for adjecent chunks.
-        :param ncpu: (4) Number of cpus to use.
-        :param tomo_idx: (None) If this value is set, process only the tomograms listed in this index. e.g. 1,2,4 or 5-10,15,16
+        CTF deconvolution for tomograms.
+
+        Usage:
+            isonet.py deconv star_file [--deconv_folder] [--snrfalloff] [--deconvstrength] [--highpassnyquist]
+                           [--overlap_rate] [--ncpu] [--tomo_idx]
+
+        This step is recommended because it enhances low-resolution information for better contrast.
+        This is unnecessary for phase plate data.
+
+        Parameters:
+            deconv_folder (str, default: ./deconv)
+            Folder to save deconvolved tomograms.
+
+            star_file (str)
+            Star file for tomograms.
+
+            voltage (float, default: 300.0)
+            Acceleration voltage in kV.
+
+            cs (float, default: 2.7)
+            Spherical aberration in mm.
+
+            snrfalloff (float, default: 1.0)
+            SNR falloff rate with frequency. Higher values correspond to less high frequency data.
+            If not set, the program will look for the parameter in the star file or use the default.
+
+            deconvstrength (float, default: 1.0)
+            Strength of the deconvolution.
+            If not set, the program will look for the parameter in the star file or use the default.
+
+            highpassnyquist (float, default: 0.02)
+            Highpass filter at very low frequency. The default is usually sufficient.
+
+            chunk_size (int, default: None)
+            If memory is limited, set chunk_size to crop the tomogram into smaller chunks for processing.
+            May induce artifacts at chunk edges; increase overlap_rate if needed.
+
+            overlap_rate (float, default: None)
+            Overlap rate for adjacent chunks.
+
+            ncpu (int, default: 4)
+            Number of CPUs to use.
+
+            tomo_idx (str, default: None)
+            If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
         """
 
         def deconv_row(i, row, new_star):
@@ -247,23 +349,43 @@ class ISONET:
                 patch_size: int=4,
                 density_percentage: int=50,
                 std_percentage: int=50,
-                z_crop:float=0.1,
+                z_crop:float=0.2,
                 tomo_idx=None):
         """
-        \ngenerate a mask that include sample area and exclude "empty" area of the tomogram. The masks do not need to be precise. In general, the number of subtomograms (a value in star file) should be lesser if you masked out larger area. \n
-        isonet.py make_mask star_file [--mask_folder] [--patch_size] [--density_percentage] [--std_percentage] [--use_deconv_tomo] [--tomo_idx]
-        :param star_file: path to the tomogram or tomogram folder
-        :param mask_folder: path and name of the mask to save as
-        :param patch_size: (4) The size of the box from which the max-filter and std-filter are calculated.
-        :param density_percentage: (50) The approximate percentage of pixels to keep based on their local pixel density.
-        If this value is not set, the program will look for the parameter in the star file.
-        If this value is not set and not found in star file, the default value 50 will be used.
-        :param std_percentage: (50) The approximate percentage of pixels to keep based on their local standard deviation.
-        If this value is not set, the program will look for the parameter in the star file.
-        If this value is not set and not found in star file, the default value 50 will be used.
-        :param use_deconv_tomo: (True) If CTF deconvolved tomogram is found in tomogram.star, use that tomogram instead.
-        :param z_crop: If exclude the top and bottom regions of tomograms along z axis. For example, "--z_crop 0.2" will mask out the top 20% and bottom 20% region along z axis.
-        :param tomo_idx: (None) If this value is set, process only the tomograms listed in this index. e.g. 1,2,4 or 5-10,15,16
+        Generate masks for subtomogram extraction that exclude "empty" areas of tomograms.
+
+        Usage:
+            isonet.py make_mask star_file [--mask_folder] [--patch_size] [--density_percentage] [--std_percentage] [--use_deconv_tomo] [--tomo_idx]
+
+        The masks do not need to be precise. In general, more selective masks reduce the number of subtomograms needed.
+    
+        Parameters:
+            star_file (str)
+            Path to the star file containing tomogram information.
+
+            output_dir (str, default: mask)
+            Directory to save generated masks.
+
+            input_column (str, default: rlnDeconvTomoName)
+            Column name in star file to use as input tomograms.
+
+            patch_size (int, default: 4)
+            The size of the box from which the max-filter and std-filter are calculated.
+
+            density_percentage (int, default: 50)
+            The approximate percentage of pixels to keep based on their local pixel density.
+            If not set, will look for parameter in star file or use default.
+
+            std_percentage (int, default: 50)
+            The approximate percentage of pixels to keep based on their local standard deviation.
+            If not set, will look for parameter in star file or use default.
+
+            z_crop (float, default: 0.2)
+            The percentage of tomogram data masked out along the z axis, split between the top and bottom regions.
+            For example, 0.2 will mask out the top 10% and bottom 10% region along z axis.
+
+            tomo_idx (str, default: None)
+            If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
         """
 
         def mask_row(i, row, new_star):
@@ -276,7 +398,7 @@ class ISONET:
 
             base = os.path.splitext(os.path.basename(tomo))[0]
             out_path = os.path.join(output_dir, f"{base}_mask.mrc")
-            logging.info(f"Creating mask for {tomo} → {out_path}")
+            # logging.info(f"Creating mask for {tomo} → {out_path}")
 
             make_mask(
                 tomo,
@@ -285,7 +407,7 @@ class ISONET:
                 side=patch_size,
                 density_percentage=density_percentage,
                 std_percentage=std_percentage,
-                surface=z_crop
+                surface=z_crop/2
             )
             new_star.at[i, 'rlnMaskName'] = out_path
 
@@ -309,20 +431,44 @@ class ISONET:
                 padding_factor: float=1.5,
                 tomo_idx=None):
         """
-        \nPredict tomograms using trained model\n
-        isonet.py predict star_file model [--gpuID] [--output_dir] [--cube_size] [--crop_size] [--batch_size] [--tomo_idx]
-        :param star_file: star for tomograms.
-        :param output_dir: file_name of output predicted tomograms
-        :param model: path to trained network model .h5
-        :param gpuID: (0,1,2,3) The gpuID to used during the training. e.g 0,1,2,3.
-        :param cube_size: (64) The tomogram is divided into cubes to predict due to the memory limitation of GPUs.
-        :param crop_size: (96) The side-length of cubes cropping from tomogram in an overlapping patch strategy, make this value larger if you see the patchy artifacts
-        :param batch_size: The batch size of the cubes grouped into for network predicting, the default parameter is four times number of gpu
-        :param normalize_percentile: (True) if normalize the tomograms by percentile. Should be the same with that in refine parameter.
-        :param log_level: ("debug") level of message to be displayed, could be 'info' or 'debug'
-        :param tomo_idx: (None) If this value is set, process only the tomograms listed in this index. e.g. 1,2,4 or 5-10,15,16
-        :param use_deconv_tomo: (True) If CTF deconvolved tomogram is found in tomogram.star, use that tomogram instead.
-        :raises: AttributeError, KeyError
+        Predict tomograms using trained model.
+
+        Usage:
+            isonet.py predict star_file model [--gpuID] [--output_dir] [--cube_size] [--crop_size] [--batch_size] [--tomo_idx]
+
+        Parameters:
+            star_file (str)
+            Star file for tomograms.
+
+            model (str)
+            Path to trained network model (.pt file).
+
+            model2 (str, default: None)
+            Path to second trained network model for dual network prediction.
+
+            output_dir (str, default: ./corrected_tomos)
+            Directory to save output predicted tomograms.
+
+            gpuID (str, default: None)
+            GPU IDs to use during prediction (e.g., "0,1,2,3").
+
+            input_column (str, default: rlnDeconvTomoName)
+            Column name in star file to use as input tomograms.
+
+            apply_mw_x1 (bool, default: True)
+            Whether to apply missing wedge mask to input tomograms.
+
+            phaseflipped (bool, default: False)
+            Whether input tomograms are phase flipped.
+
+            do_phaseflip_input (bool, default: True)
+            Whether to apply phase flip to input during prediction.
+
+            padding_factor (float, default: 1.5)
+            Padding factor for prediction cubes.
+
+            tomo_idx (str, default: None)
+            If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
         """
         ngpus, gpuID, gpuID_list = process_gpuID(gpuID)
 
@@ -445,15 +591,90 @@ class ISONET:
                    with_predict: bool=True,
                    split_halves: bool=False
                    ):
-        '''
-        method: n2n isonet2 isonet2-n2n
-        arch: unet-default, unet-small, unet-medium, HSFormer, vtunet
-        gamma: <=0 normal loss, >0 ddw loss, ddw default 2, 
-        apply_mw_x1: apply missing wedge to subtomograms in the begining. True seems to be better.
-        compile_model: improve the speed of training, sometime error
-        mixed_precision: use mixed precision to reduce VRAM and increase speed
-        loss_func: L2, Huber
-        '''
+        """
+        Train denoising model using noise2noise approach.
+
+        Usage:
+            isonet.py denoise star_file [--output_dir] [--gpuID] [--arch] [--epochs]
+
+        This method uses noise2noise training approach for denoising tomograms.
+
+        Parameters:
+            star_file (str)
+            Star file for tomograms.
+
+            output_dir (str, default: denoise)
+            Directory to save trained model and results.
+
+            gpuID (str, default: None)
+            GPU IDs to use during training (e.g., "0,1,2,3").
+
+            ncpus (int, default: 16)
+            Number of CPUs to use for data processing.
+
+            arch (str, default: unet-medium)
+            Model architecture (unet-large, unet-small, unet-medium, HSFormer, vtunet).
+
+            pretrained_model (str, default: None)
+            Path to pretrained model to continue training.
+
+            pretrained_model2 (str, default: None)
+            Path to second pretrained model for dual network training.
+
+            cube_size (int, default: 96)
+            Size of training subvolumes.
+
+            epochs (int, default: 50)
+            Number of training epochs.
+
+            batch_size (int, default: None)
+            Batch size for training. If none is provided, it will be calculated based on GPU availability.
+
+            acc_batches (int, default: 1)
+            Number of batches to accumulate gradients.
+
+            loss_func (str, default: L2)
+            Loss function to use (L2, Huber, L1).
+
+            save_interval (int, default: 10)
+            Interval to save model checkpoints.
+
+            learning_rate (float, default: 3e-4)
+            Initial learning rate.
+
+            learning_rate_min (float, default: 3e-4)
+            Minimum learning rate for scheduler.
+
+            mixed_precision (bool, default: True)
+            Use mixed precision to reduce VRAM and increase speed.
+
+            CTF_mode (str, default: None)
+            CTF correction mode (None, phase_only, wiener, network).
+
+            phaseflipped (bool, default: False)
+            Whether input tomograms are phase flipped.
+
+            do_phaseflip_input (bool, default: True)
+            Whether to apply phase flip during training.
+
+            bfactor (float, default: 0)
+            B-factor for filtering.
+
+            snrfalloff (float, default: 0)
+            SNR falloff parameter.
+
+            deconvstrength (float, default: 1)
+            Deconvolution strength parameter.
+
+            highpassnyquist (float, default: 0.02)
+            High-pass filter parameter.
+
+            with_predict (bool, default: True)
+            Whether to run prediction after training.
+
+            split_halves (bool, default: False)
+            Whether to train separate models for each half.
+        """
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus)
         steps_per_epoch = 200000000
@@ -562,24 +783,135 @@ class ISONET:
                    with_predict: bool=True,
                    split_halves: bool=False,
 
-                   snrfalloff: float=0,
-                   deconvstrength: float=1,
-                   highpassnyquist:float=0.02,
+                   snrfalloff: float = 1.0,
+                   deconvstrength: float = 1.0,
+                   highpassnyquist: float = 0.02,
 
                    pseudo_n2n: bool=False,
-                   with_deconv: bool=False
+                   with_deconv: bool=False,
+                   with_mask: bool=False,
+                #    isonet2_switch: bool=False
                    ):
-        '''
-        method: n2n isonet2 isonet2-n2n
-        arch: unet-default, unet-small, unet-medium, HSFormer, vtunet
-        gamma: <=0 normal loss, >0 ddw loss, ddw default 2, 
-        apply_mw_x1: apply missing wedge to subtomograms in the begining. True seems to be better.
-        compile_model: improve the speed of training, sometime error
-        mixed_precision: use mixed precision to reduce VRAM and increase speed
-        loss_func: L2, Huber
-        '''
-        compile_model=False,
-        acc_batches=1
+        """
+        Train missing wedge correction model for tomogram refinement.
+
+        Usage:
+            isonet.py refine star_file [--gpuID] [--output_dir] [--method] [--arch] [--epochs]
+
+        This is the main training method for missing wedge correction using IsoNet2 approach.
+        Supports both single tomogram training (isonet2) and noise2noise training (isonet2-n2n).
+
+        Parameters:
+            star_file (str)
+            Star file for tomograms.
+
+            output_dir (str, default: isonet_maps)
+            Directory to save trained model and results.
+
+            gpuID (str, default: None)
+            GPU IDs to use during training (e.g., "0,1,2,3").
+
+            ncpus (int, default: 16)
+            Number of CPUs to use for data processing.
+
+            method (str, default: None)
+            Training method (isonet2, isonet2-n2n). If None, will be auto-detected from star file.
+
+            arch (str, default: unet-medium)
+            Model architecture (unet-large, unet-small, unet-medium, HSFormer, vtunet).
+
+            pretrained_model (str, default: None)
+            Path to pretrained model to continue training.
+
+            pretrained_model2 (str, default: None)
+            Path to second pretrained model for dual network training.
+
+            cube_size (int, default: 96)
+            Size of training cubes.
+
+            epochs (int, default: 50)
+            Number of training epochs.
+
+            input_column (str, default: rlnTomoName)
+            Column name in star file to use as input tomograms.
+
+            batch_size (int, default: None)
+            Batch size for training. If none is provided, it will be calculated based on GPU availability.
+
+            loss_func (str, default: L2)
+            Loss function to use (L2, Huber, L1).
+
+            learning_rate (float, default: 3e-4)
+            Initial learning rate.
+
+            save_interval (int, default: 10)
+            Interval to save model checkpoints.
+
+            learning_rate_min (float, default: 3e-4)
+            Minimum learning rate for scheduler.
+
+            mw_weight (float, default: -1)
+            Weight for missing wedge loss. Higher values correspond to stronger emphasis on missing wedge regions. Disabled by default.
+
+            apply_mw_x1 (bool, default: True)
+            Whether to apply missing wedge to subtomograms at the beginning.
+
+            mixed_precision (bool, default: True)
+            Whether to use mixed precision to reduce VRAM and increase speed.
+
+            CTF_mode (str, default: None)
+            CTF correction mode (None, phase_only, wiener, network).
+
+            clip_first_peak_mode (int, default: 1)
+            Mode for clipping first peak in CTF: 0 - no clipping, 1 - constant, 2 - negative sine function, 3 - cosine function.
+
+            bfactor (float, default: 0)
+            B-factor for filtering.
+
+            phaseflipped (bool, default: False)
+            Whether input tomograms are phase flipped.
+
+            do_phaseflip_input (bool, default: True)
+            Whether to apply phase flip during training.
+
+            correct_between_tilts (bool, default: True)
+            Whether to apply between-tilt correction.
+
+            start_bt_size (int, default: 128)
+            Starting size for between-tilt correction.
+
+            noise_level (float, default: 0)
+            Noise level to add during training.
+
+            noise_mode (str, default: None)
+            Noise generation mode. (None, ramp, hamming)
+
+            random_rot_weight (float, default: 0.2)
+            Weight for random rotation augmentation.
+
+            with_predict (bool, default: True)
+            Whether to run prediction after training.
+
+            split_halves (bool, default: False)
+            Whether to train separate models for each half.
+
+            snrfalloff (float, default: 0)
+            SNR falloff parameter.
+
+            deconvstrength (float, default: 1)
+            Deconvolution strength parameter.
+
+            highpassnyquist (float, default: 0.02)
+            High-pass filter parameter.
+
+            pseudo_n2n (bool, default: False)
+            Whether to use pseudo noise2noise training.
+
+            with_deconv (bool, default: False)
+            Whether to run deconvolution preprocessing.
+        """
+        compile_model = False
+        acc_batches = 1
         # there is some questions about this parameter, relate to the placement of the zerograd
 
         create_folder(output_dir,remove=False)
@@ -602,9 +934,10 @@ class ISONET:
 
         if method == "isonet2":
             if with_deconv:
-                self.deconv(star_file=star_file, output_dir=f"{output_dir}/deconv")
-                self.make_mask(star_file=star_file, output_dir=f"{output_dir}/masks")
+                self.deconv(star_file=star_file, snrfalloff=snrfalloff, deconvstrength=deconvstrength, output_dir=f"{output_dir}/deconv")
                 input_column = "rlnDeconvTomoName"
+            if with_mask:
+                self.make_mask(star_file=star_file, output_dir=f"{output_dir}/masks")
             if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
                 print(f"{input_column} absent: Using rlnTomoName instead")
                 if input_column == "rlnDeconvTomoName": print("Please try running --with_deconv True to do CTF deconvolution first.")
@@ -614,7 +947,7 @@ class ISONET:
             print("We recommend a noise_level above 0 for denoising isonet2-only training")
         else:
             num_noise_volume = 1000
-            print("Generating noise folder")
+            # print("Generating noise folder")
             from IsoNet.utils.noise import make_noise_folder
             noise_dir = f"{output_dir}/noise_volumes"
             # Note: the angle for this noise generation is range(-90,90,3)
@@ -657,7 +990,8 @@ class ISONET:
             'do_phaseflip_input':do_phaseflip_input,
             "clip_first_peak_mode":clip_first_peak_mode,
             "pseudo_n2n":pseudo_n2n,
-            "bfactor": bfactor
+            "bfactor": bfactor,
+            # "isonet2_switch": isonet2_switch
         }
         if split_halves:
             from IsoNet.models.network import DuoNet
@@ -680,7 +1014,303 @@ class ISONET:
                             phaseflipped=phaseflipped, do_phaseflip_input=do_phaseflip_input) 
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
-    # def refine_v1(self,
+    def simulate_noise_F(self, size=128, tilt_step=3, repeats=1000, ncpus=51):
+        """
+        Simulate Fourier domain noise statistics for tomographic reconstruction.
+
+        Usage:
+            isonet.py simulate_noise_F --size 128 --tilt_step 3 --repeats 1000 --ncpus 51
+
+        Parameters:
+            size (int): Volume size for simulation (default: 128)
+            tilt_step (int): Angular step between tilts in degrees (default: 3) 
+            repeats (int): Number of noise realizations to average (default: 1000)
+            ncpus (int): Number of CPU cores for parallel processing (default: 51)
+        """
+        from IsoNet.utils.WBP import backprojection
+        from IsoNet.utils.processing import normalize
+        from joblib import Parallel, delayed
+        #result = np.zeros((ctf2d.shape[1], ctf2d.shape[1], ctf2d.shape[1]), dtype=np.float32)
+        angles = np.arange(-90,90,tilt_step)
+        def simulate_one():
+            noise = np.random.normal(size=(len(angles), size,size))
+            out = backprojection(noise, angles, filter_name='ramp')
+            F_result = np.fft.fftshift(np.fft.fftn(out))
+            out = np.abs(F_result).astype(np.float32)
+            #out = (np.real(F_result)).astype(np.float32)
+            return out
+        results = Parallel(n_jobs=ncpus)(delayed(simulate_one)() for _ in range(repeats))
+        result = np.average(results, axis=0)
+        result = np.average(result, axis=1)
+        result = normalize(result, percentile = True, pmin=33.0, pmax=66.0, clip=True)
+        out_name = f"simulated_F_{size}_{tilt_step}.mrc"
+        with mrcfile.new(out_name, overwrite=True) as mrc:
+             mrc.set_data(result)
+        return result
+
+    def postprocessing(self, t1, t2, b1, b2):
+        """
+        Combine half-maps for postprocessing and FSC calculation.
+
+        Usage:
+            isonet.py postprocessing t1.mrc t2.mrc b1.mrc b2.mrc
+
+        Parameters:
+            t1 (str): Path to first top half-map
+            t2 (str): Path to second top half-map  
+            b1 (str): Path to first bottom half-map
+            b2 (str): Path to second bottom half-map
+        """
+        t1, _ = read_mrc(t1)
+        t2, _ = read_mrc(t2)
+        b1, _ = read_mrc(b1)
+        b2, _ = read_mrc(b2)
+
+        shape = t1.shape
+        mask_top = np.zeros_like(t1)
+        mask_top[:,:shape[1]//2,:] = 1
+        mask_bottom = 1 - mask_top
+
+        half1 = t1*mask_bottom+b1*mask_top
+        half2 = t2*mask_bottom+b2*mask_top
+
+        from IsoNet.utils.processing import FSC
+        print(FSC(half1,half2))
+        return 0
+    
+    def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):
+        """
+        Rescale tomograms to a given pixel size.
+
+        Usage:
+            isonet.py resize star_file [--apix] [--out_folder]
+
+        Parameters:
+            star_file (str)
+            Star file containing tomogram information.
+
+            apix (float, default: 15)
+            Target pixel size in Angstroms.
+
+            out_folder (str, default: tomograms_resized)
+            Output folder for rescaled tomograms.
+        """
+        import mrcfile
+        import starfile
+        import os
+        import shutil
+        star = starfile.read(star_file)
+        from scipy.ndimage import zoom
+        new_star = star.copy(deep=True)
+        if not os.path.isdir(out_folder):
+            os.makedirs(out_folder)
+
+        for index, row in star.iterrows():
+            old_tomo1_name = row["rlnTomogramName"]
+            old_tomo2_name = row["rlnTomogram2Name"]
+            old_tilt_name = row["rlnTiltFile"]
+            ori_apix = float(row["rlnPixelSize"])
+            zoom_factor = float(ori_apix)/apix
+
+            tomo_folder = os.path.basename(os.path.dirname(old_tomo1_name))
+            if not os.path.isdir(out_folder+'/'+tomo_folder):
+                os.makedirs(out_folder+'/'+tomo_folder)
+            
+            if old_tomo1_name is not None:
+                output_tomo1_name = out_folder+'/'+tomo_folder+'/'+os.path.basename(old_tomo1_name)
+                with mrcfile.open(old_tomo1_name, permissive=True) as mrc:
+                    data = mrc.data
+                print("scaling: {}".format(output_tomo1_name))
+                new_data = zoom(data, zoom_factor,order=3, prefilter=False)
+                with mrcfile.new(output_tomo1_name,overwrite=True) as mrc:
+                    mrc.set_data(new_data)
+                    mrc.voxel_size = apix
+
+            if old_tomo2_name is not None:
+                output_tomo2_name = out_folder+'/'+tomo_folder+'/'+os.path.basename(old_tomo2_name)
+                with mrcfile.open(old_tomo2_name, permissive=True) as mrc:
+                    data = mrc.data
+                print("scaling: {}".format(output_tomo2_name))
+                new_data = zoom(data, zoom_factor,order=3, prefilter=False)
+                with mrcfile.new(output_tomo2_name,overwrite=True) as mrc:
+                    mrc.set_data(new_data)
+                    mrc.voxel_size = apix   
+
+            if old_tilt_name is not None:
+                output_tilt_name = out_folder+'/'+tomo_folder+'/'+os.path.basename(old_tilt_name)
+                shutil.copy(old_tilt_name, output_tilt_name)
+                
+
+            new_star.loc[index, "rlnTomogramName"] = output_tomo1_name
+            new_star.loc[index,"rlnTomogram2Name"] = output_tomo2_name
+            new_star.loc[index,"rlnPixelSize"] =  apix
+            new_star.loc[index,"rlnTiltFile"] =  output_tilt_name
+        starfile.write(new_star,out_folder+'.star')        
+        print("scale_finished: {}".format(out_folder+'.star'))
+
+    def powerlaw_filtering(self, 
+                    h1: str,
+                    o: str = "weighting.mrc",
+                    mask: str=None, 
+                    low_res: float=50,
+                    ):
+        """
+        Apply power-law filtering to flatten Fourier amplitude within resolution range.
+
+        Usage:
+            isonet.py powerlaw_filtering h1 [--o] [--mask] [--low_res]
+
+        This will sharpen the map by flattening Fourier amplitudes.
+
+        Parameters:
+            h1 (str)
+            Input map file to be filtered.
+
+            o (str, default: weighting.mrc)
+            Output filename for the filtered map.
+
+            mask (str, default: None)
+            Optional mask file to apply before filtering.
+
+            low_res (float, default: 50)
+            Low resolution limit in Angstroms. Typically 10-50A.
+            High resolution limit is typically the resolution at FSC=0.143.
+        """
+        import numpy as np
+        import mrcfile
+        from numpy.fft import fftshift, fftn, ifftn
+
+        with mrcfile.open(h1,'r') as mrc:
+            input_map = mrc.data
+            nz,ny,nx = input_map.shape
+            voxel_size = mrc.voxel_size.x
+            print(voxel_size)
+            if voxel_size == 0:
+                voxel_size = 1
+            #logging.info("voxel_size",float(voxel_size))
+
+        if mask is not None:
+            with mrcfile.open(mask,'r') as mrc:
+                mask = mrc.data
+            input_map_masked = input_map * mask
+        else:
+            input_map_masked = input_map
+
+        limit_r_low = int(voxel_size * nz / low_res)
+
+        # power spectrum
+        f1 = fftshift(fftn(input_map_masked))
+        ret = (np.real(np.multiply(f1,np.conj(f1)))**0.5).astype(np.float32)
+
+        #vet whitening filter
+        r = np.arange(nz)-nz//2
+        [Z,Y,X] = np.meshgrid(r,r,r)
+        index = np.round(np.sqrt(Z**2+Y**2+X**2))
+
+        F_curve = np.zeros(nz//2)
+        F_map = np.zeros_like(ret)
+        for i in range(nz//2):
+            F_curve[i] = np.average(ret[index==i])
+
+        eps = 1e-4
+        k=(np.log(F_curve[limit_r_low])-0.01*np.log(F_curve[limit_r_low]))/(np.log(limit_r_low**-1)-np.log((nz//2)**-1))
+        #k=np.log(1)/np.log(limit_r_low)
+        #print(k)
+        b = np.log(F_curve[limit_r_low]) - k * np.log(limit_r_low**-1)
+        print(b)
+        for i in range(nz//2):
+            if i > limit_r_low:
+                F_map[index==i] = F_curve[limit_r_low]/(F_curve[i]+eps) * np.exp(b+k*np.log(i**-1))
+            else:
+                F_map[index==i] = F_curve[limit_r_low]
+        F_map = F_map/F_curve[limit_r_low]
+        # apply filter
+        F_input = fftn(input_map)
+        out = ifftn(F_input*fftshift(F_map))
+        out =  np.real(out).astype(np.float32)
+
+        # with mrcfile.new("F.mrc", overwrite=True) as mrc:
+        #     mrc.set_data(F_map)
+
+        with mrcfile.new(o, overwrite=True) as mrc:
+            mrc.set_data(out)
+            mrc.voxel_size = voxel_size
+
+    def psf(self,size=128,tilt_file=None,w=8, output="wedge.mrc",between_tilts=False):
+        """
+        Generate point spread function (PSF) or missing wedge mask for tomographic reconstruction.
+
+        Usage:
+            isonet.py psf --size 128 --tilt_file angles.tlt --w 8 --output wedge.mrc
+
+        Parameters:
+            size (int): Volume size for PSF generation (default: 128)
+            tilt_file (str): Path to tilt angle file, or None to use default -60 to +60 range (default: None)
+            w (int): Line width for between-tilts mode (default: 8)
+            output (str): Output filename for PSF volume (default: "wedge.mrc")
+            between_tilts (bool): Generate mask between tilt angles vs standard wedge (default: False)
+        """
+        import numpy as np
+        
+        if tilt_file is None or tilt_file == 'None':
+            tilt = np.linspace(-60,60,121)
+            np.savetxt("tmp.tlt", tilt, fmt="%.02f")
+            tilt_file = "tmp.tlt"
+
+        tilt = np.loadtxt(tilt_file)
+        if between_tilts:
+            from IsoNet.utils.geometry import draw_a_line
+            out_mat = np.zeros([size,size], dtype = np.float32)
+            for angle in tilt:
+                out_mat = draw_a_line(out_mat, -angle, w)
+            out_mat = np.repeat(out_mat[:, np.newaxis, :], size, axis=1)
+        else:
+            from IsoNet.utils.missing_wedge import get_F_wedge
+            max_angle = np.max(tilt)
+            min_angle = np.min(tilt)
+            out_mat = get_F_wedge(size=size, angle=60)
+        import mrcfile
+        with mrcfile.new(output, overwrite=True) as mrc:
+            mrc.set_data(out_mat)
+   
+
+    def check(self):
+        """
+        Check IsoNet installation and GPU performance.
+
+        Usage:
+            isonet.py check
+
+        This command verifies that IsoNet is properly installed and tests GPU performance
+        with mixed precision vs single precision training.
+        """
+        logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',
+        datefmt="%m-%d %H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])
+
+        from IsoNet.bin.predict import predict
+        from IsoNet.bin.refine import run
+        import skimage
+        import tqdm
+        logging.info('IsoNet --version 2.0 alpha installed')
+        logging.info(f"checking gpu speed")
+        from IsoNet.bin.verify import verify
+        fp16, fp32 = verify()
+        logging.info(f"time for mixed/half precsion and single precision are {fp16} and {fp32}. ")
+        logging.info(f"The first number should be much smaller than the second one, if not please check whether cudnn, cuda, and pytorch versions match.")
+
+    def gui(self):
+        """
+        Launch the graphical user interface for IsoNet.
+
+        Usage:
+            isonet.py gui
+
+        This opens the IsoNet GUI application for interactive use.
+        """
+        import IsoNet.gui.Isonet_star_app as app
+        app.main()
+
+        # def refine_v1(self,
     #     star_file: str,
     #     output_dir: str='results',
 
@@ -779,225 +1409,23 @@ class ISONET:
     #     # if with_predict:
     #         # self.predict(star_file, params['])
 
-
-    def simulate_noise_F(self, size=128, tilt_step=3, repeats=1000, ncpus=51):
-        from IsoNet.utils.WBP import backprojection
-        from IsoNet.utils.processing import normalize
-        from joblib import Parallel, delayed
-        #result = np.zeros((ctf2d.shape[1], ctf2d.shape[1], ctf2d.shape[1]), dtype=np.float32)
-        angles = np.arange(-90,90,tilt_step)
-        def simulate_one():
-            noise = np.random.normal(size=(len(angles), size,size))
-            out = backprojection(noise, angles, filter_name='ramp')
-            F_result = np.fft.fftshift(np.fft.fftn(out))
-            out = np.abs(F_result).astype(np.float32)
-            #out = (np.real(F_result)).astype(np.float32)
-            return out
-        results = Parallel(n_jobs=ncpus)(delayed(simulate_one)() for _ in range(repeats))
-        result = np.average(results, axis=0)
-        result = np.average(result, axis=1)
-        result = normalize(result, percentile = True, pmin=33.0, pmax=66.0, clip=True)
-        out_name = f"simulated_F_{size}_{tilt_step}.mrc"
-        with mrcfile.new(out_name, overwrite=True) as mrc:
-             mrc.set_data(result)
-        return result
-
-    def postprocessing(self, t1, t2, b1, b2):
-        t1, _ = read_mrc(t1)
-        t2, _ = read_mrc(t2)
-        b1, _ = read_mrc(b1)
-        b2, _ = read_mrc(b2)
-
-        shape = t1.shape
-        mask_top = np.zeros_like(t1)
-        mask_top[:,:shape[1]//2,:] = 1
-        mask_bottom = 1 - mask_top
-
-        half1 = t1*mask_bottom+b1*mask_top
-        half2 = t2*mask_bottom+b2*mask_top
-
-        from IsoNet.utils.processing import FSC
-        print(FSC(half1,half2))
-        return 0
-    
-    def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):
-        '''
-        This function rescale the tomograms to a given pixelsize
-        '''
-        import mrcfile
-        import starfile
-        import os
-        import shutil
-        star = starfile.read(star_file)
-        from scipy.ndimage import zoom
-        new_star = star.copy(deep=True)
-        if not os.path.isdir(out_folder):
-            os.makedirs(out_folder)
-
-        for index, row in star.iterrows():
-            old_tomo1_name = row["rlnTomogramName"]
-            old_tomo2_name = row["rlnTomogram2Name"]
-            old_tilt_name = row["rlnTiltFile"]
-            ori_apix = float(row["rlnPixelSize"])
-            zoom_factor = float(ori_apix)/apix
-
-            tomo_folder = os.path.basename(os.path.dirname(old_tomo1_name))
-            if not os.path.isdir(out_folder+'/'+tomo_folder):
-                os.makedirs(out_folder+'/'+tomo_folder)
-            
-            if old_tomo1_name is not None:
-                output_tomo1_name = out_folder+'/'+tomo_folder+'/'+os.path.basename(old_tomo1_name)
-                with mrcfile.open(old_tomo1_name, permissive=True) as mrc:
-                    data = mrc.data
-                print("scaling: {}".format(output_tomo1_name))
-                new_data = zoom(data, zoom_factor,order=3, prefilter=False)
-                with mrcfile.new(output_tomo1_name,overwrite=True) as mrc:
-                    mrc.set_data(new_data)
-                    mrc.voxel_size = apix
-
-            if old_tomo2_name is not None:
-                output_tomo2_name = out_folder+'/'+tomo_folder+'/'+os.path.basename(old_tomo2_name)
-                with mrcfile.open(old_tomo2_name, permissive=True) as mrc:
-                    data = mrc.data
-                print("scaling: {}".format(output_tomo2_name))
-                new_data = zoom(data, zoom_factor,order=3, prefilter=False)
-                with mrcfile.new(output_tomo2_name,overwrite=True) as mrc:
-                    mrc.set_data(new_data)
-                    mrc.voxel_size = apix   
-
-            if old_tilt_name is not None:
-                output_tilt_name = out_folder+'/'+tomo_folder+'/'+os.path.basename(old_tilt_name)
-                shutil.copy(old_tilt_name, output_tilt_name)
-                
-
-            new_star.loc[index, "rlnTomogramName"] = output_tomo1_name
-            new_star.loc[index,"rlnTomogram2Name"] = output_tomo2_name
-            new_star.loc[index,"rlnPixelSize"] =  apix
-            new_star.loc[index,"rlnTiltFile"] =  output_tilt_name
-        starfile.write(new_star,out_folder+'.star')        
-        print("scale_finished: {}".format(out_folder+'.star'))
-
-    def powerlaw_filtering(self, 
-                    h1: str,
-                    o: str = "weighting.mrc",
-                    mask: str=None, 
-                    low_res: float=50,
-                    ):
-        """
-        \nFlattening Fourier amplitude within the resolution range. This will sharpen the map. Low resolution is typically 10 and high resolution limit is typicaly the resolution at FSC=0.143\n
-        """
-        import numpy as np
-        import mrcfile
-        from numpy.fft import fftshift, fftn, ifftn
-
-        with mrcfile.open(h1,'r') as mrc:
-            input_map = mrc.data
-            nz,ny,nx = input_map.shape
-            voxel_size = mrc.voxel_size.x
-            print(voxel_size)
-            if voxel_size == 0:
-                voxel_size = 1
-            #logging.info("voxel_size",float(voxel_size))
-
-        if mask is not None:
-            with mrcfile.open(mask,'r') as mrc:
-                mask = mrc.data
-            input_map_masked = input_map * mask
-        else:
-            input_map_masked = input_map
-
-        limit_r_low = int(voxel_size * nz / low_res)
-
-        # power spectrum
-        f1 = fftshift(fftn(input_map_masked))
-        ret = (np.real(np.multiply(f1,np.conj(f1)))**0.5).astype(np.float32)
-
-        #vet whitening filter
-        r = np.arange(nz)-nz//2
-        [Z,Y,X] = np.meshgrid(r,r,r)
-        index = np.round(np.sqrt(Z**2+Y**2+X**2))
-
-        F_curve = np.zeros(nz//2)
-        F_map = np.zeros_like(ret)
-        for i in range(nz//2):
-            F_curve[i] = np.average(ret[index==i])
-
-        eps = 1e-4
-        k=(np.log(F_curve[limit_r_low])-0.01*np.log(F_curve[limit_r_low]))/(np.log(limit_r_low**-1)-np.log((nz//2)**-1))
-        #k=np.log(1)/np.log(limit_r_low)
-        #print(k)
-        b = np.log(F_curve[limit_r_low]) - k * np.log(limit_r_low**-1)
-        print(b)
-        for i in range(nz//2):
-            if i > limit_r_low:
-                F_map[index==i] = F_curve[limit_r_low]/(F_curve[i]+eps) * np.exp(b+k*np.log(i**-1))
-            else:
-                F_map[index==i] = F_curve[limit_r_low]
-        F_map = F_map/F_curve[limit_r_low]
-        # apply filter
-        F_input = fftn(input_map)
-        out = ifftn(F_input*fftshift(F_map))
-        out =  np.real(out).astype(np.float32)
-
-        # with mrcfile.new("F.mrc", overwrite=True) as mrc:
-        #     mrc.set_data(F_map)
-
-        with mrcfile.new(o, overwrite=True) as mrc:
-            mrc.set_data(out)
-            mrc.voxel_size = voxel_size
-
-    def psf(self,size=128,tilt_file=None,w=8, output="wedge.mrc",between_tilts=False):
-        import numpy as np
-        
-        if tilt_file is None or tilt_file == 'None':
-            tilt = np.linspace(-60,60,121)
-            np.savetxt("tmp.tlt", tilt, fmt="%.02f")
-            tilt_file = "tmp.tlt"
-
-        tilt = np.loadtxt(tilt_file)
-        if between_tilts:
-            from IsoNet.utils.geometry import draw_a_line
-            out_mat = np.zeros([size,size], dtype = np.float32)
-            for angle in tilt:
-                out_mat = draw_a_line(out_mat, -angle, w)
-            out_mat = np.repeat(out_mat[:, np.newaxis, :], size, axis=1)
-        else:
-            from IsoNet.utils.missing_wedge import get_F_wedge
-            max_angle = np.max(tilt)
-            min_angle = np.min(tilt)
-            out_mat = get_F_wedge(size=size, angle=60)
-        import mrcfile
-        with mrcfile.new(output, overwrite=True) as mrc:
-            mrc.set_data(out_mat)
-   
-
-    def check(self):
-        logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',
-        datefmt="%m-%d %H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])
-
-        from IsoNet.bin.predict import predict
-        from IsoNet.bin.refine import run
-        import skimage
-        import tqdm
-        logging.info('IsoNet --version 2.0 alpha installed')
-        logging.info(f"checking gpu speed")
-        from IsoNet.bin.verify import verify
-        fp16, fp32 = verify()
-        logging.info(f"time for mixed/half precsion and single precision are {fp16} and {fp32}. ")
-        logging.info(f"The first number should be much smaller than the second one, if not please check whether cudnn, cuda, and pytorch versions match.")
-
-    def gui(self):
-        """
-        \nGraphic User Interface\n
-        """
-        import IsoNet.gui.Isonet_star_app as app
-        app.main()
-
 def Display(lines, out):
+    """
+    Display formatted text output.
+    
+    Parameters:
+        lines (list): List of text lines to display
+        out (file): Output stream to write to
+    """
     text = "\n".join(lines) + "\n"
     out.write(text)
 
 def main():
+    """
+    Main entry point for IsoNet command-line interface.
+    
+    Configures logging and launches Fire CLI framework to handle command dispatch.
+    """
     core.Display = Display
     logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',datefmt="%m-%d %H:%M:%S",level=logging.INFO)
     if len(sys.argv) > 1:
