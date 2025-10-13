@@ -137,13 +137,22 @@ def simulate_noise(params):
     sinograms = np.random.normal(size=(size,int(size*1.4),len(angles)))
     start=int(params[0]*0.2)
     from multiprocessing import Pool
+    
     with Pool(params[2]) as p:
         if params[1] == 'ramp':
-            res = list(tqdm(p.imap(part_iradon_ramp, sinograms), total=len(sinograms), desc="Generating noise volumes"))
+            func = part_iradon_ramp
         elif params[1] == 'hamming':
-            res = list(tqdm(p.imap(part_iradon_hamming, sinograms), total=len(sinograms), desc="Generating noise volumes"))
+            func = part_iradon_hamming
         else:
-            res = list(tqdm(p.imap(part_iradon_nofilter, sinograms), total=len(sinograms), desc="Generating noise volumes"))
+            func = part_iradon_nofilter
+        
+        # Use imap with optimized chunksize for best performance + progress
+        optimal_chunksize = max(1, len(sinograms) // (params[2] * 2))
+        progress_bar = tqdm(p.imap(func, sinograms, chunksize=optimal_chunksize), 
+                           total=len(sinograms), desc="Generating noise volumes")
+        
+        progress_bar.set_postfix({"mode": params[1]})
+        res = list(progress_bar)
     
         
     iradon_image = np.rot90(np.array(list(res), dtype=np.float32)[:,start:start+params[0],start:start+params[0]], k = 1 , axes = (0,1))
@@ -159,7 +168,7 @@ def make_noise_folder(noise_folder,noise_filter,cube_size,num_noise=1000,ncpus=1
             img = NoiseMap.get_one(cube_size)
             with mrcfile.new('{}/n_{:0>5d}.mrc'.format(noise_folder,i), overwrite=True) as output_mrc:
                 output_mrc.set_data(img)
-            progress_bar.set_postfix({"mode": noise_filter})
+
             progress_bar.update()
 
 if __name__ == '__main__':
