@@ -8,37 +8,37 @@ import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 const PagePrepare = (props) => {
     const [JsonData, setJsonData] = useState('')
 
-    // useEffect(() => {
-    const handleJsonUpdate = (data) => {
-        setJsonData(data.output) // Update the table data
-    }
-    window.api.onJson(handleJsonUpdate)
-    // return () => {
-    //     window.api.offJson(handleJsonUpdate)
-    // }
-    // }, [])
+    useEffect(() => {
+        const handleJsonUpdate = (data) => {
+            setJsonData(data.output) // Update the table data
+        }
+        window.api.onJson(handleJsonUpdate)
+    }, [])
 
     useEffect(() => {
         if (!props.starName) return
-        api.run({
-            command: 'star2json',
-            json_file: '.to_node.json',
-            star_file: props.starName
-        })
+            api.run({
+                id:-1,
+                type: 'star2json',
+                star_file:props.starName,
+                json_file: '.to_node.json'
+                //command_line: 'isonet.py star2json ' + props.starName + ' .to_node.json',
+            })        
     }, [props.starName])
+    
     const handleClear = () => {
-        props.setMessages((prev) => ({ ...prev, prepare_star: [] }))
+        props.setMessages([])
     }
     const handleFileSelect = async (property) => {
         try {
             const filePath = await api.selectFile(property)
             props.setStarName(filePath) // Update the state
-
-            props.setMessages((prev) => ({ ...prev, prepare_star: [] }))
-            await api.run({
-                command: 'star2json',
-                json_file: '.to_node.json',
-                star_file: filePath
+            api.run({
+                id:-1,
+                type: 'star2json',
+                star_file:props.starName,
+                json_file: '.to_node.json'
+                //command_line: 'isonet.py star2json ' + props.starName + ' .to_node.json',
             })
         } catch (error) {
             console.error('Error selecting file:', error)
@@ -52,7 +52,10 @@ const PagePrepare = (props) => {
                     color="primary"
                     startIcon={<FolderOpenIcon />}
                     onClick={() => handleFileSelect('openFile')}
-                    sx={{ height: '56px' }} // Ensure the button has a height
+                    sx={{ 
+                        height: '56px',
+                        trainsition: 'auto',
+                     }} // Ensure the button has a height
                 >
                     Load from star
                 </Button>
@@ -63,7 +66,7 @@ const PagePrepare = (props) => {
                     disabled
                     sx={{ height: '56px' }} // Set the TextField's height to match the button
                 />
-                <Button
+                {/* <Button
                     variant="outlined"
                     color="primary"
                     startIcon={<CleaningServicesIcon />}
@@ -71,10 +74,10 @@ const PagePrepare = (props) => {
                     sx={{ height: '56px' }} // Ensure the button has a height
                 >
                     clear screen
-                </Button>
+                </Button> */}
             </Box>
             <DataTable jsonData={JsonData} star_name={props.starName} />
-            {renderContent(props.messages.prepare_star)}
+            {renderContent(props.messages, props?.selectedJob?.id)}
         </div>
     )
 }

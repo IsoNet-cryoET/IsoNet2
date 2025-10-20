@@ -3,10 +3,10 @@ import { LinearProgress, Typography, Box } from '@mui/material' // For displayin
 
 const ProgressBar = (props) => {
     return (
-        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', margin: '10px 0' }}>
             <Typography
                 variant="body2"
-                sx={{ minWidth: 35, color: 'text.secondary', whiteSpace: 'nowrap' }} // whiteSpace ensures no wrapping
+                sx={{ minWidth: 35, color: 'text.secondary', whiteSpace: 'nowrap', marginRight:'10px' }} // whiteSpace ensures no wrapping
             >
                 {props.currentProgress.description}
             </Typography>

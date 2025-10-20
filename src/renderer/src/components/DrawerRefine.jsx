@@ -18,10 +18,11 @@ import {
 } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import CommandAccordion from './CommandAccordion';
 
 const DrawerRefine = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
-        command: 'refine',
+        type: 'refine',
         star_file: 'tomograms.star',
         output_dir: 'isonet_maps',
 
@@ -31,7 +32,6 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
         method: 'isonet2-n2n',
         arch: 'unet-medium',
         pretrained_model: 'None',
-        pretrained_model2: 'None',
 
         cube_size: 96,
         epochs: 50,
@@ -59,14 +59,11 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
         noise_mode: 'nofilter',
 
         with_predict: true,
-        split_halves: false,
 
         even_odd_input: true,
         snrfalloff: 0,
         deconvstrength: 1,
         highpassnyquist: 0.02,
-        only_print: true,
-        inqueue: true
     })
 
     // 处理表单字段变化
@@ -82,11 +79,10 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
         }))
     }
 
-    const handleSubmit = (signal) => {
+    const handleSubmit = (status) => {
         const updatedFormData = {
             ...formData,
-            only_print: signal.onlyPrint,
-            inqueue: signal.inqueue
+            status
         }
         onSubmit(updatedFormData)
         onClose()
@@ -121,15 +117,6 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             />
                         }
                         label="Even/Odd Input"
-                    />
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={formData.split_halves}
-                                onChange={(e) => handleChange('split_halves', e.target.checked)}
-                            />
-                        }
-                        label="Split Halves"
                     />
                 </Box>
 
@@ -349,21 +336,6 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         onClick={() => handleFileSelect('pretrained_model', 'openFile')}
                     ></Button>
                 </Box>
-                {formData.split_halves && (
-                    <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                        <TextField
-                            label="Pretrained Model 2"
-                            value={formData.pretrained_model2}
-                            fullWidth
-                        />
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<FolderOpenIcon />}
-                            onClick={() => handleFileSelect('pretrained_model2', 'openFile')}
-                        ></Button>
-                    </Box>
-                )}
                 <Accordion>
                     <AccordionSummary
                         expandIcon={<ExpandMoreIcon />}
@@ -504,7 +476,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: true })}
+                    onClick={() => handleSubmit("inqueue")}
                 >
                     Submit (in queue)
                 </Button>
@@ -513,19 +485,11 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: false })}
+                    onClick={() => handleSubmit('running')}
                 >
                     Submit (run immediately)
                 </Button>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: true, inqueue: true })}
-                >
-                    Print Command
-                </Button>
+                <CommandAccordion formData={formData}/>
             </Box>
         </Drawer>
     )

@@ -18,45 +18,40 @@ import {
 } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import CommandAccordion from './CommandAccordion';
 
 const DrawerDenoise = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
-        command: 'denoise',
+        type: 'denoise',
         star_file: 'tomograms.star',
-        output_dir: 'denoise',
+        name: 'denoise',
 
         gpuID: 'None',
         ncpus: 16,
 
         arch: 'unet-medium',
         pretrained_model: 'None',
-        pretrained_model2: 'None',
 
         cube_size: 96,
         epochs: 50,
 
-        input_column: 'rlnTomoReconstructedTomogramHalf',
         batch_size: 'None',
         acc_batches: 1,
         loss_func: 'L2',
         learning_rate: 3e-4,
-        T_max: 10,
+        save_interval: 10,
         learning_rate_min: 3e-4,
-        compile_model: false,
         mixed_precision: true,
 
         CTF_mode: 'None',
-        isCTFflipped: false,
+        phaseflipped: false,
 
         with_predict: true,
-        split_halves: false,
 
         even_odd_input: true,
         snrfalloff: 0,
         deconvstrength: 1,
         highpassnyquist: 0.02,
-        only_print: true,
-        inqueue: true
     })
 
     // 处理表单字段变化
@@ -72,11 +67,10 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
         }))
     }
 
-    const handleSubmit = (signal) => {
+    const handleSubmit = (status) => {
         const updatedFormData = {
             ...formData,
-            only_print: signal.onlyPrint,
-            inqueue: signal.inqueue
+            status
         }
         onSubmit(updatedFormData)
         onClose()
@@ -98,17 +92,6 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     Denoise
                 </Typography>
                 <Divider sx={{ marginBottom: 2 }} />
-                <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={formData.split_halves}
-                                onChange={(e) => handleChange('split_halves', e.target.checked)}
-                            />
-                        }
-                        label="Split Halves"
-                    />
-                </Box>
 
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     <TextField
@@ -125,27 +108,13 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     ></Button>
                 </Box>
 
-                <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
-                    <InputLabel>input column</InputLabel>
-                    <Select
-                        value={formData.input_column}
-                        onChange={(e) => handleChange('input_column', e.target.value)}
-                    >
-                        <MenuItem value={'rlnTomoReconstructedTomogramHalf'}>
-                            rlnTomoReconstructedTomogramHalf
-                        </MenuItem>
-                        {/* <MenuItem value={'rlnTomoDenoisedTomogramHalf'}>
-                            rlnTomoDenoisedTomogramHalf
-                        </MenuItem> */}
-                    </Select>
-                </FormControl>
 
                 {/* Numeric Input */}
                 <TextField
-                    label="output directory"
+                    label="job name"
                     type="string"
-                    value={formData.output_dir}
-                    onChange={(e) => handleChange('output_dir', e.target.value)}
+                    value={formData.name}
+                    onChange={(e) => handleChange('name', e.target.value)}
                     fullWidth
                     margin="normal"
                 />
@@ -195,8 +164,8 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     <TextField
                         label="saving interval"
                         type="int"
-                        value={formData.T_max}
-                        onChange={(e) => handleChange('T_max', e.target.value)}
+                        value={formData.save_interval}
+                        onChange={(e) => handleChange('save_interval', e.target.value)}
                         fullWidth
                     />
                 </Box>
@@ -232,11 +201,11 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     <FormControlLabel
                         control={
                             <Switch
-                                checked={formData.isCTFflipped}
-                                onChange={(e) => handleChange('isCTFflipped', e.target.checked)}
+                                checked={formData.phaseflipped}
+                                onChange={(e) => handleChange('phaseflipped', e.target.checked)}
                             />
                         }
-                        label="isCTFflipped"
+                        label="phaseflipped"
                     />
                 </Box>
 
@@ -253,21 +222,6 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                         onClick={() => handleFileSelect('pretrained_model', 'openFile')}
                     ></Button>
                 </Box>
-                {formData.split_halves && (
-                    <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                        <TextField
-                            label="Pretrained Model 2"
-                            value={formData.pretrained_model2}
-                            fullWidth
-                        />
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<FolderOpenIcon />}
-                            onClick={() => handleFileSelect('pretrained_model2', 'openFile')}
-                        ></Button>
-                    </Box>
-                )}
                 <Accordion>
                     <AccordionSummary
                         expandIcon={<ExpandMoreIcon />}
@@ -374,7 +328,7 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: true })}
+                    onClick={() => handleSubmit('inqueue')}
                 >
                     Submit (in queue)
                 </Button>
@@ -383,19 +337,11 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: false })}
+                    onClick={() => handleSubmit('running')}
                 >
                     Submit (run immediately)
                 </Button>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: true, inqueue: true })}
-                >
-                    Print Command
-                </Button>
+                <CommandAccordion formData={formData}/>
             </Box>
         </Drawer>
     )

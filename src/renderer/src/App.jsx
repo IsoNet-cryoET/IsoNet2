@@ -1,265 +1,419 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback,useMemo,useRef } from 'react'
 import {
     List,
     ListItem,
     ListItemText,
     IconButton,
     ListItemButton,
-    CircularProgress
+    ThemeProvider,
+    CircularProgress,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    Typography,
+    DialogActions,
+    Button,
+    Box,
+    Tooltip,
 } from '@mui/material'
+import { keyframes } from '@mui/system';
+import { alpha } from '@mui/material/styles';
+import EditIcon from '@mui/icons-material/Edit'
+import Backdrop from '@mui/material/Backdrop'
 import DrawerPrepare from './components/DrawerPrepare'
 import DrawerRefine from './components/DrawerRefine'
-import DrawerRefine_v1 from './components/DrawerRefine_v1'
 import DrawerDenoise from './components/DrawerDenoise'
 import DrawerPredict from './components/DrawerPredict'
 import DrawerDeconv from './components/DrawerDeconv'
 import DrawerMask from './components/DrawerMask'
+
 import PagePrepare from './components/PagePrepare'
 import PageCommon from './components/PageCommon'
-
 import PageJobs from './components/PageJobs'
+
+import theme from './theme';
+import JobsList from './backup/SecondaryMenu'
 import { mergeMsg, processMessage } from './utils/utils'
-
-import EditIcon from '@mui/icons-material/Edit'
-import AppsIcon from '@mui/icons-material/Apps'
-import CameraIcon from '@mui/icons-material/Camera'
+import toCommand from './utils/handle_json'
 import { ConstructionOutlined } from '@mui/icons-material'
+// import {BlockingProvider} from './BlockingContext'
 
-const drawerComponents = {
-    prepare_star: DrawerPrepare,
-    denoise: DrawerDenoise,
-    refine_v1: DrawerRefine_v1,
-    refine: DrawerRefine,
-    deconv: DrawerDeconv,
-    make_mask: DrawerMask,
-    predict: DrawerPredict
+
+const primaryMenuListinOrder = [
+    'prepare_star','denoise','deconv','make_mask','refine','predict','jobs_viewer'
+]
+const primaryMenuMapping = {
+    prepare_star: {
+        label: 'Prepare',
+        drawer: DrawerPrepare,
+        page: PagePrepare
+    },
+    denoise: {
+        label: 'Denoise',
+        drawer: DrawerDenoise,
+        page: PageCommon
+    },
+    deconv: {
+        label: 'Deconvolve',
+        drawer: DrawerDeconv,
+        page: PageCommon
+    },
+    make_mask: {
+        label: 'Create Mask',
+        drawer: DrawerMask,
+        page: PageCommon
+    },
+    refine: {
+        label: 'Refine',
+        drawer: DrawerRefine,
+        page: PageCommon
+    },
+    predict: {
+        label: 'Predict',
+        drawer: DrawerPredict,
+        page: PageCommon
+    },
+    jobs_viewer: {
+        label: 'Jobs Viewer',
+        page: PageJobs
+    }
 }
 
 const App = () => {
-    const [drawerState, setDrawerState] = useState({
-        prepare_star: false,
-        denoise: false,
-        refine_v1: false,
-        refine: false,
-        deconv: false,
-        make_mask: false,
-        predict: false
-    })
-
-    //message is from the python stdout and stderr
-    // we should clear message once the job is finished
-    const [messages, setMessages] = useState([])
-
-    //the list of all jobs
+    const [blocking, setBlocking] = useState(false)
+    const [selectedDrawer, setSelectedDrawer] = useState('')
     const [jobs, setJobs] = useState([])
-
-    // selectedJobs
     const [selectedJob, setSelectedJob] = useState(null)
+    const [messages, setMessages] = useState([])
     const [starName, setStarName] = useState('')
-    const [selectedPrimaryMenu, setSelectedPrimaryMenu] = useState(0)
+    const [selectedPrimaryMenu, setSelectedPrimaryMenu] = useState('prepare_star')
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const inflight = useRef(0);
 
-    const toggleDrawer = useCallback((drawer, open) => {
-        setDrawerState((prev) => ({ ...prev, [drawer]: open }))
-    }, [])
-
-    const handleSubmit = useCallback(
-        (type, data) => {
-            try {
-                const { inqueue, ...restData } = data
-                const status = inqueue === true ? 'queued' : 'running'
-
-                const newJob = {
-                    id: jobs.length + 1,
-                    type,
-                    data: restData, // cleansed data
-                    output_dir: data.output_dir,
-                    status
-                }
-
-                setJobs((prev) => [...prev, newJob])
-                if (type === 'prepare_star') setStarName(data.star_name)
-
-                window.api.run(newJob) // Ensure this triggers ipcMain.handle
-            } catch (error) {
-                console.error(`Error submitting ${type} form:`, error)
-            }
-
-            toggleDrawer(type, false)
-        },
-        [toggleDrawer, jobs]
+    const visibleJobs = useMemo(
+        () => jobs.filter((j) => j.type === selectedPrimaryMenu),
+        [jobs, selectedPrimaryMenu]
     )
 
     useEffect(() => {
-        window.api.onJobStatusUpdated((data) => {
-            console.log('Job status updated:', data)
-            setJobs((prevJobs) =>
-                prevJobs.map((job) => (job.id === data.id ? { ...job, status: data.status } : job))
-            )
-            console.log(jobs)
+        const off = window.api.onPythonUpdateStatus(({ id, status, pid }) => {
+            console.log('python-status-changed:', id, status)
+            window.jobList.updateStatus({ id, status })  
+            window.jobList.updatePID({ id, pid })  
         })
+        return () => { try { off?.() } catch {} } 
+    }, []) // <-- empty deps: attach once
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            window.jobList.get().then(list => {
+                setJobs(()=>list)
+              })
+        }, 500)
+        return () => {clearInterval(interval) }
     }, [])
 
     useEffect(() => {
-        if (!selectedJob?.output_dir) return
 
-        const logPath = `${selectedJob.output_dir}/log.txt`
+        if (!selectedJob) return
+        const output_dir = `${selectedJob.type}/job${selectedJob.id}_${String(selectedJob.name).replace(/\s+/g, '_')}`
 
-        let isMounted = true
+        const logPath = `${output_dir}/log.txt`
+        let alive = true
 
         const interval = setInterval(() => {
+        window.api.readFile(logPath).then((fileContent) => {
+            if (!alive) return
+            if (!fileContent) {
+            setMessages([])
+            return
+            }
+
+            const lines = fileContent.split(/\r?\n|\r/g).filter(Boolean)
+            const tmp = []
+            for (const line of lines) {
+            const msg = { cmd: selectedJob.type, output: line }
+            const processed = processMessage(msg)
+            const merged = mergeMsg(tmp, processed)
+            tmp.length = 0
+            tmp.push(...merged)
+            }
+            setMessages(tmp)
+        })
+        }, 300)
+
+        return () => { alive = false; clearInterval(interval) }
+    }, [selectedJob, jobs])
+
+    useEffect(() => {
+        if (selectedPrimaryMenu !== 'prepare_star') { setMessages([]); return }
+      
+        const logPath = 'prepare_log.txt' // 确保主进程按预期解析
+        let alive = true
+        const interval = setInterval(() => {
             window.api.readFile(logPath).then((fileContent) => {
-                if (!isMounted) return
-
+                if (!alive) return
                 if (!fileContent) {
-                    setMessages([]) // Clear messages if log.txt is missing
-                    return
+                setMessages([])
+                return
                 }
-
+    
                 const lines = fileContent.split(/\r?\n|\r/g).filter(Boolean)
-                const newMessages = []
-
+                const tmp = []
                 for (const line of lines) {
-                    const msg = { cmd: selectedJob.type, output: line }
-                    const processed = processMessage(msg)
-                    const merged = mergeMsg(newMessages, processed)
-                    newMessages.length = 0
-                    newMessages.push(...merged)
+                const msg = { cmd: "prepare_star", output: line }
+                const processed = processMessage(msg)
+                const merged = mergeMsg(tmp, processed)
+                tmp.length = 0
+                tmp.push(...merged)
                 }
-
-                setMessages(newMessages)
+                setMessages(tmp)
             })
-        }, 100) // poll every 100 ms
+            }, 300)
+      
+        return () => { alive = false; clearInterval(interval) }
+      }, [selectedPrimaryMenu])
+      
+    useEffect(() => {
+        const off = window.appClose?.onRequest?.(() => setConfirmOpen(true));
+        return () => { try { off?.(); } catch {}
+        };
+    }, []);
 
-        return () => {
-            isMounted = false
-            clearInterval(interval)
+
+  
+    const withBlocking = async (fn) => {
+      if (inflight.current === 0) setBlocking(true);
+      inflight.current++;
+      try { await fn(); }
+      finally {
+        inflight.current--;
+        if (inflight.current === 0) setBlocking(false);
+      }
+    };
+
+    const doCleanupThenClose = () =>
+        withBlocking(async () => {
+            setConfirmOpen(false);
+        
+            const all_jobs = await window.jobList.get()
+
+            const running = all_jobs.filter(j => j.status === 'running');
+            console.log(running)
+
+            await Promise.allSettled(
+                running.map(j => {
+                    api.killJob(j.pid)
+                    console.log(j)
+                    window.jobList.updateStatus({ id: j.id, status: 'completed' })
+                })
+            )
+
+            const queued = all_jobs.filter(j => j.status === 'inqueue');
+            await Promise.allSettled(
+                queued.map(j => window.jobList.updateStatus({ id: j.id, status: 'completed' }))
+            )
+      
+          // 4) Tell main we’re safe to close
+          await window.appClose.reply(true);
+        });
+
+    const cancelClose = async () => {
+        setConfirmOpen(false);
+        await window.appClose.reply(false);
+    };
+
+    const handleSubmit = useCallback(async (type, data) => {
+        console.log("submit in app.jsx")
+        console.log(type)
+        console.log(data)
+        try {
+            const id = await window.count.next()
+            if (data.type !== 'prepare_star'){
+                data.output_dir = `${data.type}/job${id}_${String(data.name).replace(/\s+/g, '_')}`
+            }
+            const payload = {
+                ...data,
+                id,
+              }              
+            // setJobs((prev) => {prev, payload})
+            await window.jobList.add(payload)
+            window.api.run(payload)
+
+            if (type === 'prepare_star' && data?.star_name) {
+                setStarName(data.star_name)
+            }
+        } catch (error) {
+                console.error(`Error submitting ${type} form:`, error)
+        }finally {
+            setSelectedDrawer('')
         }
-    }, [selectedJob])
-
-    const primaryMenus = useMemo(
-        () => [
-            { key: 'prepare_star', label: 'Prepare' },
-            { key: 'denoise', label: 'Denoise' },
-            { key: 'deconv', label: 'Deconvolve' },
-            { key: 'make_mask', label: 'Create Mask' },
-            { key: 'refine', label: 'Refine' },
-            { key: 'refine_v1', label: 'Refine_v1' },
-            { key: 'predict', label: 'Predict' },
-            { key: 'postprocess', label: 'Postprocess' },
-            { key: 'jobs_viewer', label: 'Jobs Viewer' }
-        ],
-        []
+    },
+    []
     )
-    let PageComponent = null
 
-    if (selectedPrimaryMenu === 0) {
-        PageComponent = PagePrepare
-    } else if (selectedPrimaryMenu >= 1 && selectedPrimaryMenu <= 6) {
-        PageComponent = PageCommon
-    } else if (selectedPrimaryMenu === 8) {
-        PageComponent = PageJobs
+
+    const DrawerComponent = primaryMenuMapping[selectedPrimaryMenu]?.drawer;
+    const PageComponent = primaryMenuMapping[selectedPrimaryMenu]?.page
+    const togglePrimaryMenu = (key) => {
+        setSelectedPrimaryMenu(key)
+        setMessages([]) 
+        setSelectedJob(null) 
     }
+
+    const innerGlowPulse = keyframes`
+        0%, 100% {
+        opacity: .25;
+        box-shadow:
+            inset 0 0 0 1px var(--ring-weak);
+        }
+        50% {
+        opacity: 1;
+        box-shadow:
+            inset 0 0 14px var(--ring-strong),
+            inset 0 0 0 2px var(--ring-strong);
+        }
+    `;
     return (
-        <div className="outer-container">
-            <div className="top-bar">IsoNet 2</div>
-            <div className="main-content">
-                <div className="primary-menu">
-                    <List>
-                        {primaryMenus.map(({ key, label }, index) => (
-                            <ListItem
-                                disablePadding
-                                key={index}
-                                sx={{ '&:hover': { backgroundColor: '#eaebef' } }}
-                            >
-                                <ListItemButton
-                                    selected={selectedPrimaryMenu === index}
-                                    sx={{
-                                        '&.Mui-selected': {
-                                            backgroundColor: '#D5E2F4',
-                                            borderRadius: '24px'
-                                        }
-                                    }}
-                                    onClick={() => {
-                                        setSelectedPrimaryMenu(index)
-                                        setMessages([]) // ✅ Clear messages
-                                        setSelectedJob(null) // ✅ Clear selected job
-                                    }}
-                                >
-                                    <ListItemText primary={label} />
+        <ThemeProvider theme={theme}>
+            {blocking && <Backdrop
+                open={blocking}
+                sx={{
+                color: '#fff',
+                zIndex: (theme) => theme.zIndex.modal + 2, // 确保足够高
+                bgcolor: 'rgba(0,0,0,0.35)',
+                }}
+            >
+                <CircularProgress />
+            </Backdrop>}
 
-                                    {index < 7 && (
-                                        <IconButton
-                                            onClick={() => toggleDrawer(key, true)}
-                                            sx={{
-                                                backgroundColor:
-                                                    index === 2 || index === 3 || index === 5
-                                                        ? '#f8edeb'
-                                                        : '#D5E2F4', // Replace 'defaultBackgroundColor' with your default color
-
-                                                '&:hover': { backgroundColor: '#e0e0e0' },
-                                                borderRadius: '50%',
-                                                width: 40,
-                                                height: 40,
-                                                display: 'flex',
-                                                justifyContent: 'center',
-                                                alignItems: 'center'
-                                            }}
-                                        >
-                                            <EditIcon sx={{ color: '#14446e', fontSize: 24 }} />
-                                        </IconButton>
-                                    )}
-                                </ListItemButton>
-                            </ListItem>
-                        ))}
-                    </List>
-                </div>
-                {['denoise', 'deconv', 'make_mask', 'refine', 'refine_v1', 'predict'].includes(
-                    primaryMenus[selectedPrimaryMenu]?.key
-                ) && (
-                    <div className="secondary-menu">
+            <Dialog open={confirmOpen} onClose={cancelClose}>
+                <DialogTitle>Close and clean up?</DialogTitle>
+                <DialogContent>
+                <Typography variant="body2">
+                    This will kill all running jobs and remove all queued jobs. Proceed?
+                </Typography>
+                </DialogContent>
+                <DialogActions>
+                <Button onClick={cancelClose}>No</Button>
+                <Button onClick={doCleanupThenClose} autoFocus variant="contained" color="error">
+                    Yes, close and clean up
+                </Button>
+                </DialogActions>
+            </Dialog>
+            <div className="outer-container">
+                {/* customerized top bar -- delete temperally */}
+                {/* <div className="top-bar">IsoNet 2</div> */}
+                <div className="main-content">
+                    <div className="primary-menu">
                         <List>
-                            {jobs
-                                .filter(
-                                    (job) => job.type === primaryMenus[selectedPrimaryMenu]?.key
-                                )
-                                .map((job) => (
+                            {primaryMenuListinOrder.map((key) => (
+                                <ListItem
+                                    disablePadding
+                                    key={key}
+                                >
+                                    <ListItemButton
+                                        selected={selectedPrimaryMenu === key}
+                                        onClick={() => togglePrimaryMenu(key)}
+                                    >
+                                        <ListItemText primary={primaryMenuMapping[key]?.label} />
+                                        {primaryMenuMapping[key]?.drawer &&
+                                          (
+                                            <IconButton
+                                                onClick={() => {
+                                                    // e.stopPropagation();
+                                                    setSelectedDrawer(key);
+                                                }}
+                                                sx={{
+                                                    backgroundColor:'#D5E2F4',
+                                                    '&:hover': { backgroundColor: '#e0e0e0' },
+                                                    borderRadius: '50%',
+                                                    width: 40,
+                                                    height: 40,
+                                                    display: 'flex',
+                                                    justifyContent: 'center',
+                                                    alignItems: 'center'
+                                                }}
+                                            >
+                                                <EditIcon sx={{ color: '#14446e', fontSize: 24 }} />
+                                            </IconButton>
+                                        )}
+                                    </ListItemButton>
+                                </ListItem>
+                            ))}
+                        </List>
+                    </div>
+
+                    {['denoise','deconv','make_mask','refine','predict'].includes(selectedPrimaryMenu) && (
+                        <Box 
+                            className="secondary-menu"
+                            sx={{
+                                height: 'calc(100vh)',
+                                overflowY: 'auto',
+                            }}                            
+                            >
+                            <List>
+                                {visibleJobs.map((job) => (
+                                    <ListItem                                >
                                     <ListItemButton
                                         key={job.id}
                                         selected={selectedJob?.id === job.id}
                                         onClick={() => setSelectedJob(job)}
+                                        // divider
+                                        sx={{
+                                            '--ring-strong': (t) => alpha(t.palette.primary.main, 0.55),
+                                            '--ring-weak':   (t) => alpha(t.palette.primary.main, 0.22),
+                                            ...(job.status === 'running' && {
+                                              '&::after': {
+                                                content: '""',
+                                                position: 'absolute',
+                                                inset: 0,       
+                                                borderRadius: 1,
+                                                pointerEvents: 'none',
+                                                animation: `${innerGlowPulse} 1.8s ease-in-out infinite`,
+                                              },
+                                              '@media (prefers-reduced-motion: reduce)': {
+                                                '&::after': { animation: 'none' },
+                                              },
+                                            }),
+                                          }}
                                     >
-                                        {job.status === 'running' && <CircularProgress size={16} />}
-                                        <ListItemText primary={`[${job.type}] Job ${job.id}`} />
+                                        <Tooltip title={`job ${job.id} ${job.name}`} arrow>
+                                            <Typography className="secondary-menu-text"
+                                                // variant="body2"
+                                            >{`Job ${job.id}`}</Typography>
+                                        </Tooltip>
                                     </ListItemButton>
+                                    </ListItem>
                                 ))}
-                        </List>
-                    </div>
-                )}
+                            </List>
+                        </Box>
+                        )}
 
-                {PageComponent && (
-                    <div className="content-area">
-                        <PageComponent
-                            starName={starName}
-                            setStarName={setStarName}
-                            messages={messages || []}
-                            setMessages={setMessages}
-                        />
-                    </div>
-                )}
+                    {PageComponent && (
+                        <div className="content-area">
+                            <PageComponent
+                                starName={starName}
+                                setStarName={setStarName}
+                                messages={messages || []}
+                                setMessages={setMessages}
+                                selectedJob={selectedJob}
+                                setBlocking={setBlocking}
+                            />
+                        </div>
+                    )}
 
-                {Object.keys(drawerState).map((key) => {
-                    const DrawerComponent = drawerComponents[key]
-                    return (
-                        <DrawerComponent
-                            key={key}
-                            open={drawerState[key]}
-                            onClose={() => toggleDrawer(key, false)}
-                            onSubmit={(data) => handleSubmit(key, data)}
-                        />
-                    )
-                })}
-            </div>
-        </div>
+                {DrawerComponent && selectedDrawer === selectedPrimaryMenu && (
+                <DrawerComponent
+                    key={selectedDrawer}
+                    open={true}
+                    onClose={() => setSelectedDrawer("")}
+                    onSubmit={(data) => handleSubmit(selectedDrawer, data)}
+                />
+                )}
+                </div>
+            </div>          
+        </ThemeProvider>
     )
 }
 

@@ -1,29 +1,35 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react';
 import {
-    Box,
-    Drawer,
-    Typography,
-    Divider,
-    TextField,
-    FormControl,
-    FormControlLabel,
-    Switch,
-    Tabs,
-    Tab,
-    InputLabel,
-    Select,
-    MenuItem,
-    Button
-} from '@mui/material'
-import FolderOpenIcon from '@mui/icons-material/FolderOpen'
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Box,
+  Drawer,
+  Typography,
+  Divider,
+  TextField,
+  FormControl,
+  FormControlLabel,
+  Switch,
+  Tabs,
+  Tab,
+  InputLabel,
+  Select,
+  MenuItem,
+  Button,
+} from '@mui/material';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import CommandAccordion from './CommandAccordion';
 
 const DrawerPrepare = ({ open, onClose, onSubmit }) => {
     const [tabIndex, setTabIndex] = useState(0)
 
     const [formData, setFormData] = useState({
-        command: 'prepare_star',
-        even: 'EVN',
-        odd: 'ODD',
+        type: 'prepare_star',
+        even: 'None',
+        odd: 'None',
         full: 'None',
         star_name: 'tomograms.star',
         mask_folder: 'None',
@@ -37,8 +43,6 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
         tilt_step: 3,
         create_average: true,
         number_subtomos: 1000,
-        only_print: true,
-        inqueue: true
     })
 
     const handleChange = (field, value) => {
@@ -62,11 +66,10 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
         }))
     }
 
-    const handleSubmit = (signal) => {
+    const handleSubmit = (status) => {
         const updatedFormData = {
             ...formData,
-            only_print: signal.onlyPrint,
-            inqueue: signal.inqueue
+            status
         }
         onSubmit(updatedFormData)
         onClose()
@@ -301,28 +304,11 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: true })}
+                    onClick={() => handleSubmit("running")}
                 >
-                    Submit (in queue)
+                    Run
                 </Button>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: false })}
-                >
-                    Submit (run immediately)
-                </Button>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: true, inqueue: true })}
-                >
-                    Print Command
-                </Button>
+                <CommandAccordion formData={formData}/>
             </Box>
         </Drawer>
     )
