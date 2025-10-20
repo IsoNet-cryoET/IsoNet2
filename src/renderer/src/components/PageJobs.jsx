@@ -10,12 +10,14 @@ import {
     Button,
     Checkbox
 } from '@mui/material'
-const PageJobs = () => {
+// import {useBlocking} from '../BlockingContext'
+// import Backdrop from '@mui/material/Backdrop'
+// import CircularProgress from '@mui/material/CircularProgress'
+const PageJobs = ({ setBlocking }) => {
     const [jobList, setJobList] = useState({ inQueueList: [], notInQueueList: [] })
 
     const fetchJobLists = async () => {
         let data = await api.onFetchJobs()
-        console.log('jobs', data)
         setJobList(data)
     }
 
@@ -23,28 +25,36 @@ const PageJobs = () => {
         fetchJobLists()
     }, [])
 
-    window.api.onPythonClosed(() => {
-        fetchJobLists()
-    })
+    useEffect(() => {
+        const off = window.api.onPythonUpdateStatus(async ({ id, status, pid }) => {
+          await window.jobList.updateStatus({ id, status }).catch(() => {})
+          await window.jobList.updatePID({ id, pid }).catch(() => {})
+          await fetchJobLists()
+          setBlocking(false)
+        })
+        return () => { try { off?.() } catch {} }
+      }, [])
 
-    const handleKillJob = (pid) => {
-        console.log(`Attempting to kill Job with PID: ${pid}`)
+    const handleKillJob = (pid, id) => {
+        setBlocking(true)                                  // 开遮罩
         api.killJob(pid)
-            .then(() => {
-                console.log(`Job with PID ${pid} killed`)
-                fetchJobLists() // Refresh job list after killing the job
+            .then( async () => {
+            await window.jobList.updateStatus({ id, status: 'completed' })
+            await fetchJobLists()
             })
-            .catch((error) => {
-                console.error('Error killing job:', error) // Handle failure
-            })
+            .catch(console.error)
+            .finally()               // 关遮罩
     }
 
-    const handleRemoveJob = (result) => {
-        console.log(`Attempt to remove Job ${result} from queue`)
-        api.removeJobFromQueue(result).then(() => {
-            console.log(`Job ${result} removed from queue`)
-            fetchJobLists() // Refresh job list after removing the job
-        })
+    const handleRemoveJob = (id) => {
+        setBlocking(true)                                  // 开遮罩
+        api.removeJobFromQueue(id)
+          .then( () => {
+             window.jobList.updateStatus({ id, status: 'completed' })
+             fetchJobLists()
+        }).then(() => setBlocking(false))
+          .catch(console.error)
+          .finally()               // 关遮罩
     }
     return (
         <div>
@@ -54,18 +64,20 @@ const PageJobs = () => {
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell>Status</TableCell>
-                                <TableCell>Result</TableCell>
+                                <TableCell>id</TableCell>
+                                <TableCell>status</TableCell>
+                                <TableCell>command</TableCell>
                                 <TableCell>PID</TableCell>
-                                <TableCell>Actions</TableCell>
+                                <TableCell>actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {(jobList.inQueueList || []).length > 0 ? (
                                 jobList.inQueueList.map((job, index) => (
                                     <TableRow key={index}>
+                                        <TableCell>{job.id || 'N/A'}</TableCell>
                                         <TableCell>{job.status}</TableCell>
-                                        <TableCell>{job.result}</TableCell>
+                                        <TableCell>{job.command_line}</TableCell>
                                         <TableCell>{job.pid || 'N/A'}</TableCell>
                                         <TableCell>
                                             <Button
@@ -73,8 +85,8 @@ const PageJobs = () => {
                                                 color={job.pid ? 'error' : 'secondary'}
                                                 onClick={() =>
                                                     job.pid
-                                                        ? handleKillJob(job.pid)
-                                                        : handleRemoveJob(job.result)
+                                                        ? handleKillJob(job.pid, job.id)
+                                                        : handleRemoveJob(job.id)
                                                 }
                                             >
                                                 {job.pid ? 'Kill Job' : 'Remove from Queue'}
@@ -84,7 +96,7 @@ const PageJobs = () => {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={4}>No jobs</TableCell>
+                                    <TableCell colSpan={4}>no jobs</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
@@ -98,18 +110,20 @@ const PageJobs = () => {
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableCell>Status</TableCell>
-                                <TableCell>Result</TableCell>
+                                <TableCell>id</TableCell>
+                                <TableCell>status</TableCell>
+                                <TableCell>command</TableCell>
                                 <TableCell>PID</TableCell>
-                                <TableCell>Actions</TableCell>
+                                <TableCell>actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {(jobList.notInQueueList || []).length > 0 ? (
                                 jobList.notInQueueList.map((job, index) => (
                                     <TableRow key={index}>
+                                        <TableCell>{job.id || 'N/A'}</TableCell>
                                         <TableCell>{job.status}</TableCell>
-                                        <TableCell>{job.result}</TableCell>
+                                        <TableCell>{job.command_line}</TableCell>
                                         <TableCell>{job.pid || 'N/A'}</TableCell>
                                         <TableCell>
                                             <Button
@@ -117,8 +131,8 @@ const PageJobs = () => {
                                                 color={job.pid ? 'error' : 'primary'}
                                                 onClick={() =>
                                                     job.pid
-                                                        ? handleKillJob(job.pid)
-                                                        : handleRemoveJob(job.pid)
+                                                        ? handleKillJob(job.pid, job.id)
+                                                        : handleRemoveJob(job.id)
                                                 }
                                             >
                                                 {job.pid ? 'Kill Job' : 'Remove from Queue'}
@@ -128,7 +142,7 @@ const PageJobs = () => {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={4}>No jobs</TableCell>
+                                    <TableCell colSpan={4}>no jobs</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>

@@ -1,511 +1,419 @@
-import React, { useState, useEffect } from 'react'
-import DrawerPrepare from './components/DrawerPrepare'
+import React, { useState, useEffect, useCallback,useMemo,useRef } from 'react'
 import {
     List,
     ListItem,
     ListItemText,
     IconButton,
     ListItemButton,
-    Backdrop,
+    ThemeProvider,
+    CircularProgress,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    Typography,
+    DialogActions,
+    Button,
     Box,
-    CircularProgress
+    Tooltip,
 } from '@mui/material'
+import { keyframes } from '@mui/system';
+import { alpha } from '@mui/material/styles';
+import EditIcon from '@mui/icons-material/Edit'
+import Backdrop from '@mui/material/Backdrop'
+import DrawerPrepare from './components/DrawerPrepare'
 import DrawerRefine from './components/DrawerRefine'
+import DrawerDenoise from './components/DrawerDenoise'
 import DrawerPredict from './components/DrawerPredict'
 import DrawerDeconv from './components/DrawerDeconv'
 import DrawerMask from './components/DrawerMask'
 
-import EditIcon from '@mui/icons-material/Edit'
-import AppsIcon from '@mui/icons-material/Apps'
-import CameraIcon from '@mui/icons-material/Camera'
-
-import PageRefine from './components/PageRefine'
 import PagePrepare from './components/PagePrepare'
-import PagePredict from './components/PagePredict'
-import PageMask from './components/PageMask'
-import PageDeconv from './components/PageDeconv'
-import PagePost from './components/PagePost'
+import PageCommon from './components/PageCommon'
 import PageJobs from './components/PageJobs'
 
+import theme from './theme';
+import JobsList from './backup/SecondaryMenu'
 import { mergeMsg, processMessage } from './utils/utils'
-import { ConnectedTvOutlined } from '@mui/icons-material'
+import toCommand from './utils/handle_json'
+import { ConstructionOutlined } from '@mui/icons-material'
+// import {BlockingProvider} from './BlockingContext'
+
+
+const primaryMenuListinOrder = [
+    'prepare_star','denoise','deconv','make_mask','refine','predict','jobs_viewer'
+]
+const primaryMenuMapping = {
+    prepare_star: {
+        label: 'Prepare',
+        drawer: DrawerPrepare,
+        page: PagePrepare
+    },
+    denoise: {
+        label: 'Denoise',
+        drawer: DrawerDenoise,
+        page: PageCommon
+    },
+    deconv: {
+        label: 'Deconvolve',
+        drawer: DrawerDeconv,
+        page: PageCommon
+    },
+    make_mask: {
+        label: 'Create Mask',
+        drawer: DrawerMask,
+        page: PageCommon
+    },
+    refine: {
+        label: 'Refine',
+        drawer: DrawerRefine,
+        page: PageCommon
+    },
+    predict: {
+        label: 'Predict',
+        drawer: DrawerPredict,
+        page: PageCommon
+    },
+    jobs_viewer: {
+        label: 'Jobs Viewer',
+        page: PageJobs
+    }
+}
 
 const App = () => {
-    const [prepareDrawerOpen, setPrepareDrawerOpen] = useState(false)
-    const [refineDrawerOpen, setRefineDrawerOpen] = useState(false)
-    const [deconvDawerOpen, setDeconvDrawerOpen] = useState(false)
-    const [maskDrawerOpen, setMaskDrawerOpen] = useState(false)
-    const [predictDrawerOpen, setPredictDrawerOpen] = useState(false)
-
-    const [prepareMessages, setPrepareMessages] = useState([])
-    const [refineMessages, setRefineMessages] = useState([])
-    const [deconvMessages, setDeconvMessages] = useState([])
-    const [maskMessages, setMaskMessages] = useState([])
-    const [predictMessages, setPredictMessages] = useState([])
-    const [runningProcesses, setRunningProcesses] = useState({
-        prepare_star: false,
-        refine: false,
-        deconv: false,
-        make_mask: false,
-        predict: false
-    })
-
+    const [blocking, setBlocking] = useState(false)
+    const [selectedDrawer, setSelectedDrawer] = useState('')
+    const [jobs, setJobs] = useState([])
+    const [selectedJob, setSelectedJob] = useState(null)
+    const [messages, setMessages] = useState([])
     const [starName, setStarName] = useState('')
-    // const [JsonData, setJsonData] = useState('')
+    const [selectedPrimaryMenu, setSelectedPrimaryMenu] = useState('prepare_star')
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const inflight = useRef(0);
 
-    const handleSubmitPrepare = (data) => {
-        try {
-            setStarName(data.star_name)
-            // setPrepareMessages(() => [])
-            api.run(data)
-        } catch (error) {
-            console.error('Error submitting form:', error)
-        }
-        setPrepareDrawerOpen(false)
-    }
-
-    const handleSubmitRefine = (data) => {
-        try {
-            // setRefineMessages(() => [])
-            api.run(data)
-        } catch (error) {
-            console.error('Error submitting form:', error)
-        }
-        setRefineDrawerOpen(false)
-    }
-
-    const handleSubmitDeconv = (data) => {
-        try {
-            // setDeconvMessages(() => [])
-            api.run(data)
-        } catch (error) {
-            console.error('Error submitting form:', error)
-        }
-        setDeconvDrawerOpen(false)
-    }
-
-    const handleSubmitPredict = (data) => {
-        try {
-            // setPredictMessages(() => [])
-            api.run(data)
-        } catch (error) {
-            console.error('Error submitting form:', error)
-        }
-        setPredictDrawerOpen(false)
-    }
-
-    const handleSubmitMask = (data) => {
-        try {
-            // setMaskMessages(() => [])
-            api.run(data)
-        } catch (error) {
-            console.error('Error submitting form:', error)
-        }
-        setMaskDrawerOpen(false)
-    }
+    const visibleJobs = useMemo(
+        () => jobs.filter((j) => j.type === selectedPrimaryMenu),
+        [jobs, selectedPrimaryMenu]
+    )
 
     useEffect(() => {
-        const handleIncomingMessage = (data) => {
-            let newMsg = processMessage(data)
-            if (data.cmd === 'prepare_star') {
-                setPrepareMessages((prevMessages) => mergeMsg(prevMessages, newMsg))
-            } else if (data.cmd === 'refine') {
-                setRefineMessages((prevMessages) => mergeMsg(prevMessages, newMsg))
-            } else if (data.cmd === 'predict') {
-                setPredictMessages((prevMessages) => mergeMsg(prevMessages, newMsg))
-            } else if (data.cmd === 'make_mask') {
-                setMaskMessages((prevMessages) => mergeMsg(prevMessages, newMsg))
-            } else if (data.cmd === 'deconv') {
-                setDeconvMessages((prevMessages) => mergeMsg(prevMessages, newMsg))
-            }
-        }
-        window.api.onPythonStderr(handleIncomingMessage)
-        window.api.onPythonStdout(handleIncomingMessage)
-
-        window.api.onPythonRunning((data) => {
-            setRunningProcesses((prevState) => {
-                if (data.cmd in prevState) {
-                    return {
-                        ...prevState,
-                        [data.cmd]: true
-                    }
-                }
-                return prevState
-            })
+        const off = window.api.onPythonUpdateStatus(({ id, status, pid }) => {
+            console.log('python-status-changed:', id, status)
+            window.jobList.updateStatus({ id, status })  
+            window.jobList.updatePID({ id, pid })  
         })
+        return () => { try { off?.() } catch {} } 
+    }, []) // <-- empty deps: attach once
 
-        window.api.onPythonClosed((data) => {
-            setRunningProcesses((prevState) => {
-                if (data.cmd in prevState) {
-                    return {
-                        ...prevState,
-                        [data.cmd]: false
-                    }
-                }
-                return prevState
-            })
-        })
-
-        // // Cleanup listeners on unmount
-        // return () => {
-        //     window.api.offPythonStderr(handleIncomingMessage)
-        //     window.api.offPythonStdout(handleIncomingMessage)
-        // }
+    useEffect(() => {
+        const interval = setInterval(() => {
+            window.jobList.get().then(list => {
+                setJobs(()=>list)
+              })
+        }, 500)
+        return () => {clearInterval(interval) }
     }, [])
 
-    // selected menu index
-    const [selectedPrimaryMenu, setSelectedPrimaryMenu] = useState(0)
-    const [selectedSecondaryMenu, setSelectedSecondaryMenu] = useState(0)
+    useEffect(() => {
 
-    const Contents = [
-        [PagePrepare, PageDeconv, PageMask, PageRefine, PagePredict, PagePost, PageJobs],
-        [null, null]
-    ]
-    const CurrentComponent = Contents[selectedPrimaryMenu][selectedSecondaryMenu]
+        if (!selectedJob) return
+        const output_dir = `${selectedJob.type}/job${selectedJob.id}_${String(selectedJob.name).replace(/\s+/g, '_')}`
 
-    const handlePrimaryMenuClick = (index) => {
-        setSelectedPrimaryMenu(index)
-        setSelectedSecondaryMenu(0) // Reset secondary menu selection
-    }
+        const logPath = `${output_dir}/log.txt`
+        let alive = true
 
-    const handleSecondaryMenuClick = (event, index) => {
-        setSelectedSecondaryMenu(index)
-    }
+        const interval = setInterval(() => {
+        window.api.readFile(logPath).then((fileContent) => {
+            if (!alive) return
+            if (!fileContent) {
+            setMessages([])
+            return
+            }
 
-    const selectedStyle = {
-        '&.Mui-selected': {
-            backgroundColor: '#D5E2F4',
-            borderRadius: '24px'
+            const lines = fileContent.split(/\r?\n|\r/g).filter(Boolean)
+            const tmp = []
+            for (const line of lines) {
+            const msg = { cmd: selectedJob.type, output: line }
+            const processed = processMessage(msg)
+            const merged = mergeMsg(tmp, processed)
+            tmp.length = 0
+            tmp.push(...merged)
+            }
+            setMessages(tmp)
+        })
+        }, 300)
+
+        return () => { alive = false; clearInterval(interval) }
+    }, [selectedJob, jobs])
+
+    useEffect(() => {
+        if (selectedPrimaryMenu !== 'prepare_star') { setMessages([]); return }
+      
+        const logPath = 'prepare_log.txt' // 确保主进程按预期解析
+        let alive = true
+        const interval = setInterval(() => {
+            window.api.readFile(logPath).then((fileContent) => {
+                if (!alive) return
+                if (!fileContent) {
+                setMessages([])
+                return
+                }
+    
+                const lines = fileContent.split(/\r?\n|\r/g).filter(Boolean)
+                const tmp = []
+                for (const line of lines) {
+                const msg = { cmd: "prepare_star", output: line }
+                const processed = processMessage(msg)
+                const merged = mergeMsg(tmp, processed)
+                tmp.length = 0
+                tmp.push(...merged)
+                }
+                setMessages(tmp)
+            })
+            }, 300)
+      
+        return () => { alive = false; clearInterval(interval) }
+      }, [selectedPrimaryMenu])
+      
+    useEffect(() => {
+        const off = window.appClose?.onRequest?.(() => setConfirmOpen(true));
+        return () => { try { off?.(); } catch {}
+        };
+    }, []);
+
+
+  
+    const withBlocking = async (fn) => {
+      if (inflight.current === 0) setBlocking(true);
+      inflight.current++;
+      try { await fn(); }
+      finally {
+        inflight.current--;
+        if (inflight.current === 0) setBlocking(false);
+      }
+    };
+
+    const doCleanupThenClose = () =>
+        withBlocking(async () => {
+            setConfirmOpen(false);
+        
+            const all_jobs = await window.jobList.get()
+
+            const running = all_jobs.filter(j => j.status === 'running');
+            console.log(running)
+
+            await Promise.allSettled(
+                running.map(j => {
+                    api.killJob(j.pid)
+                    console.log(j)
+                    window.jobList.updateStatus({ id: j.id, status: 'completed' })
+                })
+            )
+
+            const queued = all_jobs.filter(j => j.status === 'inqueue');
+            await Promise.allSettled(
+                queued.map(j => window.jobList.updateStatus({ id: j.id, status: 'completed' }))
+            )
+      
+          // 4) Tell main we’re safe to close
+          await window.appClose.reply(true);
+        });
+
+    const cancelClose = async () => {
+        setConfirmOpen(false);
+        await window.appClose.reply(false);
+    };
+
+    const handleSubmit = useCallback(async (type, data) => {
+        console.log("submit in app.jsx")
+        console.log(type)
+        console.log(data)
+        try {
+            const id = await window.count.next()
+            if (data.type !== 'prepare_star'){
+                data.output_dir = `${data.type}/job${id}_${String(data.name).replace(/\s+/g, '_')}`
+            }
+            const payload = {
+                ...data,
+                id,
+              }              
+            // setJobs((prev) => {prev, payload})
+            await window.jobList.add(payload)
+            window.api.run(payload)
+
+            if (type === 'prepare_star' && data?.star_name) {
+                setStarName(data.star_name)
+            }
+        } catch (error) {
+                console.error(`Error submitting ${type} form:`, error)
+        }finally {
+            setSelectedDrawer('')
         }
+    },
+    []
+    )
+
+
+    const DrawerComponent = primaryMenuMapping[selectedPrimaryMenu]?.drawer;
+    const PageComponent = primaryMenuMapping[selectedPrimaryMenu]?.page
+    const togglePrimaryMenu = (key) => {
+        setSelectedPrimaryMenu(key)
+        setMessages([]) 
+        setSelectedJob(null) 
     }
+
+    const innerGlowPulse = keyframes`
+        0%, 100% {
+        opacity: .25;
+        box-shadow:
+            inset 0 0 0 1px var(--ring-weak);
+        }
+        50% {
+        opacity: 1;
+        box-shadow:
+            inset 0 0 14px var(--ring-strong),
+            inset 0 0 0 2px var(--ring-strong);
+        }
+    `;
     return (
-        <div className="outer-container">
-            <div className="top-bar">IsoNet 2</div>
-            <div className="main-content">
-                <div className="primary-menu">
-                    <List>
-                        <ListItem disablePadding>
-                            <ListItemButton
-                                onClick={() => handlePrimaryMenuClick(0)}
-                                selected={selectedPrimaryMenu === 0}
-                                sx={selectedStyle}
-                            >
-                                <CameraIcon sx={{ color: '#14446e' }} />
-                            </ListItemButton>
-                        </ListItem>
-                        <ListItem disablePadding>
-                            <ListItemButton
-                                onClick={() => handlePrimaryMenuClick(1)}
-                                selected={selectedPrimaryMenu === 1}
-                                sx={selectedStyle}
-                            >
-                                <AppsIcon sx={{ color: '#14446e' }} />
-                            </ListItemButton>
-                        </ListItem>
-                    </List>
-                </div>
+        <ThemeProvider theme={theme}>
+            {blocking && <Backdrop
+                open={blocking}
+                sx={{
+                color: '#fff',
+                zIndex: (theme) => theme.zIndex.modal + 2, // 确保足够高
+                bgcolor: 'rgba(0,0,0,0.35)',
+                }}
+            >
+                <CircularProgress />
+            </Backdrop>}
 
-                <div className="secondary-menu">
-                    {selectedPrimaryMenu === 0 && (
+            <Dialog open={confirmOpen} onClose={cancelClose}>
+                <DialogTitle>Close and clean up?</DialogTitle>
+                <DialogContent>
+                <Typography variant="body2">
+                    This will kill all running jobs and remove all queued jobs. Proceed?
+                </Typography>
+                </DialogContent>
+                <DialogActions>
+                <Button onClick={cancelClose}>No</Button>
+                <Button onClick={doCleanupThenClose} autoFocus variant="contained" color="error">
+                    Yes, close and clean up
+                </Button>
+                </DialogActions>
+            </Dialog>
+            <div className="outer-container">
+                {/* customerized top bar -- delete temperally */}
+                {/* <div className="top-bar">IsoNet 2</div> */}
+                <div className="main-content">
+                    <div className="primary-menu">
                         <List>
-                            <ListItem
-                                disablePadding
-                                sx={{
-                                    '&:hover': { backgroundColor: '#eaebef' }
-                                }}
-                            >
-                                <ListItemButton
-                                    selected={selectedSecondaryMenu === 0}
-                                    sx={selectedStyle}
-                                    onClick={(event) => handleSecondaryMenuClick(event, 0)}
+                            {primaryMenuListinOrder.map((key) => (
+                                <ListItem
+                                    disablePadding
+                                    key={key}
                                 >
-                                    {runningProcesses['prepare_star'] === true ? (
-                                        <CircularProgress size={20} color="inherit" />
-                                    ) : null}
-                                    <ListItemText primary="Prepare" />
-                                    <IconButton
-                                        onClick={() => setPrepareDrawerOpen(true)}
-                                        sx={{
-                                            backgroundColor: '#eaf1fb', // Set the background color
-                                            '&:hover': {
-                                                backgroundColor: '#e0e0e0' // Optional: Hover effect
-                                            },
-                                            borderRadius: '50%', // Optional: Keeps the background circular
-                                            width: '40px', // Increase clickable area width
-                                            height: '40px', // Increase clickable area height
-                                            display: 'flex', // Center the icon within the button
-                                            justifyContent: 'center',
-                                            alignItems: 'center'
-                                        }}
+                                    <ListItemButton
+                                        selected={selectedPrimaryMenu === key}
+                                        onClick={() => togglePrimaryMenu(key)}
                                     >
-                                        <EditIcon sx={{ color: '#14446e', fontSize: '24px' }} />{' '}
-                                        {/* Keep the icon size fixed */}
-                                    </IconButton>
-                                </ListItemButton>
-                            </ListItem>
-                            <ListItem
-                                disablePadding
-                                sx={{
-                                    '&:hover': { backgroundColor: '#eaebef' }
-                                }}
-                            >
-                                <ListItemButton
-                                    selected={selectedSecondaryMenu === 1}
-                                    sx={selectedStyle}
-                                    onClick={(event) => handleSecondaryMenuClick(event, 1)}
-                                >
-                                    {runningProcesses['deconv'] === true ? (
-                                        <CircularProgress size={20} color="inherit" />
-                                    ) : null}
-                                    <ListItemText primary="Deconvolve" />
-                                    <IconButton
-                                        onClick={() => setDeconvDrawerOpen(true)}
-                                        sx={{
-                                            backgroundColor: '#eaf1fb', // Set the background color
-                                            '&:hover': {
-                                                backgroundColor: '#e0e0e0' // Optional: Hover effect
-                                            },
-                                            borderRadius: '50%', // Optional: Keeps the background circular
-                                            width: '40px', // Increase clickable area width
-                                            height: '40px', // Increase clickable area height
-                                            display: 'flex', // Center the icon within the button
-                                            justifyContent: 'center',
-                                            alignItems: 'center'
-                                        }}
-                                    >
-                                        <EditIcon sx={{ color: '#14446e', fontSize: '24px' }} />{' '}
-                                        {/* Keep the icon size fixed */}
-                                    </IconButton>
-                                </ListItemButton>
-                            </ListItem>
-                            <ListItem
-                                disablePadding
-                                sx={{
-                                    '&:hover': { backgroundColor: '#eaebef' }
-                                }}
-                            >
-                                <ListItemButton
-                                    selected={selectedSecondaryMenu === 2}
-                                    sx={selectedStyle}
-                                    onClick={(event) => handleSecondaryMenuClick(event, 2)}
-                                >
-                                    {runningProcesses['make_mask'] === true ? (
-                                        <CircularProgress size={20} color="inherit" />
-                                    ) : null}
-                                    <ListItemText primary="Create Mask" />
-                                    <IconButton
-                                        onClick={() => setMaskDrawerOpen(true)}
-                                        sx={{
-                                            backgroundColor: '#eaf1fb', // Set the background color
-                                            '&:hover': {
-                                                backgroundColor: '#e0e0e0' // Optional: Hover effect
-                                            },
-                                            borderRadius: '50%', // Optional: Keeps the background circular
-                                            width: '40px', // Increase clickable area width
-                                            height: '40px', // Increase clickable area height
-                                            display: 'flex', // Center the icon within the button
-                                            justifyContent: 'center',
-                                            alignItems: 'center'
-                                        }}
-                                    >
-                                        <EditIcon sx={{ color: '#14446e', fontSize: '24px' }} />{' '}
-                                        {/* Keep the icon size fixed */}
-                                    </IconButton>
-                                </ListItemButton>
-                            </ListItem>
-                            <ListItem disablePadding>
-                                <ListItemButton
-                                    selected={selectedSecondaryMenu === 3}
-                                    sx={selectedStyle}
-                                    onClick={(event) => handleSecondaryMenuClick(event, 3)}
-                                >
-                                    {runningProcesses['refine'] === true ? (
-                                        <CircularProgress size={20} color="inherit" />
-                                    ) : null}
-                                    <ListItemText primary="Refine" />
-                                    <IconButton
-                                        onClick={() => setRefineDrawerOpen(true)}
-                                        sx={{
-                                            backgroundColor: '#eaf1fb', // Set the background color
-                                            '&:hover': {
-                                                backgroundColor: '#e0e0e0' // Optional: Hover effect
-                                            },
-                                            borderRadius: '50%', // Optional: Keeps the background circular
-                                            width: '40px', // Increase clickable area width
-                                            height: '40px', // Increase clickable area height
-                                            display: 'flex', // Center the icon within the button
-                                            justifyContent: 'center',
-                                            alignItems: 'center'
-                                        }}
-                                    >
-                                        <EditIcon sx={{ color: '#14446e', fontSize: '24px' }} />{' '}
-                                        {/* Keep the icon size fixed */}
-                                    </IconButton>
-                                </ListItemButton>
-                            </ListItem>
-                            <ListItem
-                                disablePadding
-                                sx={{
-                                    '&:hover': { backgroundColor: '#eaebef' }
-                                }}
-                            >
-                                <ListItemButton
-                                    selected={selectedSecondaryMenu === 4}
-                                    sx={selectedStyle}
-                                    onClick={(event) => handleSecondaryMenuClick(event, 4)}
-                                >
-                                    {runningProcesses['predict'] === true ? (
-                                        <CircularProgress size={20} color="inherit" />
-                                    ) : null}
-                                    <ListItemText primary="Predict" />
-                                    <IconButton
-                                        onClick={() => setPredictDrawerOpen(true)}
-                                        sx={{
-                                            backgroundColor: '#eaf1fb', // Set the background color
-                                            '&:hover': {
-                                                backgroundColor: '#e0e0e0' // Optional: Hover effect
-                                            },
-                                            borderRadius: '50%', // Optional: Keeps the background circular
-                                            width: '40px', // Increase clickable area width
-                                            height: '40px', // Increase clickable area height
-                                            display: 'flex', // Center the icon within the button
-                                            justifyContent: 'center',
-                                            alignItems: 'center'
-                                        }}
-                                    >
-                                        <EditIcon sx={{ color: '#14446e', fontSize: '24px' }} />{' '}
-                                        {/* Keep the icon size fixed */}
-                                    </IconButton>
-                                </ListItemButton>
-                            </ListItem>
-                            <ListItem disablePadding>
-                                <ListItemButton
-                                    selected={selectedSecondaryMenu === 5}
-                                    sx={selectedStyle}
-                                    onClick={(event) => handleSecondaryMenuClick(event, 5)}
-                                >
-                                    <ListItemText primary="Postprocess" />
-                                </ListItemButton>
-                            </ListItem>
-
-                            <ListItem
-                                disablePadding
-                                // sx={{
-                                //     '&:hover': { backgroundColor: '#eaebef' }
-                                // }}
-                            >
-                                <ListItemButton
-                                    selected={selectedSecondaryMenu === 6} // Unique index for the new item
-                                    sx={{ ...selectedStyle, bottom: 0, position: 'static' }}
-                                    onClick={(event) => handleSecondaryMenuClick(event, 6)} // Ensure the click handler works for the new item
-                                >
-                                    <ListItemText primary="Jobs viewer" />
-                                </ListItemButton>
-                            </ListItem>
+                                        <ListItemText primary={primaryMenuMapping[key]?.label} />
+                                        {primaryMenuMapping[key]?.drawer &&
+                                          (
+                                            <IconButton
+                                                onClick={() => {
+                                                    // e.stopPropagation();
+                                                    setSelectedDrawer(key);
+                                                }}
+                                                sx={{
+                                                    backgroundColor:'#D5E2F4',
+                                                    '&:hover': { backgroundColor: '#e0e0e0' },
+                                                    borderRadius: '50%',
+                                                    width: 40,
+                                                    height: 40,
+                                                    display: 'flex',
+                                                    justifyContent: 'center',
+                                                    alignItems: 'center'
+                                                }}
+                                            >
+                                                <EditIcon sx={{ color: '#14446e', fontSize: 24 }} />
+                                            </IconButton>
+                                        )}
+                                    </ListItemButton>
+                                </ListItem>
+                            ))}
                         </List>
-                    )}
-                    {selectedPrimaryMenu === 1 && (
-                        <List>
-                            <ListItem disablePadding>
-                                <ListItemButton
-                                    selected={selectedSecondaryMenu === 0}
-                                    sx={selectedStyle}
-                                    onClick={(event) => handleSecondaryMenuClick(event, 0)}
-                                >
-                                    <ListItemText primary="Page 1" />
-                                </ListItemButton>
-                            </ListItem>
-                            <ListItem disablePadding>
-                                <ListItemButton
-                                    selected={selectedSecondaryMenu === 1}
-                                    sx={selectedStyle}
-                                    onClick={(event) => handleSecondaryMenuClick(event, 1)}
-                                >
-                                    <ListItemText primary="Page 2" />
-                                </ListItemButton>
-                            </ListItem>
-                        </List>
-                    )}
-                </div>
-                <div className="content-area">
-                    {CurrentComponent !== null ? (
-                        (() => {
-                            // Determine props to pass based on the current component
-                            let componentProps = { starName, setStarName }
-                            if (CurrentComponent === PagePrepare) {
-                                componentProps = {
-                                    ...componentProps,
-                                    prepareMessages,
-                                    setPrepareMessages
-                                }
-                            } else if (CurrentComponent === PageRefine) {
-                                componentProps = {
-                                    ...componentProps,
-                                    refineMessages,
-                                    setRefineMessages
-                                }
-                            } else if (CurrentComponent === PagePredict) {
-                                componentProps = {
-                                    ...componentProps,
-                                    predictMessages,
-                                    setPredictMessages
-                                }
-                            } else if (CurrentComponent === PageMask) {
-                                componentProps = {
-                                    ...componentProps,
-                                    maskMessages,
-                                    setMaskMessages
-                                }
-                            } else if (CurrentComponent === PageDeconv) {
-                                componentProps = {
-                                    ...componentProps,
-                                    deconvMessages,
-                                    setDeconvMessages
-                                }
-                            }
+                    </div>
 
-                            return <CurrentComponent {...componentProps} />
-                        })()
-                    ) : (
-                        <iframe
-                            src="https://isonetcryoet.com/" // Replace with your desired URL
-                            style={{
-                                width: '100%',
-                                height: '100vh',
-                                border: 'none'
-                            }}
-                            title="Embedded Webpage"
-                        />
-                    )}
-                </div>
+                    {['denoise','deconv','make_mask','refine','predict'].includes(selectedPrimaryMenu) && (
+                        <Box 
+                            className="secondary-menu"
+                            sx={{
+                                height: 'calc(100vh)',
+                                overflowY: 'auto',
+                            }}                            
+                            >
+                            <List>
+                                {visibleJobs.map((job) => (
+                                    <ListItem                                >
+                                    <ListItemButton
+                                        key={job.id}
+                                        selected={selectedJob?.id === job.id}
+                                        onClick={() => setSelectedJob(job)}
+                                        // divider
+                                        sx={{
+                                            '--ring-strong': (t) => alpha(t.palette.primary.main, 0.55),
+                                            '--ring-weak':   (t) => alpha(t.palette.primary.main, 0.22),
+                                            ...(job.status === 'running' && {
+                                              '&::after': {
+                                                content: '""',
+                                                position: 'absolute',
+                                                inset: 0,       
+                                                borderRadius: 1,
+                                                pointerEvents: 'none',
+                                                animation: `${innerGlowPulse} 1.8s ease-in-out infinite`,
+                                              },
+                                              '@media (prefers-reduced-motion: reduce)': {
+                                                '&::after': { animation: 'none' },
+                                              },
+                                            }),
+                                          }}
+                                    >
+                                        <Tooltip title={`job ${job.id} ${job.name}`} arrow>
+                                            <Typography className="secondary-menu-text"
+                                                // variant="body2"
+                                            >{`Job ${job.id}`}</Typography>
+                                        </Tooltip>
+                                    </ListItemButton>
+                                    </ListItem>
+                                ))}
+                            </List>
+                        </Box>
+                        )}
 
-                <DrawerPrepare
-                    open={prepareDrawerOpen}
-                    onClose={() => setPrepareDrawerOpen(false)}
-                    onSubmit={handleSubmitPrepare}
+                    {PageComponent && (
+                        <div className="content-area">
+                            <PageComponent
+                                starName={starName}
+                                setStarName={setStarName}
+                                messages={messages || []}
+                                setMessages={setMessages}
+                                selectedJob={selectedJob}
+                                setBlocking={setBlocking}
+                            />
+                        </div>
+                    )}
+
+                {DrawerComponent && selectedDrawer === selectedPrimaryMenu && (
+                <DrawerComponent
+                    key={selectedDrawer}
+                    open={true}
+                    onClose={() => setSelectedDrawer("")}
+                    onSubmit={(data) => handleSubmit(selectedDrawer, data)}
                 />
-                <DrawerRefine
-                    open={refineDrawerOpen}
-                    onClose={() => setRefineDrawerOpen(false)}
-                    onSubmit={handleSubmitRefine}
-                />
-                <DrawerDeconv
-                    open={deconvDawerOpen}
-                    onClose={() => setDeconvDrawerOpen(false)}
-                    onSubmit={handleSubmitDeconv}
-                />
-                <DrawerMask
-                    open={maskDrawerOpen}
-                    onClose={() => setMaskDrawerOpen(false)}
-                    onSubmit={handleSubmitMask}
-                />
-                <DrawerPredict
-                    open={predictDrawerOpen}
-                    onClose={() => setPredictDrawerOpen(false)}
-                    onSubmit={handleSubmitPredict}
-                />
-            </div>
-        </div>
+                )}
+                </div>
+            </div>          
+        </ThemeProvider>
     )
 }
 

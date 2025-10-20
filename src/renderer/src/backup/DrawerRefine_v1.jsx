@@ -18,52 +18,41 @@ import {
 } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import CommandAccordion from './CommandAccordion';
 
-const DrawerRefine = ({ open, onClose, onSubmit }) => {
+const DrawerRefine_v1 = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
-        type: 'refine',
+        type: 'refine_v1',
         star_file: 'tomograms.star',
-        output_dir: 'isonet_maps',
+        output_dir: 'refine_v1',
 
         gpuID: 'None',
         ncpus: 16,
 
-        method: 'isonet2-n2n',
         arch: 'unet-medium',
         pretrained_model: 'None',
 
         cube_size: 96,
-        epochs: 50,
+        epochs: 10,
+        iterations: 30,
 
         input_column: 'rlnDeconvTomoName',
         batch_size: 'None',
-        acc_batches: 1,
         loss_func: 'L2',
         learning_rate: 3e-4,
         T_max: 10,
         learning_rate_min: 3e-4,
-        random_rotation: true,
-        mw_weight: 20,
-        apply_mw_x1: true,
+        random_rotation: false,
         compile_model: false,
         mixed_precision: true,
 
-        CTF_mode: 'None',
-        isCTFflipped: false,
-
-        correct_between_tilts: false,
-        start_bt_size: 128,
-
-        noise_level: 0,
+        noise_level: '0.05,0.1,0.15,0.2',
         noise_mode: 'nofilter',
+        noise_start_iter: '10,15,20,25',
 
         with_predict: true,
 
-        even_odd_input: true,
-        snrfalloff: 0,
-        deconvstrength: 1,
-        highpassnyquist: 0.02,
+        only_print: true,
+        inqueue: true
     })
 
     // 处理表单字段变化
@@ -79,10 +68,11 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
         }))
     }
 
-    const handleSubmit = (status) => {
+    const handleSubmit = (signal) => {
         const updatedFormData = {
             ...formData,
-            status
+            only_print: signal.onlyPrint,
+            inqueue: signal.inqueue
         }
         onSubmit(updatedFormData)
         onClose()
@@ -101,25 +91,9 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
         >
             <Box sx={{ width: 400, padding: 2 }}>
                 <Typography variant="h6" gutterBottom>
-                    Refine
+                    Old refine function in IsoNet1
                 </Typography>
                 <Divider sx={{ marginBottom: 2 }} />
-                <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={formData.even_odd_input}
-                                onChange={(e) => {
-                                    const isChecked = e.target.checked
-                                    handleChange('even_odd_input', isChecked)
-                                    handleChange('method', isChecked ? 'isonet2-n2n' : 'isonet2')
-                                }}
-                            />
-                        }
-                        label="Even/Odd Input"
-                    />
-                </Box>
-
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     <TextField
                         label="input star file"
@@ -164,36 +138,13 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                 />
 
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                    {!formData.even_odd_input && (
-                        <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
-                            <InputLabel>algorithum</InputLabel>
-                            <Select
-                                // labelId="demo-simple-select-standard-label"
-                                // id="demo-simple-select-standard"
-                                value={formData.method}
-                                onChange={(e) => handleChange('method', e.target.value)}
-                                // label="Age"
-                            >
-                                <MenuItem value={'isonet2'}>isonet2</MenuItem>
-                            </Select>
-                        </FormControl>
-                    )}
-                    {formData.even_odd_input && (
-                        <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
-                            <InputLabel>algorithum</InputLabel>
-                            <Select
-                                // labelId="demo-simple-select-standard-label"
-                                // id="demo-simple-select-standard"
-                                value={formData.method}
-                                onChange={(e) => handleChange('method', e.target.value)}
-                                // label="Age"
-                            >
-                                <MenuItem value={'isonet2-n2n'}>isonet2-n2n</MenuItem>
-                                <MenuItem value={'n2n'}>n2n</MenuItem>
-                            </Select>
-                        </FormControl>
-                    )}
-
+                    <TextField
+                        label="iterations"
+                        type="int"
+                        value={formData.iterations}
+                        onChange={(e) => handleChange('iterations', e.target.value)}
+                        fullWidth
+                    />
                     <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
                         <InputLabel>network architecture</InputLabel>
                         <Select
@@ -246,13 +197,6 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
 
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     <TextField
-                        label="mw weight"
-                        type="number"
-                        value={formData.mw_weight}
-                        onChange={(e) => handleChange('mw_weight', e.target.value)}
-                        fullWidth
-                    />
-                    <TextField
                         label="gpuID"
                         type="string"
                         value={formData.gpuID}
@@ -267,7 +211,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         fullWidth
                     />
                 </Box>
-                <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                {/* <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     {/* <FormControlLabel
                         control={
                             <Switch
@@ -276,7 +220,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             />
                         }
                         label="correct CTF"
-                    /> */}
+                    />
                     <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
                         <InputLabel>CTF_mode</InputLabel>
                         <Select
@@ -287,7 +231,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             <MenuItem value={'phase_only'}>phase_only</MenuItem>
                             <MenuItem value={'wiener'}>wiener</MenuItem>
                         </Select>
-                    </FormControl>
+                    </FormControl> 
                     <FormControlLabel
                         control={
                             <Switch
@@ -297,15 +241,22 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         }
                         label="isCTFflipped"
                     />
-                </Box>
+                </Box> */}
 
                 {!formData.even_odd_input && (
                     <Box display="flex" alignItems="center" gap={2} marginY={2}>
                         <TextField
                             label="Noise Level"
-                            type="number"
+                            type="string"
                             value={formData.noise_level}
                             onChange={(e) => handleChange('noise_level', e.target.value)}
+                            fullWidth
+                        />
+                        <TextField
+                            label="Noise Start Iter"
+                            type="string"
+                            value={formData.noise_start_iter}
+                            onChange={(e) => handleChange('noise_start_iter', e.target.value)}
                             fullWidth
                         />
 
@@ -336,6 +287,21 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         onClick={() => handleFileSelect('pretrained_model', 'openFile')}
                     ></Button>
                 </Box>
+                {/* {formData.split_halves && (
+                    <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                        <TextField
+                            label="Pretrained Model 2"
+                            value={formData.pretrained_model2}
+                            fullWidth
+                        />
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<FolderOpenIcon />}
+                            onClick={() => handleFileSelect('pretrained_model2', 'openFile')}
+                        ></Button>
+                    </Box>
+                )} */}
                 <Accordion>
                     <AccordionSummary
                         expandIcon={<ExpandMoreIcon />}
@@ -356,43 +322,6 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             />
 
                             {/* Accumulated Batches */}
-                            <TextField
-                                label="Accumulated Batches"
-                                type="number"
-                                value={formData.acc_batches}
-                                onChange={(e) => handleChange('acc_batches', e.target.value)}
-                                fullWidth
-                            />
-                        </Box>
-
-                        {/* {formData.correct_CTF && ( */}
-                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                            <TextField
-                                label="snrfalloff"
-                                type="number"
-                                value={formData.snrfalloff}
-                                onChange={(e) => handleChange('snrfalloff', e.target.value)}
-                                fullWidth
-                            />
-                            <TextField
-                                label="deconvstrength"
-                                type="number"
-                                value={formData.deconvstrength}
-                                onChange={(e) => handleChange('deconvstrength', e.target.value)}
-                                fullWidth
-                            />
-                            <TextField
-                                label="highpassnyquist"
-                                type="number"
-                                value={formData.highpassnyquist}
-                                onChange={(e) => handleChange('highpassnyquist', e.target.value)}
-                                fullWidth
-                            />
-                        </Box>
-                        {/* )} */}
-
-                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                            {/* Loss Function */}
                             <FormControl fullWidth>
                                 <InputLabel>Loss Function</InputLabel>
                                 <Select
@@ -404,6 +333,11 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                                     <MenuItem value="Huber">Huber</MenuItem>
                                 </Select>
                             </FormControl>
+                        </Box>
+
+                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                            {/* Loss Function */}
+
                             {/* Learning Rate */}
                             <TextField
                                 label="Learning Rate"
@@ -448,27 +382,6 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             }
                             label="Mixed Precision"
                         />
-
-                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={formData.correct_between_tilts}
-                                        onChange={(e) =>
-                                            handleChange('correct_between_tilts', e.target.checked)
-                                        }
-                                    />
-                                }
-                                label="correct between tilts"
-                            />
-                            <TextField
-                                label="start_bt_size"
-                                type="number"
-                                value={formData.start_bt_size}
-                                onChange={(e) => handleChange('start_bt_size', e.target.value)}
-                                // fullWidth
-                            />
-                        </Box>
                     </AccordionDetails>
                 </Accordion>
                 <Button
@@ -476,7 +389,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit("inqueue")}
+                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: true })}
                 >
                     Submit (in queue)
                 </Button>
@@ -485,14 +398,22 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit('running')}
+                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: false })}
                 >
                     Submit (run immediately)
                 </Button>
-                <CommandAccordion formData={formData}/>
+                <Button
+                    variant="contained"
+                    color="primary"
+                    fullWidth
+                    sx={{ marginTop: 2 }}
+                    onClick={() => handleSubmit({ onlyPrint: true, inqueue: true })}
+                >
+                    Print Command
+                </Button>
             </Box>
         </Drawer>
     )
 }
 
-export default DrawerRefine
+export default DrawerRefine_v1

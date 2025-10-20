@@ -18,13 +18,13 @@ import {
 } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import CommandAccordion from './CommandAccordion';
 
 const DrawerPredict = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
-        command: 'predict',
+        type: 'predict',
         star_file: 'tomograms.star',
         model: 'None',
-        model2: 'None',
         output_dir: './corrected_tomos',
         gpuID: 'None',
         input_column: 'rlnDeconvTomoName',
@@ -32,9 +32,6 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
         isCTFflipped: false,
         tomo_idx: 'all',
         even_odd_input: true,
-        split_top_bottom_halves: false,
-        only_print: true,
-        inqueue: true
     })
 
     // 处理表单字段变化
@@ -49,11 +46,10 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
             [field]: folderPath
         }))
     }
-    const handleSubmit = (signal) => {
+    const handleSubmit = (status) => {
         const updatedFormData = {
             ...formData,
-            only_print: signal.onlyPrint,
-            inqueue: signal.inqueue
+            status
         }
         onSubmit(updatedFormData)
         onClose()
@@ -89,17 +85,6 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                             />
                         }
                         label="Even/Odd Input"
-                    />
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={formData.split_top_bottom_halves}
-                                onChange={(e) =>
-                                    handleChange('split_top_bottom_halves', e.target.checked)
-                                }
-                            />
-                        }
-                        label="Split Halves"
                     />
                 </Box>
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
@@ -142,17 +127,22 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                         onClick={() => handleFileSelect('model', 'openFile')}
                     ></Button>
                 </Box>
-                {formData.split_top_bottom_halves && (
-                    <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                        <TextField label="network model 2" value={formData.model2} fullWidth />
-                        <Button
-                            variant="contained"
-                            color="primary"
-                            startIcon={<FolderOpenIcon />}
-                            onClick={() => handleFileSelect('model2', 'openFile')}
-                        ></Button>
-                    </Box>
-                )}
+
+                <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
+                    <InputLabel>input column</InputLabel>
+                    <Select
+                        // labelId="demo-simple-select-standard-label"
+                        // id="demo-simple-select-standard"
+                        value={formData.input_column}
+                        onChange={(e) => handleChange('input_column', e.target.value)}
+                        // label="Age"
+                    >
+                        <MenuItem value={'rlnDeconvTomoName'}>rlnDeconvTomoName</MenuItem>
+                        <MenuItem value={'rlnTomoName'}>rlnTomoName</MenuItem>
+                        <MenuItem value={'rlnDenoisedTomoName'}>rlnDenoisedTomoName</MenuItem>
+                        <MenuItem value={'rlnCorrectedTomoName'}>rlnCorrectedTomoName</MenuItem>
+                    </Select>
+                </FormControl>
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     <TextField
                         label="output directory"
@@ -205,7 +195,7 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: true })}
+                    onClick={() => handleSubmit('inqueue')}
                 >
                     Submit (in queue)
                 </Button>
@@ -214,19 +204,11 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: false })}
+                    onClick={() => handleSubmit('running')}
                 >
                     Submit (run immediately)
                 </Button>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: true, inqueue: true })}
-                >
-                    Print Command
-                </Button>
+                <CommandAccordion formData={formData}/>
             </Box>
         </Drawer>
     )

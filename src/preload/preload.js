@@ -1,46 +1,58 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 ipcRenderer.setMaxListeners(100)
+
+contextBridge.exposeInMainWorld('count', {
+    next: () => ipcRenderer.invoke('count:nextId'),
+    current: () => ipcRenderer.invoke('count:getCurrentId'),
+    // reset: (value) => ipcRenderer.invoke('count:resetCounter', value),
+});
+
+contextBridge.exposeInMainWorld('jobList', {
+    get: () => ipcRenderer.invoke('jobList:get'),
+    add: (data) => ipcRenderer.invoke('jobList:add', data),
+    update: (data) => ipcRenderer.invoke('jobList:update', data),
+    updateStatus: ({id, status}) => ipcRenderer.invoke('jobList:updateStatus', {id, status}),
+    updatePID: ({id, pid}) => ipcRenderer.invoke('jobList:updatePID', {id, pid}),
+    remove: (id) => ipcRenderer.invoke('jobList:remove', id),
+});
+
+contextBridge.exposeInMainWorld('appClose', {
+    onRequest: (cb) => {
+      const listener = () => cb?.();
+      ipcRenderer.on('app-close-request', listener);
+      return () => ipcRenderer.removeListener('app-close-request', listener);
+    },
+    reply: (ok) => ipcRenderer.invoke('app-close-confirmed', ok),
+  });
 // Custom APIs for renderer
 const api = {
-    selectFile(property) {
-        const folderPath = ipcRenderer.invoke('select-file', property)
-        return folderPath
-    },
-    // loadStar(star_name) {
-    //     ipcRenderer.send('load_star', star_name)
-    // },
-    updateStar: (data_json) => {
-        ipcRenderer.send('update_star', data_json)
-    },
-    run: (data) => {
-        ipcRenderer.send('run', data)
-    },
-    view: (file) => {
-        ipcRenderer.send('view', file)
-    },
-    // Listen for Python stderr messages
-    onPythonRunning: (callback) => {
-        ipcRenderer.on('python-running', (event, data) => {
-            callback(data)
-        })
-    },
-    onPythonClosed: (callback) => {
-        ipcRenderer.on('python-closed', (event, data) => {
-            callback(data)
-        })
-    },
-    // Listen for Python stderr messages
-    onPythonStderr: (callback) => {
-        ipcRenderer.on('python-stderr', (event, data) => {
-            callback(data)
-        })
-    },
-    onPythonStdout: (callback) => {
-        ipcRenderer.on('python-stdout', (event, data) => {
-            callback(data)
-        })
-    },
+    getImageData: (relativePath) => ipcRenderer.invoke('get-image-data', relativePath),
+    selectFile:   (property) => ipcRenderer.invoke('select-file', property),
+    readFile:     (filePath) => ipcRenderer.invoke('read-file', filePath),
+  
+    updateStar: (data_json) => ipcRenderer.send('update_star', data_json),
+    run:        (data) => ipcRenderer.send('run', data),
+    view:       (file) => ipcRenderer.send('view', file),
+    // onPythonRunning: (cb) => { ipcRenderer.on('python-running', (_e, d) => cb(d)) },
+
+    onPythonUpdateStatus: (cb) => {
+        const channel = 'python-status-change'; 
+        const handler = (_e, payload) => cb(payload) 
+        ipcRenderer.on(channel, handler)
+        return () => ipcRenderer.removeListener(channel, handler)
+      },
+
+    // onPythonClosed: (cb) => {
+    //     const channel = 'python-closed'; 
+    //     const handler = (_e, payload) => cb(payload) 
+    //     ipcRenderer.on(channel, handler)
+    //     return () => ipcRenderer.removeListener(channel, handler)
+    //   },
+      
+    onPythonStderr:  (cb) => { ipcRenderer.on('python-stderr',  (_e, d) => cb(d)) },
+    onPythonStdout:  (cb) => { ipcRenderer.on('python-stdout',  (_e, d) => cb(d)) },
+  
     killJob: (pid) => {
         return new Promise((resolve, reject) => {
             ipcRenderer.once('kill-job-response', (event, success) => {
@@ -54,7 +66,7 @@ const api = {
             ipcRenderer.send('kill-job', pid) // Send the kill request
         })
     },
-    removeJobFromQueue: (result) => {
+    removeJobFromQueue: (id) => {
         return new Promise((resolve, reject) => {
             ipcRenderer.once('remove-job-response', (event, success) => {
                 if (success) {
@@ -64,7 +76,7 @@ const api = {
                 }
             })
 
-            ipcRenderer.send('remove-job', result) // Send the job removal request
+            ipcRenderer.send('remove-job', id) // Send the job removal request
         })
     },
 
@@ -84,11 +96,7 @@ const api = {
             console.error('Error fetching jobs:', error)
             return null // Handle error gracefully
         }
-    }
-
-    // offJson: (callback) => {
-    //     ipcRenderer.removeListener('json-star', callback)
-    // }
+    },
 }
 
 if (process.contextIsolated) {

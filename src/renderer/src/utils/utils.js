@@ -1,18 +1,31 @@
 export const processMessage = (msg) => {
-    const progressPercentage = msg.output.match(/(\d+)%/)
+    const output = msg.output
+
+    const progressPercentage = output.match(/(\d+)%/)
     if (progressPercentage) {
         return {
             type: 'bar',
             cmd: msg.cmd,
-            description: msg.output.match(/^[^:]+/)[0],
+            description: output.match(/^[^:]+/)[0],
             percentage: parseInt(progressPercentage?.[1] || 0, 10),
-            details: msg.output.match(/^[^|]*\|[^|]*\|(.*)/)[1].trim()
+            details: output.match(/^[^|]*\|[^|]*\|(.*)/)[1].trim()
+        }
+    } else if (output.includes('power spectrum')) {
+        const epochMatch = output.match(/epoch\s+(\d+)/i)
+        const folderMatch = output.match(/to\s+'([^']+)'/i)
+
+        return {
+            type: 'power_spectrum',
+            cmd: msg.cmd,
+            epoch: epochMatch ? parseInt(epochMatch[1], 10) : null,
+            folder: folderMatch ? folderMatch[1] : null,
+            output: output
         }
     } else {
         return {
             type: 'text',
             cmd: msg.cmd,
-            output: msg.output
+            output: output
         }
     }
 }

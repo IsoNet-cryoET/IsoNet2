@@ -19,10 +19,11 @@ import {
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
+import CommandAccordion from './CommandAccordion';
 
 const DrawerMask = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
-        command: 'make_mask',
+        type: 'make_mask',
         star_file: 'tomograms.star',
         output_dir: './mask',
         input_column: 'rlnTomoName',
@@ -31,8 +32,6 @@ const DrawerMask = ({ open, onClose, onSubmit }) => {
         std_percentage: 50,
         z_crop: 0.2,
         tomo_idx: 'all',
-        only_print: true,
-        inqueue: true
     })
 
     // 处理表单字段变化
@@ -47,11 +46,10 @@ const DrawerMask = ({ open, onClose, onSubmit }) => {
             [field]: folderPath
         }))
     }
-    const handleSubmit = (signal) => {
+    const handleSubmit = (status) => {
         const updatedFormData = {
             ...formData,
-            only_print: signal.onlyPrint,
-            inqueue: signal.inqueue
+            status
         }
         onSubmit(updatedFormData)
         onClose()
@@ -166,7 +164,7 @@ const DrawerMask = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: true })}
+                    onClick={() => handleSubmit('inqueue')}
                 >
                     Submit (in queue)
                 </Button>
@@ -175,19 +173,11 @@ const DrawerMask = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: false, inqueue: false })}
+                    onClick={() => handleSubmit('running')}
                 >
                     Submit (run immediately)
                 </Button>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    fullWidth
-                    sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit({ onlyPrint: true, inqueue: true })}
-                >
-                    Print Command
-                </Button>
+                <CommandAccordion formData={formData}/>
             </Box>
         </Drawer>
     )
