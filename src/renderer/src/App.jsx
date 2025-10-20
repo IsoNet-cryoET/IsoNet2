@@ -116,6 +116,7 @@ const App = () => {
     useEffect(() => {
 
         if (!selectedJob) return
+        if (selectedJob.status === 'inqueue') return
         const output_dir = `${selectedJob.type}/job${selectedJob.id}_${String(selectedJob.name).replace(/\s+/g, '_')}`
 
         const logPath = `${output_dir}/log.txt`
@@ -368,7 +369,7 @@ const App = () => {
                                                 content: '""',
                                                 position: 'absolute',
                                                 inset: 0,       
-                                                borderRadius: 1,
+                                                borderRadius: '30px',
                                                 pointerEvents: 'none',
                                                 animation: `${innerGlowPulse} 1.8s ease-in-out infinite`,
                                               },
