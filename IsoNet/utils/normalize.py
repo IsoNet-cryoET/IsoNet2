@@ -37,6 +37,24 @@ def normalize_percentage_numpy(volume, percentile=4, lower_bound = None, upper_b
     
     return normalized_volume, lower_bound_subtomo, upper_bound_subtomo
 
+def normalize_mean_std_numpy(volume, mean_val = None, std_val=None, matching = True, normalize = True):
+    # merge_factor = 0.99
+    mean_subtomo = np.mean(volume)
+    std_subtomo = np.std(volume)
+    normalized = None
+
+    if normalize:
+        if mean_val is None: 
+            normalized = (volume - mean_subtomo) / std_subtomo
+        else:
+            if matching:
+                normalized = (volume - mean_subtomo) / std_subtomo * std_val + mean_val
+            else:
+                # mean_val = mean_val*merge_factor + mean_subtomo*(1-merge_factor)
+                # std_val = std_val*merge_factor + std_subtomo*(1-merge_factor)
+                normalized = (volume - mean_val) / std_val
+    return normalized, mean_subtomo, std_subtomo    
+
 def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None, matching = False, normalize = True):
     
     factor = percentile/100.

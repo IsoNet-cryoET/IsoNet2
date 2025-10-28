@@ -1,3 +1,4 @@
+from matplotlib import scale
 import numpy as np
 import torch
 import os
@@ -20,6 +21,7 @@ if version.parse(torch.__version__) >= version.parse("2.3.0"):
     from torch.amp import GradScaler
 else:
     from torch.cuda.amp import GradScaler
+import math
 
 
 # def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None):
@@ -108,13 +110,23 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 model = torch.compile(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
-    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
-
+    # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
+    # compute effective steps-per-epoch (account for gradient accumulation cap by training_params['steps_per_epoch'])
+    eff_steps_per_epoch = max(1, min(len(train_loader) // max(1, training_params['acc_batches']), training_params['steps_per_epoch']))
+    scheduler = lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=training_params['learning_rate'],
+        steps_per_epoch=eff_steps_per_epoch,
+        epochs=training_params['epochs'],
+        pct_start=0.1,
+        anneal_strategy='cos'
+    )
+    
     loss_funcs = {"L2": nn.MSELoss(), "Huber": nn.HuberLoss(), "L1": nn.L1Loss()}
     loss_func = loss_funcs.get(training_params['loss_func'])
     
     if training_params['mixed_precision']:
-        scaler = GradScaler()
+        scaler = torch.amp.GradScaler('cuda')   
 
     steps_per_epoch_train = training_params['steps_per_epoch']
     total_steps = min(len(train_loader)//training_params['acc_batches'], training_params['steps_per_epoch'])
@@ -126,7 +138,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             train_sampler.set_epoch(epoch)
         model.train()
         optimizer.zero_grad() 
-        with tqdm(total=total_steps, unit="batch", disable=(rank!=0),desc=f"Epoch {epoch+1}") as progress_bar:
+        with tqdm(total=total_steps, unit=" batch", disable=(rank!=0),desc=f"Epoch {epoch+1}") as progress_bar:
             # have to convert to tensor because reduce needed it
             average_loss = torch.tensor(0, dtype=torch.float).to(rank)
             average_inside_loss = torch.tensor(0, dtype=torch.float).to(rank)
@@ -238,11 +250,10 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
 # # =================================================================================================================================================================================================================================================================================================================================================
                 if (training_params['method'] in ["isonet2"]):
-                    if training_params["pseudo_n2n"]:
-                        x1half1 = x1[:, :, :, ::2, :]
-                        x1half2 = x1[:, :, :, 1::2, :]
-                        noise_std = (x1half1-x1half2).std(correction=False, dim=(-3, -2, -1), keepdim=True)/1.414
-                        noise_mean = (x1half1-x1half2).mean(dim=(-3, -2, -1), keepdim=True)
+                    x1half1 = x1[:, :, :, ::2, :]
+                    x1half2 = x1[:, :, :, 1::2, :]
+                    noise_std = (x1half1-x1half2).std(correction=False, dim=(-3, -2, -1), keepdim=True)/1.414
+                    noise_mean = (x1half1-x1half2).mean(dim=(-3, -2, -1), keepdim=True)
                 
                     x1,_,_ = normalize_percentage(x1)
 
@@ -250,12 +261,11 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
                             preds_x1 = model(x1).to(torch.float32)
 
-                    if training_params["pseudo_n2n"]:
-                        preds_x1half1 = preds_x1[:, :, :, ::2, :]
-                        preds_x1half2 = preds_x1[:, :, :, 1::2, :]
-                        new_noise_std = torch.std(preds_x1half1-preds_x1half2)/1.414
-                        delta_noise_std = torch.sqrt(torch.abs(noise_std**2 - new_noise_std**2))
-                        preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
+                    preds_x1half1 = preds_x1[:, :, :, ::2, :]
+                    preds_x1half2 = preds_x1[:, :, :, 1::2, :]
+                    new_noise_std = torch.std(preds_x1half1-preds_x1half2)/1.414
+                    delta_noise_std = torch.sqrt(torch.abs(noise_std**2 - new_noise_std**2))
+                    preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
                 
                     if training_params['CTF_mode'] in ['network', 'wiener']:
                         preds_x1 = apply_F_filter_torch(preds_x1, ctf)
@@ -272,13 +282,13 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     net_input = x1_filled_rot_mw
                     net_target = x1_filled_rot
 
+                    def scale(epoch):
+                        return 1/(1+np.exp(6 * (epoch - 0.5 * training_params['epochs'])/ (0.5*training_params['epochs'])))
+                    
                     if training_params["noise_level"] > 0:
                         perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
                         noise_vol = noise_vol[:, :, :, perm, :]
-                        if not training_params["pseudo_n2n"]:
-                            net_input = net_input + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
-                        else:
-                            net_input = net_input + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) * noise_std + noise_mean
+                        net_input = net_input + scale(epoch) * training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) * noise_std + noise_mean
 
                     with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
                         pred_y1 = model(net_input).to(torch.float32)
@@ -415,11 +425,33 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                                         
                 if ( (i_batch+1)%training_params['acc_batches'] == 0 ) or (i_batch+1) == min(len(train_loader), steps_per_epoch_train * training_params['acc_batches']):
                     if training_params['mixed_precision']:
-                        scaler.step(optimizer)
-                        scaler.update()
+                        # Unscale first so we can check for inf/nan in gradients.
+                        scaler.unscale_(optimizer)
+                        found_inf = False
+                        for group in optimizer.param_groups:
+                            for p in group['params']:
+                                if p.grad is not None:
+                                    # If any gradient contains non-finite values, skip the step.
+                                    if not torch.isfinite(p.grad).all():
+                                        found_inf = True
+                                        break
+                            if found_inf:
+                                break
+
+                        if not found_inf:
+                            # safe to do the scaled step
+                            scaler.step(optimizer)
+                            scaler.update()
+                            # advance scheduler only when optimizer actually stepped
+                            scheduler.step()
+                        else:
+                            # skip optimizer step but still update the scaler so scale may be reduced
+                            scaler.update()
                     else:
                         optimizer.step()
-                optimizer.zero_grad() 
+                        # advance scheduler only when optimizer actually stepped
+                        scheduler.step()
+                    optimizer.zero_grad() 
 
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):        
                     loss_str = (
@@ -434,8 +466,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 
                 if i_batch + 1 >= steps_per_epoch_train*training_params['acc_batches']:
                     break
-        optimizer.step()            
-        scheduler.step()
+        # removed extra optimizer.step() and epoch-level scheduler.step() because scheduler is stepped per optimizer step
 
         if world_size > 1:
             dist.barrier()
@@ -459,7 +490,24 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 f"outside_loss: {average_outside_loss:6.10f}, "
                 f"learning_rate: {scheduler.get_last_lr()[0]:.4e}")
 
-            plot_metrics(training_params["metrics"], f"{training_params['output_dir']}/loss_{training_params['split']}.png", bottom=0, top=1)
+            # Calculate the min and max loss values across all metrics
+            all_losses = []
+            if training_params["metrics"]["inside_loss"]:
+                all_losses.extend(training_params["metrics"]["inside_loss"])
+            if training_params["metrics"]["outside_loss"]:
+                all_losses.extend(training_params["metrics"]["outside_loss"])
+
+            if all_losses:
+                min_loss = min(all_losses)
+                max_loss = max(all_losses)
+                
+                # Round down min to hundredths place and round up max to hundredths place
+                y_min = math.floor(min_loss * 100) / 100
+                y_max = math.ceil(max_loss * 100) / 100
+                
+                plot_metrics(training_params["metrics"], f"{training_params['output_dir']}/loss_{training_params['split']}.png", bottom=y_min, top=y_max)
+            else:
+                plot_metrics(training_params["metrics"], f"{training_params['output_dir']}/loss_{training_params['split']}.png")
             
             if world_size > 1:
                 model_params = model.module.state_dict()
@@ -503,16 +551,16 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
     with torch.no_grad():
         for i in tqdm(
             range(rank * steps_per_rank, min((rank + 1) * steps_per_rank, num_data_points)),
-            disable=(rank != 0),desc='predict: '
+            disable=(rank != 0),desc='Predicting Tomogram', unit = ' batch'
         ):
             batch_input = data[i:i + 1].to(rank)
             if F_mask is not None:
                 F_m = torch.from_numpy(F_mask[np.newaxis,np.newaxis,:,:,:]).to(rank)
                 batch_input = apply_F_filter_torch(batch_input, F_m)
             batch_output = model(batch_input).cpu()  # Move output to CPU immediately
-            if rank == 0:
-                write_mrc('testIN.mrc', batch_input[0][0].cpu().numpy().astype(np.float32))
-                write_mrc('testOUT.mrc', batch_output[0][0].numpy().astype(np.float32))
+            # if rank == 0:
+            #     write_mrc('testIN.mrc', batch_input[0][0].cpu().numpy().astype(np.float32))
+            #     write_mrc('testOUT.mrc', batch_output[0][0].numpy().astype(np.float32))
             outputs.append(batch_output)
 
     output = torch.cat(outputs, dim=0).cpu().numpy().astype(np.float32)

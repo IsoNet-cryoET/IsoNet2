@@ -55,7 +55,7 @@ class ISONET:
                      coordinate_folder: str='None',
                      star_name: str='tomograms.star',
                      pixel_size = 'auto', 
-                    #  defocus_folder: str="None",
+                     defocus: list=["None"],
                      cs: float=2.7,
                      voltage: float=300,
                      ac: float=0.1,
@@ -147,16 +147,26 @@ class ISONET:
         else:           
             add_param("None", 'rlnPixelSize', pixel_size)
 
-        # if defocus_folder in ['None', None]:
-        add_param("None", "rlnDefocus", 10000)
+        if len(defocus) == 1: 
+            if defocus[0] in ['None', None]:
+                add_param("None", "rlnDefocus", 10000)
+            #     #TODO defocus file folder 
+            #     #from IsoNet.utils.fileio import read_defocus_file
+            #     #TODO decide the defocus file format from CTFFIND and GCTF
+            #     print("read from CTFFIND result not implimented")
+            elif defocus[0] == "CTFFIND":
+                defocus_list = []
+                counted_files_names = sorted(os.listdir(count_folder))
+                counted_files = [f"{count_folder}/{item}" for item in counted_files_names]        
+                for i in range(len(counted_files)):
+                    defocus_value = 10000 #detect defocus
+                    defocus_list.append(str(defocus_value))
+                add_param("None", "rlnDefocus", defocus_list)
+
+
         add_param("None", "rlnVoltage", voltage)
         add_param("None", "rlnSphericalAberration", cs)
         add_param("None", "rlnAmplitudeContrast", ac)
-        # else:
-        #     #TODO defocus file folder 
-        #     #from IsoNet.utils.fileio import read_defocus_file
-        #     #TODO decide the defocus file format from CTFFIND and GCTF
-        #     print("read from CTFFIND result not implimented")
 
         # add_param("None", "rlnSnrFalloff",0)
         # add_param("None", "rlnDeconvStrength",1)
@@ -412,7 +422,7 @@ class ISONET:
             for tomo_p in tomo_paths:
                 print(tomo_p)
                 tomo_vol, _ = read_mrc(tomo_p)
-                # now we are using precentile again similar to isonet1
+                # now we are using percentile again similar to isonet1
                 if network.method =='isonet2':
                     tomo_vol = normalize(tomo_vol * -1, percentile=True)
                 else:
@@ -443,7 +453,7 @@ class ISONET:
             star_path=star_file,
             output_dir=output_dir,
             idx_str=tomo_idx,
-            desc="Predict",
+            desc="Predicting Starfile",
             row_processor=predict_row
         )
 
@@ -579,55 +589,54 @@ class ISONET:
                 #f"{training_params['output_dir']}/network_{training_params['arch']}_{training_params['method']}.pt"
 
     def refine(self, 
-                   star_file: str,
-                   output_dir: str="isonet_maps",
+                    star_file: str,
+                    output_dir: str="isonet_maps",
 
-                   gpuID: str=None,
-                   ncpus: int=16, 
+                    gpuID: str=None,
+                    ncpus: int=16, 
 
-                   method: str=None,
-                   arch: str='unet-medium',
-                   pretrained_model: str=None,
-                   pretrained_model2: str=None,
+                    method: str=None,
+                    arch: str='unet-medium',
+                    pretrained_model: str=None,
+                    pretrained_model2: str=None,
 
-                   cube_size: int=96,
-                   epochs: int=50,
-                   
-                   input_column: str= 'rlnTomoName',
-                   batch_size: int=None, 
-                   loss_func: str = "L2",
-                   learning_rate: float=3e-4,
-                   save_interval: int=10,
-                   learning_rate_min:float=3e-4,
-                   mw_weight: float=-1,
-                   apply_mw_x1: bool=True, 
-                   mixed_precision: bool=True,
+                    cube_size: int=96,
+                    epochs: int=50,
 
-                   CTF_mode: str="None",
-                   clip_first_peak_mode: int=1,
-                   bfactor: float=0,
+                    input_column: str= 'rlnTomoName',
+                    batch_size: int=None, 
+                    loss_func: str = "L2",
+                    learning_rate: float=3e-4,
+                    save_interval: int=10,
+                    learning_rate_min:float=3e-4,
+                    mw_weight: float=-1,
+                    apply_mw_x1: bool=True, 
+                    mixed_precision: bool=True,
 
-                   phaseflipped: bool=False,
-                   do_phaseflip_input: bool=True,
+                    CTF_mode: str="None",
+                    clip_first_peak_mode: int=1,
+                    bfactor: float=0,
 
-                   correct_between_tilts: bool=True,
-                   start_bt_size: int=128,
+                    phaseflipped: bool=False,
+                    do_phaseflip_input: bool=True,
 
-                   noise_level: float=0, 
-                   noise_mode: str="noFilter",
+                    correct_between_tilts: bool=True,
+                    start_bt_size: int=128,
 
-                   random_rot_weight: float=0.2,
+                    noise_level: float=0, 
+                    noise_mode: str="hamming",
 
-                   with_predict: bool=True,
-                   split_halves: bool=False,
+                    random_rot_weight: float=0.2,
 
-                   snrfalloff: float = 1.0,
-                   deconvstrength: float = 1.0,
-                   highpassnyquist: float = 0.02,
+                    with_predict: bool=True,
+                    split_halves: bool=False,
 
-                   pseudo_n2n: bool=False,
-                   with_deconv: bool=False,
-                   with_mask: bool=False,
+                    snrfalloff: float = 1.0,
+                    deconvstrength: float = 1.0,
+                    highpassnyquist: float = 0.02,
+
+                    with_deconv: bool=True,
+                    with_mask: bool=True,   
                 #    isonet2_switch: bool=False
                    ):
         """
@@ -643,7 +652,7 @@ class ISONET:
             ncpus: Number of CPUs to use for data processing.
             method: Training method (isonet2, isonet2-n2n). If None, will be auto-detected from star file.
             arch: Model architecture (unet-large, unet-small, unet-medium, HSFormer, vtunet).
-            pretrained_model: Path to pretrained model to continue training.
+            pretrained_model: Path to pretrained model to continue training. Previous method, arch, cube_size, CTF_mode, and metrics will be loaded.
             pretrained_model2: Path to second pretrained model for dual network training.
             cube_size: Size of training cubes.
             epochs: Number of training epochs.
@@ -651,7 +660,7 @@ class ISONET:
             batch_size: Batch size for training. If none is provided, it will be calculated based on GPU availability.
             loss_func: Loss function to use (L2, Huber, L1).
             learning_rate: Initial learning rate.
-            save_interval: Interval to save model checkpoints.
+            save_interval: Interval to save model checkpoints. Default is epochs/10.
             learning_rate_min: Minimum learning rate for scheduler.
             mw_weight: Weight for missing wedge loss. Higher values correspond to stronger emphasis on missing wedge regions. Disabled by default.
             apply_mw_x1: Whether to apply missing wedge to subtomograms at the beginning.
@@ -671,7 +680,6 @@ class ISONET:
             snrfalloff: SNR falloff parameter.
             deconvstrength: Deconvolution strength parameter.
             highpassnyquist: High-pass filter parameter.
-            pseudo_n2n: Whether to use pseudo noise2noise training.
             with_deconv: Whether to run deconvolution preprocessing.
             with_mask: Whether to generate masks automatically.
         """
@@ -682,7 +690,7 @@ class ISONET:
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
         steps_per_epoch = 200000000
-        
+
         star = starfile.read(star_file)
 
         if method is None:
@@ -707,16 +715,16 @@ class ISONET:
                 print(f"{input_column} absent: Using rlnTomoName instead")
                 if input_column == "rlnDeconvTomoName": print("Please try running --with_deconv True to do CTF deconvolution first.")
                 input_column = "rlnTomoName"
-        
-        if noise_level <= 0:
-            print("We recommend a noise_level above 0 for denoising isonet2-only training")
-        else:
-            num_noise_volume = 1000
-            # print("Generating noise folder")
-            from IsoNet.utils.noise import make_noise_folder
-            noise_dir = f"{output_dir}/noise_volumes"
-            # Note: the angle for this noise generation is range(-90,90,3)
-            make_noise_folder(noise_dir,noise_mode,cube_size,num_noise_volume,ncpus=ncpus)
+
+            if noise_level <= 0:
+                print("We recommend a noise_level above 0 for denoising isonet2-only training")
+            else:
+                num_noise_volume = 1000
+                # print("Generating noise folder")
+                from IsoNet.utils.noise import make_noise_folder
+                noise_dir = f"{output_dir}/noise_volumes"
+                # Note: the angle for this noise generation is range(-90,90,3)
+                make_noise_folder(noise_dir,noise_mode,cube_size,num_noise_volume,ncpus=ncpus)
 
         if mw_weight > 0:
             print("Enabling mw_weight:")
@@ -754,7 +762,6 @@ class ISONET:
             "random_rot_weight":random_rot_weight,
             'do_phaseflip_input':do_phaseflip_input,
             "clip_first_peak_mode":clip_first_peak_mode,
-            "pseudo_n2n":pseudo_n2n,
             "bfactor": bfactor,
             # "isonet2_switch": isonet2_switch
         }
@@ -810,9 +817,9 @@ class ISONET:
              mrc.set_data(result)
         return result
 
-    def postprocessing(self, t1, t2, b1, b2):
+    def postprocessing(self, t1, t2, b1 = None, b2 = None, FSC = False):
         """
-        Combine half-maps for postprocessing and FSC calculation.
+        Combine half-maps for postprocessing and FSC calculation. Default with 2 inputs is cross-correlation.
 
         Args:
             t1: Path to first top half-map.
@@ -820,10 +827,10 @@ class ISONET:
             b1: Path to first bottom half-map.
             b2: Path to second bottom half-map.
         """
-        t1, _ = read_mrc(t1)
-        t2, _ = read_mrc(t2)
-        b1, _ = read_mrc(b1)
-        b2, _ = read_mrc(b2)
+        t1 = read_mrc(t1)[0]
+        t2 = read_mrc(t2)[0]
+        b1 = read_mrc(b1)[0] if b1 is not None else t1
+        b2 = read_mrc(b2)[0] if b2 is not None else t2
 
         shape = t1.shape
         mask_top = np.zeros_like(t1)
@@ -833,9 +840,12 @@ class ISONET:
         half1 = t1*mask_bottom+b1*mask_top
         half2 = t2*mask_bottom+b2*mask_top
 
-        from IsoNet.utils.processing import FSC
-        print(FSC(half1,half2))
-        return 0
+        # from IsoNet.utils.processing import FSC
+        # print(FSC(half1,half2))
+        from IsoNet.utils.normalize import normalize_mean_std_numpy
+        half1 = normalize_mean_std_numpy(half1)[0]
+        half2 = normalize_mean_std_numpy(half2)[0]
+        return np.mean(half1*half2)
     
     def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):
         """

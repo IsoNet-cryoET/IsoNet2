@@ -9,7 +9,7 @@ def process_tomograms(star_path, output_dir, idx_str, desc, row_processor):
     idx_list = idx2list(idx_str, star.rlnIndex)
     os.makedirs(output_dir, exist_ok=True)
 
-    with tqdm.tqdm(total=len(idx_list), desc=desc) as pbar:
+    with tqdm.tqdm(total=len(idx_list), desc=desc, unit=" tomogram") as pbar:
         for i, row in star.iterrows():
             if str(row.rlnIndex) in idx_list:
                 row_processor(i, row, new_star)

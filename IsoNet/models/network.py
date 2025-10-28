@@ -215,7 +215,7 @@ class Net:
     def predict(self, data, tmp_data_path, F_mask=None):    
         data = data[:,np.newaxis,:,:].astype(np.float32)
         data = torch.from_numpy(data)
-        print('data_shape',data.shape)
+        # print('data_shape',data.shape)
         mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path,\
                                      F_mask), nprocs=self.world_size)
         all_outputs = []
