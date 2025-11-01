@@ -34,7 +34,7 @@ class MRCDataset(Dataset):
         print(len(self.input_files))
         print(len(self.target_files))
         
-        self.mw = mw3D(64, missingAngle=[30, 30], tilt_step=None, start_dim=100000)
+        self.mw = mw3D(64, missingAngle=[30, 30], tilt_step=None,spherical=False, start_dim=100000)
         self.mw = torch.from_numpy(self.mw).unsqueeze(0)
         assert len(self.input_files) == len(self.target_files), "Mismatch in number of input and target files"
         self.transform = transform
@@ -245,7 +245,7 @@ class Train_sets_n2n(Dataset):
     def _compute_missing_wedge(self, cube_size, min_angle, max_angle, tilt_step, start_dim):
         """Compute the missing wedge mask for given tilt angles."""
         from IsoNet.utils.missing_wedge import mw3D
-        mw = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle], tilt_step=tilt_step, start_dim=start_dim)
+        mw = mw3D(cube_size, missingAngle=[90 + min_angle, 90 - max_angle], tilt_step=tilt_step, spherical=False, start_dim=start_dim)
         return mw
 
     def _compute_CTF_vol(self, row):
@@ -319,7 +319,11 @@ class Train_sets_n2n(Dataset):
         return x1_volume, x2_volume, gt_subvolume, self.mw_list[tomo_index][np.newaxis, ...], \
             self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...], noise_volume[np.newaxis, ...]        
 
-
+if __name__ == '__main__':
+    from IsoNet.utils.missing_wedge import mw3D
+    mw = mw3D(128, missingAngle=[90 + (-64), 90 - 42],spherical=False, tilt_step=3, start_dim=10000)
+    from IsoNet.utils.fileio import write_mrc
+    write_mrc('wedge4.mrc',mw)
 
 
 

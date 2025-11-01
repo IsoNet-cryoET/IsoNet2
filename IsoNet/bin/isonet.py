@@ -23,6 +23,8 @@ from IsoNet.models.network import Net, DuoNet
 from IsoNet.utils.processing import normalize
 from IsoNet.utils.missing_wedge import mw3D
 from IsoNet.utils.CTF import get_ctf_3d
+import shutil
+
 class ISONET:
     """
     ISONET: Train on tomograms and restore missing-wedge\n
@@ -492,9 +494,10 @@ class ISONET:
             new_epochs = save_interval
             training_params["epochs"] = new_epochs
             for step in range(save_interval, epochs+1, save_interval):
+                print(f"training for {step-save_interval} to {step} epochs")
                 network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
                 model_file = f"{output_dir}/network_n2n_{arch}_{cube_size}_full.pt"
-                print("to predict")
+                shutil.copy(model_file, f"{output_dir}/network_n2n_{arch}_{cube_size}_epoch{step}_full.pt")
                 all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
                             isCTFflipped=isCTFflipped, tomo_idx=pred_tomo_idx,output_prefex=f"corrected_epochs{step}") 
                 save_slices_and_spectrum(all_tomo_paths[0],output_dir,step)
@@ -590,7 +593,7 @@ class ISONET:
 
         if mw_weight > 0:
             print("enable mw_weight")
-            print("using masked loss seperating in and out of the missing wedge")
+            # print("using masked loss seperating in and out of the missing wedge")
 
         training_params = {
             "method": method,
@@ -637,9 +640,10 @@ class ISONET:
             new_epochs = save_interval
             training_params["epochs"] = new_epochs
             for step in range(save_interval, epochs+1, save_interval):
+                print(f"training for {step-save_interval} to {step} epochs")
                 network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
                 model_file = f"{output_dir}/network_{method}_{arch}_{cube_size}_full.pt"
-                print("to predict")
+                shutil.copy(model_file, f"{output_dir}/network_{method}_{arch}_{cube_size}_epoch{step}_full.pt")
                 all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
                             isCTFflipped=isCTFflipped, tomo_idx=pred_tomo_idx,output_prefex=f"corrected_epochs{step}") 
                 save_slices_and_spectrum(all_tomo_paths[0],output_dir,step)
@@ -793,7 +797,6 @@ class ISONET:
         import mrcfile
         import starfile
         import os
-        import shutil
         star = starfile.read(star_file)
         from scipy.ndimage import zoom
         new_star = star.copy(deep=True)

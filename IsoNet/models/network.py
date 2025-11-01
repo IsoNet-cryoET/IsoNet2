@@ -120,7 +120,7 @@ class Net:
         checkpoint = torch.load(path, weights_only=False)
         self.method = checkpoint['method']
         self.arch = checkpoint['arch']
-        self.do_phaseflip_input = checkpoint['do_phaseflip_input']
+        self.do_phaseflip_input = checkpoint['do_phaseflip_input'] if 'do_phaseflip_input' in checkpoint else True
         self.cube_size = checkpoint['cube_size']
         self.CTF_mode = checkpoint['CTF_mode'] if 'CTF_mode' in checkpoint else None
         self.initialize(self.method, self.arch, self.cube_size)

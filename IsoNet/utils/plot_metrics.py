@@ -43,7 +43,7 @@ import matplotlib.pyplot as plt
 
 def min_max_normalize_image_with_clipping(data):
     # Compute 5th and 95th percentiles
-    p5, p95 = np.percentile(data, [5, 95])
+    p5, p95 = np.percentile(data, [10, 90])
 
     # Clip values to the 5–95 percentile range
     clipped = np.clip(data, p5, p95)
@@ -94,6 +94,9 @@ def save_slices_and_spectrum(volume_file, output_folder, iteration):
     power_spectrum = crop_center(power_spectrum, xz_slice.shape)
     s = min(xy_slice.shape[0],xy_slice.shape[1])
     xy_slice = crop_center(xy_slice,(s,s))
+    xy_slice = min_max_normalize_image_with_clipping(xy_slice)
+    xz_slice = min_max_normalize_image_with_clipping(xz_slice)
+    yz_slice = min_max_normalize_image_with_clipping(yz_slice)
     image_data = [
         (xy_slice, "xy"),
         (xz_slice, "xz"),
