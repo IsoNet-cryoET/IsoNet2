@@ -17,15 +17,16 @@ const PagePrepare = (props) => {
 
     useEffect(() => {
         if (!props.starName) return
-            api.run({
-                id:-1,
-                type: 'star2json',
-                star_file:props.starName,
-                json_file: '.to_node.json'
-                //command_line: 'isonet.py star2json ' + props.starName + ' .to_node.json',
-            })        
+        api.run({
+            id: -1,
+            type: 'star2json',
+            star_file: props.starName,
+            json_file: '.to_node.json',
+            status: 'completed'
+            //command_line: 'isonet.py star2json ' + props.starName + ' .to_node.json',
+        })
     }, [props.starName])
-    
+
     const handleClear = () => {
         props.setMessages([])
     }
@@ -34,10 +35,11 @@ const PagePrepare = (props) => {
             const filePath = await api.selectFile(property)
             props.setStarName(filePath) // Update the state
             api.run({
-                id:-1,
+                id: -1,
                 type: 'star2json',
-                star_file:props.starName,
-                json_file: '.to_node.json'
+                star_file: props.starName,
+                json_file: '.to_node.json',
+                status: 'completed'
                 //command_line: 'isonet.py star2json ' + props.starName + ' .to_node.json',
             })
         } catch (error) {
@@ -52,10 +54,10 @@ const PagePrepare = (props) => {
                     color="primary"
                     startIcon={<FolderOpenIcon />}
                     onClick={() => handleFileSelect('openFile')}
-                    sx={{ 
+                    sx={{
                         height: '56px',
-                        trainsition: 'auto',
-                     }} // Ensure the button has a height
+                        trainsition: 'auto'
+                    }} // Ensure the button has a height
                 >
                     Load from star
                 </Button>

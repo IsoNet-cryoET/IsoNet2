@@ -4,55 +4,60 @@ ipcRenderer.setMaxListeners(100)
 
 contextBridge.exposeInMainWorld('count', {
     next: () => ipcRenderer.invoke('count:nextId'),
-    current: () => ipcRenderer.invoke('count:getCurrentId'),
+    current: () => ipcRenderer.invoke('count:getCurrentId')
     // reset: (value) => ipcRenderer.invoke('count:resetCounter', value),
-});
+})
 
 contextBridge.exposeInMainWorld('jobList', {
     get: () => ipcRenderer.invoke('jobList:get'),
     add: (data) => ipcRenderer.invoke('jobList:add', data),
     update: (data) => ipcRenderer.invoke('jobList:update', data),
-    updateStatus: ({id, status}) => ipcRenderer.invoke('jobList:updateStatus', {id, status}),
-    updatePID: ({id, pid}) => ipcRenderer.invoke('jobList:updatePID', {id, pid}),
-    remove: (id) => ipcRenderer.invoke('jobList:remove', id),
-});
+    updateStatus: ({ id, status }) => ipcRenderer.invoke('jobList:updateStatus', { id, status }),
+    updatePID: ({ id, pid }) => ipcRenderer.invoke('jobList:updatePID', { id, pid }),
+    remove: (id) => ipcRenderer.invoke('jobList:remove', id)
+})
 
 contextBridge.exposeInMainWorld('appClose', {
     onRequest: (cb) => {
-      const listener = () => cb?.();
-      ipcRenderer.on('app-close-request', listener);
-      return () => ipcRenderer.removeListener('app-close-request', listener);
+        const listener = () => cb?.()
+        ipcRenderer.on('app-close-request', listener)
+        return () => ipcRenderer.removeListener('app-close-request', listener)
     },
-    reply: (ok) => ipcRenderer.invoke('app-close-confirmed', ok),
-  });
+    reply: (ok) => ipcRenderer.invoke('app-close-confirmed', ok)
+})
 // Custom APIs for renderer
 const api = {
     getImageData: (relativePath) => ipcRenderer.invoke('get-image-data', relativePath),
-    selectFile:   (property) => ipcRenderer.invoke('select-file', property),
-    readFile:     (filePath) => ipcRenderer.invoke('read-file', filePath),
-  
+    selectFile: (property) => ipcRenderer.invoke('select-file', property),
+    readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
+    exists: (filePath) => ipcRenderer.invoke('check-exists', filePath),
+
     updateStar: (data_json) => ipcRenderer.send('update_star', data_json),
-    run:        (data) => ipcRenderer.send('run', data),
-    view:       (file) => ipcRenderer.send('view', file),
+    run: (data) => ipcRenderer.send('run', data),
+    view: (file) => ipcRenderer.send('view', file),
     // onPythonRunning: (cb) => { ipcRenderer.on('python-running', (_e, d) => cb(d)) },
 
     onPythonUpdateStatus: (cb) => {
-        const channel = 'python-status-change'; 
-        const handler = (_e, payload) => cb(payload) 
+        const channel = 'python-status-change'
+        const handler = (_e, payload) => cb(payload)
         ipcRenderer.on(channel, handler)
         return () => ipcRenderer.removeListener(channel, handler)
-      },
+    },
 
     // onPythonClosed: (cb) => {
-    //     const channel = 'python-closed'; 
-    //     const handler = (_e, payload) => cb(payload) 
+    //     const channel = 'python-closed';
+    //     const handler = (_e, payload) => cb(payload)
     //     ipcRenderer.on(channel, handler)
     //     return () => ipcRenderer.removeListener(channel, handler)
     //   },
-      
-    onPythonStderr:  (cb) => { ipcRenderer.on('python-stderr',  (_e, d) => cb(d)) },
-    onPythonStdout:  (cb) => { ipcRenderer.on('python-stdout',  (_e, d) => cb(d)) },
-  
+
+    onPythonStderr: (cb) => {
+        ipcRenderer.on('python-stderr', (_e, d) => cb(d))
+    },
+    onPythonStdout: (cb) => {
+        ipcRenderer.on('python-stdout', (_e, d) => cb(d))
+    },
+
     killJob: (pid) => {
         return new Promise((resolve, reject) => {
             ipcRenderer.once('kill-job-response', (event, success) => {
@@ -82,21 +87,19 @@ const api = {
 
     onJson: (callback) => {
         ipcRenderer.on('json-star', (event, data) => {
-            console.log(data)
             callback(data)
         })
     },
     onFetchJobs: async () => {
         try {
             const jobs = await ipcRenderer.invoke('get-jobs-list')
-            console.log('preload jobs', jobs)
 
             return jobs
         } catch (error) {
             console.error('Error fetching jobs:', error)
             return null // Handle error gracefully
         }
-    },
+    }
 }
 
 if (process.contextIsolated) {

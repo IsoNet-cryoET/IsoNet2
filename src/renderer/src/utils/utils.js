@@ -1,3 +1,5 @@
+import { ConfirmationNumberOutlined } from '@mui/icons-material'
+
 export const processMessage = (msg) => {
     const output = msg.output
 
@@ -13,12 +15,15 @@ export const processMessage = (msg) => {
     } else if (output.includes('power spectrum')) {
         const epochMatch = output.match(/epoch\s+(\d+)/i)
         const folderMatch = output.match(/to\s+'([^']+)'/i)
+        const volumeMatch = output.match(/the tomo file name is\s+(.+)$/i)
+        console.log(volumeMatch[1].trim())
 
         return {
             type: 'power_spectrum',
             cmd: msg.cmd,
             epoch: epochMatch ? parseInt(epochMatch[1], 10) : null,
             folder: folderMatch ? folderMatch[1] : null,
+            volume_file: volumeMatch ? volumeMatch[1].trim() : null,
             output: output
         }
     } else {

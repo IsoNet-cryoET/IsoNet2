@@ -9,7 +9,7 @@ import { DeleteRounded } from '@mui/icons-material'
 const PageCommon = (props) => {
     const [deleting, setDeleting] = useState(false)
     const [snackOpen, setSnackOpen] = useState(false)
-    
+
     // const [showButton, setShowButton] = useState(false)
 
     const handleDelete = async () => {
@@ -18,17 +18,16 @@ const PageCommon = (props) => {
         try {
             setDeleting(true)
             const ok = await window.jobList.remove(props.selectedJob.id)
-            console.log(ok)
             if (ok) {
-              setSnackOpen(true)
+                setSnackOpen(true)
             }
-          } catch (e) {
+        } catch (e) {
             console.error('Delete job failed:', e)
-          } finally {
+        } finally {
             setDeleting(false)
             // setShowButton(false)
-          }
         }
+    }
     // useEffect(()=>{
     //     if (props?.selectedJob?.status === "completed")
     //         setShowButton(true)
@@ -37,33 +36,36 @@ const PageCommon = (props) => {
 
     return (
         <div>
-            {props?.selectedJob?.status === "completed" &&
-            <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                <Button
-                    variant="outlined"
-                    color="primary"
-                    startIcon={<CleaningServicesIcon />}
-                    onClick={() => handleDelete()}
-                    disabled={!props?.selectedJob?.id || deleting || props?.selectedJob?.status == "running"}
-                    sx={{ height: '56px' }} // Ensure the button has a height
-                >
-                    permanently remove job files
-                </Button>
-            </Box>
-            }
+            {props?.selectedJob?.status === 'completed' && (
+                <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                    <Button
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<CleaningServicesIcon />}
+                        onClick={() => handleDelete()}
+                        disabled={
+                            !props?.selectedJob?.id ||
+                            deleting ||
+                            props?.selectedJob?.status == 'running'
+                        }
+                        sx={{ height: '56px' }} // Ensure the button has a height
+                    >
+                        permanently remove job files
+                    </Button>
+                </Box>
+            )}
             {renderContent(props.messages, props?.selectedJob?.id)}
             <Snackbar
-                    open={snackOpen}
-                    autoHideDuration={1500}
-                    onClose={() => setSnackOpen(false)}
-                    message={`Deleted Job ${props?.selectedJob?.id}!`}
-                    anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-                />
+                open={snackOpen}
+                autoHideDuration={1500}
+                onClose={() => setSnackOpen(false)}
+                message={`Deleted Job ${props?.selectedJob?.id}!`}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            />
         </div>
     )
 }
 export default PageCommon
-
 
 // const handleFileSelect = async (field, property) => {
 //     const filePath = await window.api.selectFile(property)

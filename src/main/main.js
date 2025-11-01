@@ -26,7 +26,7 @@ function createWindow() {
             devTools: true
         },
         focusable: true, // make sure it's focusable
-        alwaysOnTop: false, // avoid conflicts
+        alwaysOnTop: false // avoid conflicts
     })
 
     mainWindow.on('ready-to-show', () => {
@@ -34,12 +34,12 @@ function createWindow() {
     })
     mainWindow.on('close', (event) => {
         // If we already confirmed, allow close
-        if (mainWindow.__forceClose) return;
-    
+        if (mainWindow.__forceClose) return
+
         // Stop the default close and ask renderer
-        event.preventDefault();
-        mainWindow.webContents.send('app-close-request'); // -> renderer shows confirm dialog
-      });
+        event.preventDefault()
+        mainWindow.webContents.send('app-close-request') // -> renderer shows confirm dialog
+    })
     mainWindow.webContents.setWindowOpenHandler((details) => {
         shell.openExternal(details.url)
         return { action: 'deny' }
@@ -52,18 +52,17 @@ function createWindow() {
     }
     // mainWindow.webContents.openDevTools()
     ipcMain.handle('app-close-confirmed', async (_evt, ok) => {
-        if (!mainWindow) return;
+        if (!mainWindow) return
         if (ok) {
-          // mark and close for real (avoid infinite loop)
-          mainWindow.__forceClose = true;
-          mainWindow.close();
+            // mark and close for real (avoid infinite loop)
+            mainWindow.__forceClose = true
+            mainWindow.close()
         } else {
-          // do nothing; user canceled
+            // do nothing; user canceled
         }
-      });
+    })
 }
 
-  
 ipcMain.handle('select-file', async (_, property) => {
     const result = await dialog.showOpenDialog({
         properties: [property]
@@ -154,6 +153,11 @@ ipcMain.on('view', (event, file) => {
         event.sender.send('python-stderr', { cmd: 'prepare_star', output: data.toString() })
     })
 })
+
+ipcMain.handle('check-exists', async (_, filePath) => {
+    const fs = require('fs')
+    return fs.existsSync(filePath)
+})
 // app.disableHardwareAcceleration()
 // app.commandLine.appendSwitch('disable-gpu-compositing')
 app.whenReady().then(() => {
@@ -173,115 +177,111 @@ app.whenReady().then(() => {
         fileExtension: 'json',
         cwd: runDir,
         defaults: {
-          counter: 0,
-          jobList: []
+            counter: 0,
+            jobList: []
         },
         schema: {
-          counter: { type: 'number' },
-          jobList: {
-            type: 'array',
-            items: { type: 'object' }
-          }
+            counter: { type: 'number' },
+            jobList: {
+                type: 'array',
+                items: { type: 'object' }
+            }
         }
-      })
-      
-      /** ---------------- 1) counter ---------------- */
-      const KEY_COUNT = 'counter'
-      
-      ipcMain.handle('count:nextId', (_event) => {
+    })
+
+    /** ---------------- 1) counter ---------------- */
+    const KEY_COUNT = 'counter'
+
+    ipcMain.handle('count:nextId', (_event) => {
         const next = Number(store.get(KEY_COUNT, 0)) + 1
         store.set(KEY_COUNT, next)
         return next
-      })
-      
-      ipcMain.handle('count:getCurrentId', (_event) => {
+    })
+
+    ipcMain.handle('count:getCurrentId', (_event) => {
         return Number(store.get(KEY_COUNT, 0))
-      })
-      
-      // ipcMain.handle('count:reset', (_event, value = 0) => {
-      //   const v = Number(value) || 0
-      //   store.set(KEY_COUNT, v)
-      //   return v
-      // })
-      
-      /** ---------------- 2) jobList ---------------- */
-      const KEY_JOB = 'jobList'
-      
-      ipcMain.handle('jobList:get', (_event) => {
+    })
+
+    // ipcMain.handle('count:reset', (_event, value = 0) => {
+    //   const v = Number(value) || 0
+    //   store.set(KEY_COUNT, v)
+    //   return v
+    // })
+
+    /** ---------------- 2) jobList ---------------- */
+    const KEY_JOB = 'jobList'
+
+    ipcMain.handle('jobList:get', (_event) => {
         return store.get(KEY_JOB, [])
-      })
-      
-      ipcMain.handle('jobList:add', (_event, data) => {
+    })
+
+    ipcMain.handle('jobList:add', (_event, data) => {
         if (!data || typeof data !== 'object') {
-          return store.get(KEY_JOB, [])
+            return store.get(KEY_JOB, [])
         }
         const list = store.get(KEY_JOB, [])
         list.push(data)
         store.set(KEY_JOB, list)
         return list
-      })
-      
-      ipcMain.handle('jobList:update', (_event, data) => {
-        if (!data || (data.id == null)) {
-          return store.get(KEY_JOB, [])
+    })
+
+    ipcMain.handle('jobList:update', (_event, data) => {
+        if (!data || data.id == null) {
+            return store.get(KEY_JOB, [])
         }
         const list = store.get(KEY_JOB, [])
-        const idx = list.findIndex(j => j && j.id === data.id)
+        const idx = list.findIndex((j) => j && j.id === data.id)
         if (idx >= 0) {
-          list[idx] = { ...list[idx], ...data }
-          store.set(KEY_JOB, list)
+            list[idx] = { ...list[idx], ...data }
+            store.set(KEY_JOB, list)
         }
         return list
-      })
+    })
 
-      ipcMain.handle('jobList:updateStatus', (_event, {id, status}) => {
-        console.log("status")
-        console.log(status)
+    ipcMain.handle('jobList:updateStatus', (_event, { id, status }) => {
         const list = store.get(KEY_JOB, [])
-        const idx = list.findIndex(j => j && j.id === id)
+        const idx = list.findIndex((j) => j && j.id === id)
         list[idx].status = status
         store.set(KEY_JOB, list)
         return list
-      })  
+    })
 
-      ipcMain.handle('jobList:updatePID', (_event, {id, pid}) => {
-        console.log("pid")
-        console.log(pid)
+    ipcMain.handle('jobList:updatePID', (_event, { id, pid }) => {
         const list = store.get(KEY_JOB, [])
-        const idx = list.findIndex(j => j && j.id === id)
+        const idx = list.findIndex((j) => j && j.id === id)
         list[idx].pid = pid
         store.set(KEY_JOB, list)
         return list
-      })  
+    })
 
-      ipcMain.handle('jobList:remove', async (_event, id) => {
-        const list = store.get(KEY_JOB, []);
-        const nid = String(id); 
-      
-        const job = list.find(j => j && String(j.id) === nid);
-        if (!job) return false;
-      
+    ipcMain.handle('jobList:remove', async (_event, id) => {
+        const list = store.get(KEY_JOB, [])
+        const nid = String(id)
+
+        const job = list.find((j) => j && String(j.id) === nid)
+        if (!job) return false
+
         try {
-          const rel = job.output_dir
-          if (rel) {
-            const base = app.isPackaged ? app.getPath('userData') : process.cwd();
-            const abs = path.isAbsolute(rel) ? rel : path.join(base, rel);
-      
-            if (abs.length > base.length && abs.startsWith(path.dirname(base))) {
-              await fs.promises.rm(abs, { recursive: true, force: true });
+            const rel = job.output_dir
+            if (rel) {
+                const base = app.isPackaged ? app.getPath('userData') : process.cwd()
+                const abs = path.isAbsolute(rel) ? rel : path.join(base, rel)
+
+                if (abs.length > base.length && abs.startsWith(path.dirname(base))) {
+                    await fs.promises.rm(abs, { recursive: true, force: true })
+                }
             }
-          }
         } catch (e) {
-          console.error('Failed to remove job output dir:', e);
+            console.error('Failed to remove job output dir:', e)
         }
-      
-        const newList = list.filter(j => j && String(j.id) !== nid);
-        const changed = newList.length !== list.length;
+
+        const newList = list.filter((j) => j && String(j.id) !== nid)
+        const changed = newList.length !== list.length
         if (changed) {
-          store.set(KEY_JOB, newList);
+            store.set(KEY_JOB, newList)
         }
-        return changed;
-      });
+        return changed
+    })
 })
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {

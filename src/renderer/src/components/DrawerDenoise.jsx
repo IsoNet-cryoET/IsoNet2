@@ -18,13 +18,14 @@ import {
 } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import CommandAccordion from './CommandAccordion';
+import CommandAccordion from './CommandAccordion'
 
 const DrawerDenoise = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
         type: 'denoise',
-        star_file: 'tomograms.star',
         name: 'denoise',
+
+        star_file: 'tomograms.star',
 
         gpuID: 'None',
         ncpus: 16,
@@ -36,22 +37,27 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
         epochs: 50,
 
         batch_size: 'None',
-        acc_batches: 1,
         loss_func: 'L2',
-        learning_rate: 3e-4,
+
         save_interval: 10,
+
+        learning_rate: 3e-4,
         learning_rate_min: 3e-4,
+
         mixed_precision: true,
 
         CTF_mode: 'None',
-        phaseflipped: false,
+        isCTFflipped: false,
+        do_phaseflip_input: true,
+        bfactor: 0,
+        clip_first_peak_mode: 1,
 
-        with_predict: true,
-
-        even_odd_input: true,
         snrfalloff: 0,
         deconvstrength: 1,
         highpassnyquist: 0.02,
+
+        with_predict: true,
+        pred_tomo_idx: 1
     })
 
     // 处理表单字段变化
@@ -91,6 +97,9 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                 <Typography variant="h6" gutterBottom>
                     Denoise
                 </Typography>
+                <Typography variant="body" gutterBottom>
+                    only support even odd input
+                </Typography>
                 <Divider sx={{ marginBottom: 2 }} />
 
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
@@ -107,7 +116,6 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                         onClick={() => handleFileSelect('star_file', 'openFile')}
                     ></Button>
                 </Box>
-
 
                 {/* Numeric Input */}
                 <TextField
@@ -135,6 +143,8 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                             <MenuItem value={'scunet-fast'}>scunet-fast</MenuItem>
                         </Select>
                     </FormControl>
+                </Box>
+                <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     <FormControlLabel
                         control={
                             <Switch
@@ -144,7 +154,17 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                         }
                         label="with predict"
                     />
+                    {formData.with_predict && (
+                        <TextField
+                            label="predict tomo index"
+                            type="str"
+                            value={formData.pred_tomo_idx}
+                            onChange={(e) => handleChange('pred_tomo_idx', e.target.value)}
+                            fullWidth
+                        />
+                    )}
                 </Box>
+
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     <TextField
                         label="subtomo size"
@@ -187,29 +207,6 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     />
                 </Box>
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                    <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
-                        <InputLabel>CTF_mode</InputLabel>
-                        <Select
-                            value={formData.CTF_mode}
-                            onChange={(e) => handleChange('CTF_mode', e.target.value)}
-                        >
-                            <MenuItem value={'None'}>None</MenuItem>
-                            <MenuItem value={'phase_only'}>phase_only</MenuItem>
-                            <MenuItem value={'wiener'}>wiener</MenuItem>
-                        </Select>
-                    </FormControl>
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={formData.phaseflipped}
-                                onChange={(e) => handleChange('phaseflipped', e.target.checked)}
-                            />
-                        }
-                        label="phaseflipped"
-                    />
-                </Box>
-
-                <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     <TextField
                         label="pretrained model"
                         value={formData.pretrained_model}
@@ -222,37 +219,58 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                         onClick={() => handleFileSelect('pretrained_model', 'openFile')}
                     ></Button>
                 </Box>
-                <Accordion>
-                    <AccordionSummary
-                        expandIcon={<ExpandMoreIcon />}
-                        aria-controls="advanced-settings-content"
-                        id="advanced-settings-header"
-                    >
-                        <Typography>Advanced Settings</Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                        {/* Batch Size */}
-                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                            <TextField
-                                label="Batch Size"
-                                type="string"
-                                value={formData.batch_size}
-                                onChange={(e) => handleChange('batch_size', e.target.value)}
-                                fullWidth
-                            />
+                <Box
+                    display="flex"
+                    flexDirection="column"
+                    gap={2}
+                    marginY={2}
+                    padding={2}
+                    border="1px solid #ccc"
+                    borderRadius={2}
+                >
+                    {/* Mode selector */}
+                    <FormControl variant="standard" sx={{ minWidth: 180 }}>
+                        <InputLabel>CTF_mode</InputLabel>
+                        <Select
+                            value={formData.CTF_mode}
+                            onChange={(e) => handleChange('CTF_mode', e.target.value)}
+                        >
+                            <MenuItem value={'None'}>None</MenuItem>
+                            <MenuItem value={'network'}>network</MenuItem>
+                            <MenuItem value={'phase_only'}>phase_only</MenuItem>
+                            <MenuItem value={'wiener'}>wiener</MenuItem>
+                        </Select>
+                    </FormControl>
 
-                            {/* Accumulated Batches */}
-                            <TextField
-                                label="Accumulated Batches"
-                                type="number"
-                                value={formData.acc_batches}
-                                onChange={(e) => handleChange('acc_batches', e.target.value)}
-                                fullWidth
+                    {/* Top switch */}
+                    <FormControlLabel
+                        control={
+                            <Switch
+                                checked={formData.isCTFflipped}
+                                onChange={(e) => handleChange('isCTFflipped', e.target.checked)}
                             />
-                        </Box>
+                        }
+                        label="isCTFflipped"
+                    />
 
-                        {/* {formData.correct_CTF && ( */}
-                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                    {/* Bottom switch (only visible if CTF_mode ≠ None) */}
+                    {formData.CTF_mode !== 'None' && (
+                        <FormControlLabel
+                            control={
+                                <Switch
+                                    checked={formData.do_phaseflip_input}
+                                    onChange={(e) =>
+                                        handleChange('do_phaseflip_input', e.target.checked)
+                                    }
+                                />
+                            }
+                            label="do_phaseflip_input"
+                        />
+                    )}
+
+                    {/* Mode-specific inputs */}
+                    {formData.CTF_mode === 'wiener' && (
+                        <Box display="flex" alignItems="center" gap={2} marginY={1}>
                             <TextField
                                 label="snrfalloff"
                                 type="number"
@@ -275,10 +293,54 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                                 fullWidth
                             />
                         </Box>
-                        {/* )} */}
+                    )}
 
+                    {formData.CTF_mode === 'network' && (
+                        <Box display="flex" alignItems="center" gap={2} marginY={1}>
+                            <TextField
+                                label="bfactor"
+                                type="number"
+                                value={formData.bfactor}
+                                onChange={(e) => handleChange('bfactor', e.target.value)}
+                                fullWidth
+                            />
+                            <FormControl fullWidth>
+                                <InputLabel>clip_first_peak_mode</InputLabel>
+                                <Select
+                                    value={formData.clip_first_peak_mode}
+                                    onChange={(e) =>
+                                        handleChange('clip_first_peak_mode', e.target.value)
+                                    }
+                                >
+                                    <MenuItem value="0">0</MenuItem>
+                                    <MenuItem value="1">1</MenuItem>
+                                    <MenuItem value="2">2</MenuItem>
+                                    <MenuItem value="3">3</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Box>
+                    )}
+                </Box>
+
+                <Accordion>
+                    <AccordionSummary
+                        expandIcon={<ExpandMoreIcon />}
+                        aria-controls="advanced-settings-content"
+                        id="advanced-settings-header"
+                    >
+                        <Typography>Advanced Settings</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                        {/* Batch Size */}
                         <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                            {/* Loss Function */}
+                            <TextField
+                                label="Batch Size"
+                                type="string"
+                                value={formData.batch_size}
+                                onChange={(e) => handleChange('batch_size', e.target.value)}
+                                fullWidth
+                            />
+
                             <FormControl fullWidth>
                                 <InputLabel>Loss Function</InputLabel>
                                 <Select
@@ -291,6 +353,11 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                                 </Select>
                             </FormControl>
                             {/* Learning Rate */}
+                        </Box>
+
+                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                            {/* Loss Function */}
+
                             <TextField
                                 label="Learning Rate"
                                 type="number"
@@ -341,7 +408,7 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                 >
                     Submit (run immediately)
                 </Button>
-                <CommandAccordion formData={formData}/>
+                <CommandAccordion formData={formData} />
             </Box>
         </Drawer>
     )

@@ -19,19 +19,19 @@ import {
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
-import CommandAccordion from './CommandAccordion';
+import CommandAccordion from './CommandAccordion'
 
 const DrawerMask = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
         type: 'make_mask',
         star_file: 'tomograms.star',
-        output_dir: './mask',
+        name: 'mask',
         input_column: 'rlnTomoName',
         patch_size: 4,
         density_percentage: 50,
         std_percentage: 50,
         z_crop: 0.2,
-        tomo_idx: 'all',
+        tomo_idx: 'all'
     })
 
     // 处理表单字段变化
@@ -90,10 +90,10 @@ const DrawerMask = ({ open, onClose, onSubmit }) => {
                     ></Button>
                 </Box>
                 <TextField
-                    label="output directory"
+                    label="job name"
                     type="string"
-                    value={formData.output_dir}
-                    onChange={(e) => handleChange('output_dir', e.target.value)}
+                    value={formData.name}
+                    onChange={(e) => handleChange('name', e.target.value)}
                     fullWidth
                     margin="normal"
                 />
@@ -177,7 +177,7 @@ const DrawerMask = ({ open, onClose, onSubmit }) => {
                 >
                     Submit (run immediately)
                 </Button>
-                <CommandAccordion formData={formData}/>
+                <CommandAccordion formData={formData} />
             </Box>
         </Drawer>
     )

@@ -1,0 +1,102 @@
+Command: isonet.py star2json --star_file tomograms.star --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1
+Command: isonet.py star2json --star_file  --json_file .to_node.json
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1

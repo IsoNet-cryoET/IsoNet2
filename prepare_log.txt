@@ -1,0 +1,6 @@
+Command: isonet.py prepare_star --even None --odd None --full None --star_name tomograms.star --mask_folder None --coordinate_folder None --pixel_size 1 --cs 2.7 --voltage 300 --ac 0.1 --tilt_min -60 --tilt_max 60 --tilt_step 3 --create_average True --number_subtomos 1000
+Traceback (most recent call last):
+  File "/home/cii/software/IsoNet2/IsoNet/bin/isonet.py", line 2, in <module>
+    import fire
+ModuleNotFoundError: No module named 'fire'
+Process exited with code 1

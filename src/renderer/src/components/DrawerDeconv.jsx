@@ -18,13 +18,14 @@ import {
 } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import CommandAccordion from './CommandAccordion';
+import CommandAccordion from './CommandAccordion'
 
 const DrawerDeconv = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
         type: 'deconv',
+        name: 'deconv',
+
         star_file: 'tomograms.star',
-        output_dir: './deconv',
         input_column: 'rlnTomoName',
         snrfalloff: 1,
         deconvstrength: 1,
@@ -32,9 +33,7 @@ const DrawerDeconv = ({ open, onClose, onSubmit }) => {
         // chunk_size: int=None,
         // overlap_rate: float= 0.25,
         ncpus: 4,
-        tomo_idx: 'all',
-        only_print: true,
-        status: 'inqueue'
+        tomo_idx: 'all'
     })
 
     // 处理表单字段变化
@@ -114,10 +113,10 @@ const DrawerDeconv = ({ open, onClose, onSubmit }) => {
                     </Select>
                 </FormControl>
                 <TextField
-                    label="output directory"
+                    label="job name"
                     type="string"
-                    value={formData.output_dir}
-                    onChange={(e) => handleChange('output_dir', e.target.value)}
+                    value={formData.name}
+                    onChange={(e) => handleChange('name', e.target.value)}
                     fullWidth
                     margin="normal"
                 />
@@ -165,7 +164,7 @@ const DrawerDeconv = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit("inqueue")}
+                    onClick={() => handleSubmit('inqueue')}
                 >
                     Submit (in queue)
                 </Button>
@@ -174,11 +173,11 @@ const DrawerDeconv = ({ open, onClose, onSubmit }) => {
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit("running")}
+                    onClick={() => handleSubmit('running')}
                 >
                     Submit (run immediately)
                 </Button>
-                <CommandAccordion formData={formData}/>
+                <CommandAccordion formData={formData} />
             </Box>
         </Drawer>
     )

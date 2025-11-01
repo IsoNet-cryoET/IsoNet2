@@ -7,9 +7,6 @@ let inQueueList = [] // List for queued processes
 let notInQueueList = [] // List for non-queued processes
 let currentInQueueProcess = null // Track the current inQueue process being executed
 ipcMain.handle('get-jobs-list', () => {
-    console.log('main jobs', inQueueList)
-    console.log('main jobs', notInQueueList)
-
     const sanitizedInQueueList = inQueueList.map(({ event, ...rest }) => rest)
     const sanitizedNotInQueueList = notInQueueList.map(({ event, ...rest }) => rest)
 
@@ -21,8 +18,8 @@ ipcMain.handle('get-jobs-list', () => {
 // Function to process the inQueue list
 export function handleProcess(event, data) {
     const cmd = toCommand(data, data.id)
-    if (data.type !== 'prepare_star' && data.type !== 'star2json' ){
-        data.output_dir = data.type+"/job"+data.id+"_"+data.name
+    if (data.type !== 'prepare_star' && data.type !== 'star2json') {
+        data.output_dir = data.type + '/job' + data.id + '_' + data.name
     }
     if (data.status == 'inqueue') {
         inQueueList.push({
@@ -78,11 +75,11 @@ function processInQueue() {
 function processNotInQueue() {
     let l = notInQueueList.length
     if (l > 0) {
-        const nextProcess = notInQueueList[notInQueueList.length-1] //.shift()
+        const nextProcess = notInQueueList[notInQueueList.length - 1] //.shift()
         runProcess(nextProcess, (id) => {
             nextProcess == null
-            console.log("run process finished id:", id)
-            notInQueueList = notInQueueList.filter(item => item.id !== id);
+            console.log('run process finished id:', id)
+            notInQueueList = notInQueueList.filter((item) => item.id !== id)
         })
     }
 }
@@ -93,36 +90,30 @@ function runProcess(processItem, callback) {
 
     // Spawn the Python process
     const pythonProcess = spawn(processItem.command_line, {
-        shell: true,                // <<< let the shell parse the whole string
+        shell: true, // <<< let the shell parse the whole string
         detached: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+        stdio: ['ignore', 'pipe', 'pipe']
+    })
 
-    processItem.event.sender.send('python-status-change', { id: processItem.id, status: 'running', pid: pythonProcess.pid })
-    console.log('current')
+    processItem.event.sender.send('python-status-change', {
+        id: processItem.id,
+        status: 'running',
+        pid: pythonProcess.pid
+    })
     let logFileName
-    if (processItem.type === 'prepare_star'){
+    if (processItem.type === 'prepare_star') {
         logFileName = 'prepare_log.txt'
-    }
-    else if (processItem.type === 'star2json'){
+    } else if (processItem.type === 'star2json') {
         logFileName = '.star2json_log.txt'
-    }
-    else{
+    } else {
         fs.mkdirSync(processItem.output_dir, { recursive: true })
         logFileName = processItem.output_dir + '/log.txt'
     }
 
     const logStream = fs.createWriteStream(logFileName, { flags: 'a' })
-    // console.log(processItem.output_dir + '/log.txt')
     logStream.write(`Command: ${processItem.command_line}\n`)
-    // logStream.write(`[STDOUT] ${output}`) // Write stdout to log.txt
     pythonProcess.stdout.on('data', (data) => {
         const output = data.toString()
-        // console.log(output)
-        // processItem.event.sender.send('python-stdout', {
-        //     cmd: processItem.cmd,
-        //     output: output
-        // })
         logStream.write(`${output}`) // Write stdout to log.txt
     })
     processItem.pid = pythonProcess.pid
@@ -141,7 +132,10 @@ function runProcess(processItem, callback) {
         console.log(`Python process for ${processItem.type} exited with code ${code}`)
         logStream.write(`Process exited with code ${code}\n`) // Log the exit code
 
-        if (code === 0 && (processItem.type === 'prepare_star' || processItem.type === 'star2json')) {
+        if (
+            code === 0 &&
+            (processItem.type === 'prepare_star' || processItem.type === 'star2json')
+        ) {
             fs.readFile('.to_node.json', 'utf8', (err, data) => {
                 if (!err) {
                     const jsonData = data.split('\n').map((line) => JSON.parse(line))
@@ -153,16 +147,18 @@ function runProcess(processItem, callback) {
             })
         }
 
-        processItem.event.sender.send('python-status-change', { id: processItem.id, status: 'completed', pid: processItem.pid })
+        processItem.event.sender.send('python-status-change', {
+            id: processItem.id,
+            status: 'completed',
+            pid: processItem.pid
+        })
         logStream.end()
         if (callback) callback(processItem.id) // Notify that the process has finished
     })
 }
 
 ipcMain.on('remove-job', (event, id) => {
-    const jobIndex = inQueueList.findIndex(
-        (item) => item.id === id && item.status === 'inqueue'
-    )
+    const jobIndex = inQueueList.findIndex((item) => item.id === id && item.status === 'inqueue')
 
     if (jobIndex !== -1) {
         // Job found, remove it

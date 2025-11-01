@@ -18,20 +18,21 @@ import {
 } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import CommandAccordion from './CommandAccordion';
+import CommandAccordion from './CommandAccordion'
 
 const DrawerPredict = ({ open, onClose, onSubmit }) => {
     const [formData, setFormData] = useState({
         type: 'predict',
+        name: 'predict',
+
         star_file: 'tomograms.star',
         model: 'None',
-        output_dir: './corrected_tomos',
         gpuID: 'None',
         input_column: 'rlnDeconvTomoName',
-        correct_CTF: false,
         isCTFflipped: false,
         tomo_idx: 'all',
-        even_odd_input: true,
+        apply_mw_x1: true,
+        even_odd_input: true
     })
 
     // 处理表单字段变化
@@ -101,6 +102,16 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                         onClick={() => handleFileSelect('star_file', 'openFile')}
                     ></Button>
                 </Box>
+                <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                    <TextField
+                        label="job name"
+                        type="string"
+                        value={formData.name}
+                        onChange={(e) => handleChange('name', e.target.value)}
+                        fullWidth
+                        margin="normal"
+                    />
+                </Box>
                 {!formData.even_odd_input && (
                     <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
                         <InputLabel>input column</InputLabel>
@@ -128,32 +139,6 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                     ></Button>
                 </Box>
 
-                <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
-                    <InputLabel>input column</InputLabel>
-                    <Select
-                        // labelId="demo-simple-select-standard-label"
-                        // id="demo-simple-select-standard"
-                        value={formData.input_column}
-                        onChange={(e) => handleChange('input_column', e.target.value)}
-                        // label="Age"
-                    >
-                        <MenuItem value={'rlnDeconvTomoName'}>rlnDeconvTomoName</MenuItem>
-                        <MenuItem value={'rlnTomoName'}>rlnTomoName</MenuItem>
-                        <MenuItem value={'rlnDenoisedTomoName'}>rlnDenoisedTomoName</MenuItem>
-                        <MenuItem value={'rlnCorrectedTomoName'}>rlnCorrectedTomoName</MenuItem>
-                    </Select>
-                </FormControl>
-                <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                    <TextField
-                        label="output directory"
-                        type="string"
-                        value={formData.output_dir}
-                        onChange={(e) => handleChange('output_dir', e.target.value)}
-                        fullWidth
-                        margin="normal"
-                    />
-                </Box>
-
                 <Box display="flex" alignItems="center" gap={2} marginY={2}>
                     <TextField
                         label="gpuID"
@@ -174,15 +159,6 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                     <FormControlLabel
                         control={
                             <Switch
-                                checked={formData.correct_CTF}
-                                onChange={(e) => handleChange('correct_CTF', e.target.checked)}
-                            />
-                        }
-                        label="correct CTF"
-                    />
-                    <FormControlLabel
-                        control={
-                            <Switch
                                 checked={formData.isCTFflipped}
                                 onChange={(e) => handleChange('isCTFflipped', e.target.checked)}
                             />
@@ -190,6 +166,30 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                         label="isCTFflipped"
                     />
                 </Box>
+                <Accordion>
+                    <AccordionSummary
+                        expandIcon={<ExpandMoreIcon />}
+                        aria-controls="advanced-settings-content"
+                        id="advanced-settings-header"
+                    >
+                        <Typography>Advanced Settings</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={formData.apply_mw_x1}
+                                        onChange={(e) =>
+                                            handleChange('apply_mw_x1', e.target.checked)
+                                        }
+                                    />
+                                }
+                                label="apply_mw_x1"
+                            />
+                        </Box>
+                    </AccordionDetails>
+                </Accordion>
                 <Button
                     variant="contained"
                     color="primary"
@@ -208,7 +208,8 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                 >
                     Submit (run immediately)
                 </Button>
-                <CommandAccordion formData={formData}/>
+
+                <CommandAccordion formData={formData} />
             </Box>
         </Drawer>
     )

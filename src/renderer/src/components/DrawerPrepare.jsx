@@ -1,27 +1,28 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react'
 import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Box,
-  Drawer,
-  Typography,
-  Divider,
-  TextField,
-  FormControl,
-  FormControlLabel,
-  Switch,
-  Tabs,
-  Tab,
-  InputLabel,
-  Select,
-  MenuItem,
-  Button,
-} from '@mui/material';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import CommandAccordion from './CommandAccordion';
+    Accordion,
+    AccordionSummary,
+    AccordionDetails,
+    Box,
+    Drawer,
+    Typography,
+    Divider,
+    TextField,
+    FormControl,
+    FormControlLabel,
+    Switch,
+    Tabs,
+    Tab,
+    InputLabel,
+    Select,
+    MenuItem,
+    Button
+} from '@mui/material'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
+import FolderOpenIcon from '@mui/icons-material/FolderOpen'
+import CommandAccordion from './CommandAccordion'
 
 const DrawerPrepare = ({ open, onClose, onSubmit }) => {
     const [tabIndex, setTabIndex] = useState(0)
@@ -40,13 +41,11 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
         ac: 0.1,
         tilt_min: -60,
         tilt_max: 60,
-        tilt_step: 3,
-        create_average: true,
-        number_subtomos: 1000,
+        create_average: false,
+        number_subtomos: 1000
     })
 
     const handleChange = (field, value) => {
-        console.log(field, value)
         setFormData((prev) => ({ ...prev, [field]: value }))
     }
 
@@ -267,14 +266,14 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                     />
 
                     {/* Numeric Input */}
-                    <TextField
+                    {/* <TextField
                         label="tilt step"
                         type="number"
                         value={formData.tilt_step}
                         onChange={(e) => handleChange('tilt_step', e.target.value)}
                         fullWidth
                         margin="normal"
-                    />
+                    /> */}
                 </div>
 
                 {/* Boolean Selector */}
@@ -298,17 +297,63 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                     fullWidth
                     margin="normal"
                 />
+                <Accordion>
+                    <AccordionSummary
+                        expandIcon={<ExpandMoreIcon />}
+                        aria-controls="advanced-settings-content"
+                        id="advanced-settings-header"
+                    >
+                        <Typography>Advanced Settings</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                        {/* Batch Size */}
+                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                            <TextField
+                                label="mask folder"
+                                type="string"
+                                value={formData.mask_folder}
+                                onChange={(e) => handleChange('mask_folder', e.target.value)}
+                                fullWidth
+                            />
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                startIcon={<FolderOpenIcon />}
+                                onClick={() => handleFileSelect('mask_folder', 'openDirectory')}
+                            />
+                        </Box>
 
+                        {/* {formData.correct_CTF && ( */}
+                        <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                            {/* Accumulated Batches */}
+                            <TextField
+                                label="coordinate folder"
+                                type="string"
+                                value={formData.coordinate_folder}
+                                onChange={(e) => handleChange('coordinate_folder', e.target.value)}
+                                fullWidth
+                            />
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                startIcon={<FolderOpenIcon />}
+                                onClick={() =>
+                                    handleFileSelect('coordinate_folder', 'openDirectory')
+                                }
+                            />
+                        </Box>
+                    </AccordionDetails>
+                </Accordion>
                 <Button
                     variant="contained"
                     color="primary"
                     fullWidth
                     sx={{ marginTop: 2 }}
-                    onClick={() => handleSubmit("running")}
+                    onClick={() => handleSubmit('running')}
                 >
                     Run
                 </Button>
-                <CommandAccordion formData={formData}/>
+                <CommandAccordion formData={formData} />
             </Box>
         </Drawer>
     )
