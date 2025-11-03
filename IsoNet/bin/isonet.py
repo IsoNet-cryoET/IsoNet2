@@ -24,6 +24,7 @@ from IsoNet.utils.processing import normalize
 from IsoNet.utils.missing_wedge import mw3D
 from IsoNet.utils.CTF import get_ctf_3d
 import shutil
+from IsoNet.utils.plot_metrics import save_slices_and_spectrum
 
 class ISONET:
     """
@@ -392,7 +393,7 @@ class ISONET:
             # 5) Update STAR
             column = "rlnDenoisedTomoName" if network.method == 'n2n' else "rlnCorrectedTomoName"
             new_star.at[i, column] = out_file
-
+            save_slices_and_spectrum(out_file,output_dir,'')
             logging.info(f"Predicted {tomo_paths} → {out_file}")
 
         process_tomograms(
@@ -633,7 +634,6 @@ class ISONET:
 
         training_params['split'] = "full"
         from IsoNet.models.network import Net
-        from IsoNet.utils.plot_metrics import save_slices_and_spectrum
         network = Net(method=method, arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
         network.prepare_train_dataset(training_params)
         if with_predict:
