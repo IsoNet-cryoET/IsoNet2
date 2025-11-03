@@ -1,0 +1,146 @@
+/* ===== 布局：左侧固定宽度 Sidebar + 右侧内容 ===== */
+.docs-article img {
+  display: block;
+  max-width: 600px;
+  height: auto;
+  margin: 16px auto;
+  border-radius: 6px;
+}
+
+.docs-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 24px;
+    padding: 16px 0;
+    box-sizing: border-box;
+  }
+  
+  /* Sidebar 固定（粘性定位） */
+  .docs-sidebar {
+    position: sticky;
+    top: 16px;
+    height: calc(100vh - 50px);
+    overflow: auto;
+    padding-right: 8px;
+    border-right: 1px solid #e5e7eb;
+  }
+  
+  .docs-sidebar-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #6b7280;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+  }
+  
+  /* TOC 列表 */
+  .docs-toc {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .docs-toc-item {
+    display: block;
+    padding: 6px 8px;
+    border-radius: 6px;
+    color: #374151;
+    font-size: 14px;
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .docs-toc-item:hover {
+    background: #f3f4f6;
+  }
+  .docs-toc-item.active {
+    background: #e5e7eb;
+    font-weight: 600;
+  }
+  
+  /* 缩进：H1/H2/H3 */
+  .docs-toc-item.level-1 { padding-left: 8px; }
+  .docs-toc-item.level-2 { padding-left: 20px; }
+  .docs-toc-item.level-3 { padding-left: 32px; }
+  
+  /* ===== 右侧内容区 ===== */
+  .docs-content {
+    min-width: 0; /* 防止内容把布局撑爆 */
+    /* overflow: auto;  */
+  }
+  
+  .docs-article {
+    line-height: 1.7;
+    color: #111827;
+  }
+  
+  /* 让 Markdown 标题更好看 */
+  .docs-article h1,
+  .docs-article h2,
+  .docs-article h3 {
+    color: #0f172a;
+    margin: 1.4em 0 .6em;
+    line-height: 1.25;
+  }
+  
+  /* 取消 rehype 自动包裹的标题链接的“蓝色+下划线” */
+  .docs-article h1 > a,
+  .docs-article h2 > a,
+  .docs-article h3 > a {
+    color: inherit;
+    text-decoration: none;
+  }
+  
+  /* 段落/列表/代码块基础样式 */
+  .docs-article p { margin: .8em 0; }
+  .docs-article ul, .docs-article ol { padding-left: 1.5em; }
+  .docs-article li { margin: .3em 0; }
+  .docs-article code {
+    background: #f3f4f6;
+    border-radius: 4px;
+    padding: 0 .25em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+  .docs-article pre {
+    background: #0b1020;
+    color: #e5e7eb;
+    padding: 12px 14px;
+    border-radius: 10px;
+    overflow: auto;
+    box-shadow: 0 4px 14px rgba(0,0,0,.15);
+  }
+  
+  /* 可选：全局平滑滚动 */
+  html { scroll-behavior: smooth; }
+  
+
+  /* 标题滚动到视口顶部时的预留距离（按需调大，比如 72px/96px） */
+.docs-article h1,
+.docs-article h2,
+.docs-article h3 {
+  scroll-margin-top: 72px;
+}
+
+.docs-article h1{
+  font-size: 20px;
+} 
+.docs-article h2{
+  font-size: 18px;
+} 
+.docs-article h3{
+  font-size: 16px;
+}
+.docs-article p{
+  font-size: 14px;
+}
+.docs-article pre{
+  font-size: 13px;
+  background: #f0f0f3;
+  color: #0c0c0c;
+}
+.docs-article code{
+  background: #f0f0f3;
+}

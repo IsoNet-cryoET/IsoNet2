@@ -45,6 +45,7 @@ deconv
 denoise/
 mask
 *.mrc
+*.rec
 log.txt
 # Ignore OS generated files
 .DS_Store

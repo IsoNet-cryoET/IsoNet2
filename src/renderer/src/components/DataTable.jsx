@@ -103,7 +103,7 @@ const DataTable = ({ jsonData, star_name }) => {
         }
     }
     return (
-        <TableContainer component={Paper}>
+        <TableContainer component={Paper}  style={{ maxHeight: 500 }}>
             <Table stickyHeader>
                 <TableHead>
                     <TableRow>
@@ -112,6 +112,7 @@ const DataTable = ({ jsonData, star_name }) => {
                             return (
                                 <TableCell
                                     key={col}
+                                    title={col}
                                     sx={{
                                         ...getCellWidth(col),
                                         whiteSpace: 'nowrap',

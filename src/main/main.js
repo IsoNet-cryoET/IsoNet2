@@ -1,11 +1,12 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { handleProcess } from './process_handler'
-const { spawn } = require('child_process')
 const path = require('path')
 const fs = require('fs')
 const Store = require('electron-store').default
+const { spawn, exec } = require('child_process');    
+const util = require('util');   
+import { handleProcess, spawnWithRuntime } from './process.js';
 
 function createWindow() {
     const mainWindow = new BrowserWindow({
@@ -14,6 +15,10 @@ function createWindow() {
         show: false,
         autoHideMenuBar: true,
         frame: true, // Ensures no native frame, enabling the custom title bar
+        // backgroundColor: '#ff0000',  // title bar + background color
+        // titleBarStyle: 'default',
+        title: 'IsoNet2',
+        // titleBarStyle: 'hidden',    // hides it but keeps window controls accessible (mac)
         titleBarStyle: 'default', // Required for custom overlays
         titleBarOverlay: {
             color: '#eaf1fb', // Title bar background color
@@ -110,14 +115,18 @@ ipcMain.on('update_star', (event, data) => {
         }
     })
 
-    updateStarProcess = spawn(
-        'isonet.py',
-        ['json2star', '--json_file', filePath, '--star_name', data.star_name],
-        {
-            detached: true, // Create a new process group
-            stdio: ['ignore', 'pipe', 'pipe'] // Ignore stdin, keep stdout/stderr
-        }
-    ) // Corrected the split
+    updateStarProcess = spawnWithRuntime(
+        `isonet.py json2star --json_file "${filePath}" --star_name "${data.star_name}"`
+      );
+
+    // updateStarProcess = spawn(
+    //     'isonet.py',
+    //     ['json2star', '--json_file', filePath, '--star_name', data.star_name],
+    //     {
+    //         detached: true, // Create a new process group
+    //         stdio: ['ignore', 'pipe', 'pipe'] // Ignore stdin, keep stdout/stderr
+    //     }
+    // ) // Corrected the split
     let cmd = 'prepare_star'
     // Capture and print stdout in real time
     updateStarProcess.stdout.on('data', (data) => {
@@ -178,6 +187,8 @@ app.whenReady().then(() => {
         cwd: runDir,
         defaults: {
             counter: 0,
+            condaEnv: '',
+            IsoNetPath:'',
             jobList: []
         },
         schema: {
@@ -197,6 +208,47 @@ app.whenReady().then(() => {
         store.set(KEY_COUNT, next)
         return next
     })
+
+      // ---- environment (fixed keys!)
+    ipcMain.handle('environment:setCondaEnv', (_e, name) => {
+        store.set('condaEnv', String(name || ''));
+        return { success: true };
+    });
+    ipcMain.handle('environment:getCondaEnv', () => {
+        return String(store.get('condaEnv', ''));
+    });
+
+    ipcMain.handle('environment:setIsoNetPath', (_e, absPath) => {
+        store.set('IsoNetPath', String(absPath || ''));
+        return { success: true };
+    });
+    ipcMain.handle('environment:getIsoNetPath', () => {
+        return String(store.get('IsoNetPath', ''));
+    });
+
+    // ---- conda env list
+    const execPromise = util.promisify(exec);
+    ipcMain.handle('environment:getAvailableCondaEnv', async () => {
+        try {
+        const { stdout, stderr } = await execPromise('conda info --envs');
+        if (stderr) console.warn('conda info --envs stderr:', stderr);
+
+        const lines = stdout.split('\n').filter((l) => l.trim() && !l.startsWith('#'));
+        const envs = lines.map((line) => {
+            const parts = line.trim().split(/\s+/);
+            const hasStar = parts.includes('*');
+            const name = parts[0];
+            const envPath = parts[parts.length - 1];
+            return { name, path: envPath, active: hasStar };
+        });
+
+        return { success: true, envs };
+        } catch (err) {
+        console.error('Failed to get conda envs:', err);
+        return { success: false, error: String(err?.message || err) };
+        }
+    });
+
 
     ipcMain.handle('count:getCurrentId', (_event) => {
         return Number(store.get(KEY_COUNT, 0))
@@ -254,6 +306,13 @@ app.whenReady().then(() => {
         return list
     })
 
+    ipcMain.handle('jobList:updateName', (_event, { id, name }) => {
+        const list = store.get(KEY_JOB, [])
+        const idx = list.findIndex((j) => j && j.id === id)
+        list[idx].name = name
+        store.set(KEY_JOB, list)
+        return list
+    })
     ipcMain.handle('jobList:remove', async (_event, id) => {
         const list = store.get(KEY_JOB, [])
         const nid = String(id)

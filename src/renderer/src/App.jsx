@@ -30,6 +30,9 @@ import DrawerMask from './components/DrawerMask'
 import PagePrepare from './components/PagePrepare'
 import PageCommon from './components/PageCommon'
 import PageJobs from './components/PageJobs'
+import PageSettings from './components/PageSettings'
+import DocumentationPage from './components/DocumentationPage'
+
 
 import theme from './theme'
 import JobsList from './backup/SecondaryMenu'
@@ -37,7 +40,17 @@ import { mergeMsg, processMessage } from './utils/utils'
 import toCommand from './utils/handle_json'
 import { ConstructionOutlined } from '@mui/icons-material'
 // import {BlockingProvider} from './BlockingContext'
-
+import SourceTwoToneIcon from '@mui/icons-material/SourceTwoTone';
+import GraphicEqTwoToneIcon from '@mui/icons-material/GraphicEqTwoTone';
+import TonalityTwoToneIcon from '@mui/icons-material/TonalityTwoTone';
+import MasksTwoToneIcon from '@mui/icons-material/MasksTwoTone';
+import FaceRetouchingNaturalTwoToneIcon from '@mui/icons-material/FaceRetouchingNaturalTwoTone';
+import FilterHdrTwoToneIcon from '@mui/icons-material/FilterHdrTwoTone';
+import AlbumTwoToneIcon from '@mui/icons-material/AlbumTwoTone';
+import BallotTwoToneIcon from '@mui/icons-material/BallotTwoTone';
+import ModelTrainingTwoToneIcon from '@mui/icons-material/ModelTrainingTwoTone';
+import DescriptionIcon from '@mui/icons-material/Description';
+import SettingsIcon from '@mui/icons-material/Settings';
 const primaryMenuListinOrder = [
     'prepare_star',
     'denoise',
@@ -45,42 +58,61 @@ const primaryMenuListinOrder = [
     'make_mask',
     'refine',
     'predict',
-    'jobs_viewer'
+    'jobs_viewer',
+    'documents',
+    'settings'
 ]
 const primaryMenuMapping = {
     prepare_star: {
         label: 'Prepare',
         drawer: DrawerPrepare,
-        page: PagePrepare
+        page: PagePrepare,
+        icon: SourceTwoToneIcon,
     },
     denoise: {
         label: 'Denoise',
         drawer: DrawerDenoise,
-        page: PageCommon
+        page: PageCommon,
+        icon: GraphicEqTwoToneIcon,
     },
     deconv: {
         label: 'Deconvolve',
         drawer: DrawerDeconv,
-        page: PageCommon
+        page: PageCommon,
+        icon: AlbumTwoToneIcon,
     },
     make_mask: {
         label: 'Create Mask',
         drawer: DrawerMask,
-        page: PageCommon
+        page: PageCommon,
+        icon: MasksTwoToneIcon,
     },
     refine: {
         label: 'Refine',
         drawer: DrawerRefine,
-        page: PageCommon
+        page: PageCommon,
+        icon: FaceRetouchingNaturalTwoToneIcon,
     },
     predict: {
         label: 'Predict',
         drawer: DrawerPredict,
-        page: PageCommon
+        page: PageCommon,
+        icon: FilterHdrTwoToneIcon,
     },
     jobs_viewer: {
         label: 'Jobs Viewer',
-        page: PageJobs
+        page: PageJobs,
+        icon: BallotTwoToneIcon,
+    },
+    documents: {
+        label: 'Documents',
+        page: DocumentationPage,
+        icon: DescriptionIcon,
+    },
+    settings: {
+        label: 'Settings',
+        page: PageSettings,
+        icon: SettingsIcon,
     }
 }
 
@@ -102,8 +134,10 @@ const App = () => {
 
     useEffect(() => {
         const off = window.api.onPythonUpdateStatus(({ id, status, pid }) => {
+            if (id > 0){
             window.jobList.updateStatus({ id, status })
             window.jobList.updatePID({ id, pid })
+            }
         })
         return () => {
             try {
@@ -362,6 +396,8 @@ const App = () => {
                                         selected={selectedPrimaryMenu === key}
                                         onClick={() => togglePrimaryMenu(key)}
                                     >
+                                        {React.createElement(primaryMenuMapping[key].icon, 
+                                            { sx: { mr: 1, color: 'primary.main',fontSize:16 } })}
                                         <ListItemText primary={primaryMenuMapping[key]?.label} />
                                         {primaryMenuMapping[key]?.drawer && (
                                             <IconButton
@@ -369,18 +405,8 @@ const App = () => {
                                                     // e.stopPropagation();
                                                     setSelectedDrawer(key)
                                                 }}
-                                                sx={{
-                                                    backgroundColor: '#D5E2F4',
-                                                    '&:hover': { backgroundColor: '#e0e0e0' },
-                                                    borderRadius: '50%',
-                                                    width: 40,
-                                                    height: 40,
-                                                    display: 'flex',
-                                                    justifyContent: 'center',
-                                                    alignItems: 'center'
-                                                }}
                                             >
-                                                <EditIcon sx={{ color: '#14446e', fontSize: 24 }} />
+                                                <EditIcon sx={{fontSize: 16,color: 'primary.main'}}/>
                                             </IconButton>
                                         )}
                                     </ListItemButton>
@@ -427,11 +453,11 @@ const App = () => {
                                                 })
                                             }}
                                         >
-                                            <Tooltip title={`job ${job.id} ${job.name}`} arrow>
+                                            <Tooltip title={`job ${job.id} ${job.name}`} arrow placement='right'>
                                                 <Typography
                                                     className="secondary-menu-text"
                                                     // variant="body2"
-                                                >{`Job ${job.id}`}</Typography>
+                                                >{`${job.name}`}</Typography>
                                             </Tooltip>
                                         </ListItemButton>
                                     </ListItem>

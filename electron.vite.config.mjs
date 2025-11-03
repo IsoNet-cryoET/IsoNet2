@@ -15,6 +15,9 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [react()]
-  }
+    plugins: [react()],
+  },
+  base:'./',
+  publicDir: 'src/renderer/public', // ← 指向你的 public 目录
+
 })

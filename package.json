@@ -28,6 +28,10 @@
         "axios": "^1.7.9",
         "electron-store": "^11.0.2",
         "electron-updater": "^6.1.7",
+        "react-markdown": "^10.1.0",
+        "rehype-autolink-headings": "^7.1.0",
+        "remark-gfm": "^4.0.1",
+        "remark-slug": "^7.0.1",
         "socket.io-client": "^4.8.1"
     },
     "devDependencies": {

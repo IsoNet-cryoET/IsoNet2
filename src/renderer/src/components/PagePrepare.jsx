@@ -27,9 +27,6 @@ const PagePrepare = (props) => {
         })
     }, [props.starName])
 
-    const handleClear = () => {
-        props.setMessages([])
-    }
     const handleFileSelect = async (property) => {
         try {
             const filePath = await api.selectFile(property)
@@ -79,7 +76,10 @@ const PagePrepare = (props) => {
                 </Button> */}
             </Box>
             <DataTable jsonData={JsonData} star_name={props.starName} />
-            {renderContent(props.messages, props?.selectedJob?.id)}
+
+            <div className='page-prepare-logs-container'>
+                {renderContent(props.messages, props?.selectedJob?.id)}
+            </div>
         </div>
     )
 }

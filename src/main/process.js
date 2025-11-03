@@ -1,7 +1,68 @@
-const { spawn } = require('child_process')
-import { ipcMain, ipcRenderer } from 'electron'
+import { spawn } from 'child_process';
+import { ipcMain } from 'electron';
 import toCommand from '../renderer/src/utils/handle_json'
-const fs = require('fs')
+import fs from 'fs';
+import path from 'path';
+import ElectronStore from 'electron-store';
+const Store = (ElectronStore && ElectronStore.default) ? ElectronStore.default : ElectronStore;
+
+
+// same store file as main.js
+const store = new Store({ name: 'settings', cwd: process.cwd() });
+
+
+/** read + validate settings */
+function readRuntimeSettings() {
+  const condaEnv = String(store.get('condaEnv', '') || '');
+  const isoNetPath = String(store.get('IsoNetPath', '') || '');
+
+  const isoBin = isoNetPath ? path.join(isoNetPath, 'IsoNet', 'bin') : '';
+  const isoOk = isoNetPath && fs.existsSync(isoNetPath);
+  const isoBinOk = isoBin && fs.existsSync(isoBin);
+
+  return { condaEnv, isoNetPath, isoBin, isoOk, isoBinOk };
+}
+
+/** build merged env (PATH / PYTHONPATH) cross-platform */
+function buildEnvOverlay(isoNetPath, isoBin) {
+  const sep = process.platform === 'win32' ? ';' : ':';
+  const env = { ...process.env };
+
+  if (isoBin && fs.existsSync(isoBin)) {
+    env.PATH = env.PATH ? `${isoBin}${sep}${env.PATH}` : isoBin;
+  }
+  if (isoNetPath && fs.existsSync(isoNetPath)) {
+    env.PYTHONPATH = env.PYTHONPATH
+      ? `${isoNetPath}${sep}${env.PYTHONPATH}`
+      : isoNetPath;
+  }
+  return env;
+}
+
+/**
+ * spawn wrapper:
+ * - augments env with IsoNet PATH/PYTHONPATH
+ * - optionally routes through `conda run -n <env>`
+ * - keeps your current { shell:true, detached:true, stdio:['ignore','pipe','pipe'] }
+ */
+function spawnWithRuntime(commandLine) {
+  const { condaEnv, isoNetPath, isoBin } = readRuntimeSettings();
+  const env = buildEnvOverlay(isoNetPath, isoBin);
+
+  // Prefer conda run so we don't rely on activation scripts
+  // If no condaEnv saved, run raw command
+  const cmd = condaEnv
+    ? `conda run -n "${condaEnv}" --no-capture-output ${commandLine}`
+    : commandLine;
+
+  return spawn(cmd, {
+    shell: true,
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env, // ← inject our PATH/PYTHONPATH overlay
+  });
+}
+
 
 let inQueueList = [] // List for queued processes
 let notInQueueList = [] // List for non-queued processes
@@ -16,7 +77,7 @@ ipcMain.handle('get-jobs-list', () => {
     }
 })
 // Function to process the inQueue list
-export function handleProcess(event, data) {
+function handleProcess(event, data) {
     const cmd = toCommand(data, data.id)
     if (data.type !== 'prepare_star' && data.type !== 'star2json') {
         data.output_dir = data.type + '/job' + data.id + '_' + data.name
@@ -88,12 +149,14 @@ function processNotInQueue() {
 function runProcess(processItem, callback) {
     console.log(`Running command: ${processItem.command_line}`)
 
-    // Spawn the Python process
-    const pythonProcess = spawn(processItem.command_line, {
-        shell: true, // <<< let the shell parse the whole string
-        detached: true,
-        stdio: ['ignore', 'pipe', 'pipe']
-    })
+    const pythonProcess = spawnWithRuntime(processItem.command_line); // 👈
+  
+    // // Spawn the Python process
+    // const pythonProcess = spawn(processItem.command_line, {
+    //     shell: true, // <<< let the shell parse the whole string
+    //     detached: true,
+    //     stdio: ['ignore', 'pipe', 'pipe']
+    // })
 
     processItem.event.sender.send('python-status-change', {
         id: processItem.id,
@@ -101,16 +164,20 @@ function runProcess(processItem, callback) {
         pid: pythonProcess.pid
     })
     let logFileName
+    let logStream
     if (processItem.type === 'prepare_star') {
         logFileName = 'prepare_log.txt'
+        logStream = fs.createWriteStream(logFileName, { flags: 'w' })
     } else if (processItem.type === 'star2json') {
         logFileName = '.star2json_log.txt'
+        logStream = fs.createWriteStream(logFileName, { flags: 'w' })
     } else {
         fs.mkdirSync(processItem.output_dir, { recursive: true })
         logFileName = processItem.output_dir + '/log.txt'
+        logStream = fs.createWriteStream(logFileName, { flags: 'a' })
     }
 
-    const logStream = fs.createWriteStream(logFileName, { flags: 'a' })
+    
     logStream.write(`Command: ${processItem.command_line}\n`)
     pythonProcess.stdout.on('data', (data) => {
         const output = data.toString()
@@ -146,7 +213,6 @@ function runProcess(processItem, callback) {
                 }
             })
         }
-
         processItem.event.sender.send('python-status-change', {
             id: processItem.id,
             status: 'completed',
@@ -180,3 +246,4 @@ ipcMain.on('kill-job', (event, pid) => {
         event.reply('kill-job-response', false) // Send failure response
     }
 })
+export { handleProcess, spawnWithRuntime };

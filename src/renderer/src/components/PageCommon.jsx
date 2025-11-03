@@ -1,94 +1,98 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { renderContent } from '../utils/log_handler'
-import { IconButton, Box, Button, Snackbar } from '@mui/material'
-import AddCardIcon from '@mui/icons-material/AddCard'
+import { Box, Button, Snackbar, TextField } from '@mui/material'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
-import { mergeMsg, processMessage } from '../utils/utils'
-import { DeleteRounded } from '@mui/icons-material'
 
 const PageCommon = (props) => {
-    const [deleting, setDeleting] = useState(false)
-    const [snackOpen, setSnackOpen] = useState(false)
+  const job = props?.selectedJob
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [snack, setSnack] = useState({ open: false, message: '' })
 
-    // const [showButton, setShowButton] = useState(false)
+  // local name for responsive input
+  const [name, setName] = useState(job?.name || '')
+  useEffect(() => {
+    setName(job?.name || '')
+  }, [job?.id]) // when a new job is selected, reset input to its name
 
-    const handleDelete = async () => {
-        if (!props?.selectedJob?.id) return
+  // simple debounce without extra deps
+  const saveTimerRef = useRef(null)
 
-        try {
-            setDeleting(true)
-            const ok = await window.jobList.remove(props.selectedJob.id)
-            if (ok) {
-                setSnackOpen(true)
-            }
-        } catch (e) {
-            console.error('Delete job failed:', e)
-        } finally {
-            setDeleting(false)
-            // setShowButton(false)
-        }
+  const handleDelete = async () => {
+    if (!job?.id) return
+    try {
+      setIsDeleting(true)
+      const ok = await window.jobList.remove(job.id)
+      if (ok) setSnack({ open: true, message: `Deleted job ${job.id}` })
+    } catch (e) {
+      console.error('Delete job failed:', e)
+      setSnack({ open: true, message: 'Failed to delete job' })
+    } finally {
+      setIsDeleting(false)
     }
-    // useEffect(()=>{
-    //     if (props?.selectedJob?.status === "completed")
-    //         setShowButton(true)
-    // }
-    // , [props?.selectedJob?.status])
+  }
 
-    return (
-        <div>
-            {props?.selectedJob?.status === 'completed' && (
-                <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                    <Button
-                        variant="outlined"
-                        color="primary"
-                        startIcon={<CleaningServicesIcon />}
-                        onClick={() => handleDelete()}
-                        disabled={
-                            !props?.selectedJob?.id ||
-                            deleting ||
-                            props?.selectedJob?.status == 'running'
-                        }
-                        sx={{ height: '56px' }} // Ensure the button has a height
-                    >
-                        permanently remove job files
-                    </Button>
-                </Box>
-            )}
-            {renderContent(props.messages, props?.selectedJob?.id)}
-            <Snackbar
-                open={snackOpen}
-                autoHideDuration={1500}
-                onClose={() => setSnackOpen(false)}
-                message={`Deleted Job ${props?.selectedJob?.id}!`}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            />
-        </div>
-    )
+  return (
+    <div>
+      
+        <Box display="flex" alignItems="center" gap={2} marginY={2}>
+        {job?.status === 'completed' && (
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<CleaningServicesIcon />}
+            onClick={handleDelete}
+            disabled={!job?.id || isDeleting || job?.status === 'running'}
+            sx={{ height: '56px' }}
+          >
+            permanently remove job files
+          </Button>)}
+
+          <TextField
+            label="job name"
+            value={name}
+            onChange={(e) => {
+              const v = e.target.value
+              setName(v)              // update UI immediately
+            //   debouncedSaveName(v)    // save after debounce
+            }}
+            onBlur={() => {
+              // ensure a final save on blur (immediate, no debounce)
+              if (!job?.id) return
+              if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+              ;(async () => {
+                try {
+                  setIsSaving(true)
+                  const ok = await window.jobList.updateName({ id: job.id, name })
+
+                  if (ok) setSnack({ open: true, message: 'Saved job name' })
+                } catch (e) {
+                  console.error('Update name failed:', e)
+                  setSnack({ open: true, message: 'Failed to save name' })
+                } finally {
+                  setIsSaving(false)
+                }
+              })()
+            }}
+            // disabled={!job?.id || job?.status === 'running'}
+            fullWidth
+            sx={{ height: '56px' }}
+            helperText={isSaving ? 'Saving…' : ' '}
+          />
+        </Box>
+      
+
+      {renderContent(props.messages, job?.id)}
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={1500}
+        onClose={() => setSnack({ open: false, message: '' })}
+        message={snack.message}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+    </div>
+  )
 }
+
 export default PageCommon
-
-// const handleFileSelect = async (field, property) => {
-//     const filePath = await window.api.selectFile(property)
-//     if (!filePath) return
-
-//     const fileContent = await window.api.readFile(filePath)
-//     if (!fileContent) return
-
-//     const lines = fileContent
-//         .split(/\r?\n|\r/g) // handles both \n and ^M
-//         .filter((line) => line.trim() !== '') // remove empty lines
-//     const newMessages = []
-//     for (const line of lines) {
-//         const msg = { cmd: 'denoise', output: line }
-//         const processed = processMessage(msg)
-//         const merged = mergeMsg(newMessages, processed)
-//         newMessages.length = 0
-//         newMessages.push(...merged)
-//     }
-
-//     props.setMessages(newMessages)
-// }
-
-// const handleClear = () => {
-//     props.setMessages([])
-// }

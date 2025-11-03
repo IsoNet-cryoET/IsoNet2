@@ -7,13 +7,25 @@ contextBridge.exposeInMainWorld('count', {
     current: () => ipcRenderer.invoke('count:getCurrentId')
     // reset: (value) => ipcRenderer.invoke('count:resetCounter', value),
 })
-
+contextBridge.exposeInMainWorld('environment', {
+  setCondaEnv: (name) =>
+    ipcRenderer.invoke('environment:setCondaEnv', name),
+  getAvailableCondaEnv: () =>
+    ipcRenderer.invoke('environment:getAvailableCondaEnv'),
+  getCondaEnv: () =>
+    ipcRenderer.invoke('environment:getCondaEnv'),
+  setIsoNetPath: (absPath) =>
+    ipcRenderer.invoke('environment:setIsoNetPath', absPath),
+  getIsoNetPath: () =>
+    ipcRenderer.invoke('environment:getIsoNetPath'),
+});
 contextBridge.exposeInMainWorld('jobList', {
     get: () => ipcRenderer.invoke('jobList:get'),
     add: (data) => ipcRenderer.invoke('jobList:add', data),
     update: (data) => ipcRenderer.invoke('jobList:update', data),
     updateStatus: ({ id, status }) => ipcRenderer.invoke('jobList:updateStatus', { id, status }),
     updatePID: ({ id, pid }) => ipcRenderer.invoke('jobList:updatePID', { id, pid }),
+    updateName: ({ id, name }) => ipcRenderer.invoke('jobList:updateName', { id, name }),
     remove: (id) => ipcRenderer.invoke('jobList:remove', id)
 })
 
