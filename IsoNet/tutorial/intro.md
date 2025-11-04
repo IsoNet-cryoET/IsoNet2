@@ -1,138 +1,169 @@
+# IsoNet Tutorial
 
-refine
+## 0. Introduction
 
-If we have evn/odd tomogram but we want to use IsoNet2 refine without noise2noise integrated training.
-isonet.py prepare_star -e EVN -o ODD --create_average True
-Then you will find the star file with column rlnTomoName #2
+**IsoNet2** is a deep-learning software package for missing wedge correction, Noise2Noise denoising, and CTF correction in cryo-electron tomography reconstructions. All these functions are achieved by training a single neural network using information learned from the original tomogram(s). Compared with IsoNet1, IsoNet2 training results in higher resolution and less noise, and it is about also 10x faster than IsoNet1.
 
-Then run isonet.py with --method isonet2 specified such as
-isonet.py refine tomograms.star --method isonet2
+The software takes tomograms as input. Paired tomograms for Noise2Noise training can be split by either frame or tilt.
 
-if we do not have evn/odd toomograms, when we prepare star, we use command such as
-isonet.py prepare_star tomograms
-or
-isonet.py prepare_star -f tomograms
+**IsoNet2** contains modules: prepare star, CTF deconvolve, generate mask, denoise, refine, and predict. All commands in IsoNet operate on **.star** text files which include description and path of data and parameters. Including pixel size, defocus value for 0-degree tilt, and the tilt range are all recommended for training preparation. Users can choose to utilize IsoNet through either GUI or command-lines.
 
-for predict refine make_mask and deconv, all of them have parameter called --input_column, if you want to specify what is the input for the command. For example,
-isonet.py make_mask tomograms.star --input_column rlnDeconvTomoName
-meaning generating mask using tomograms in the column of rlnDeconvTomoName
+## 1. Installation and System Requirements
 
-or
-isonet.py refine tomograms.star --input_column rlnDeconvTomoName --method isonet2 --noise_level 0.2
-
-or
-isonet.py predict tomograms.star isonet_maps/network_isonet2_unet-medium_96_full.pt --tomo_idx 1 --input_column rlnDeconvTomoName
-IsoNet2 Tutorial
-
-0. Introduction
-
-IsoNet2 is a deep-learning software package for compensating the missing wedge in single-particle cryo-electron tomography reconstructions. The package implements on-the-fly prediction that performs periodic inference during training to produce intermediate reconstructions and scalar metrics. Masked loss calculation accepts binary or soft masks as loss-weighting maps and applies elementwise masking during loss evaluation. A Noise2Noise training pipeline consumes paired noisy inputs, such as even/odd reconstructions, and optimizes inter-pair loss functions without requiring clean ground-truth volumes.
-IsoNet2 provides modular network templates and building blocks, including configurable convolutional layers, residual blocks, attention modules, and normalization options. Input handlers accept standard tomogram array formats and acquisition metadata with configurable tilt-geometry parameters. Configuration is available via YAML/JSON files or programmatic API for schedules, prediction intervals, masks, and pairing strategies. Outputs include reconstructed volumes, intermediate predictions, model checkpoints, and metric logs in common scientific file formats.
-
-1. Installation and System Requirements
 IsoNet runs on Linux and requires CUDA-capable GPUs.
 Recommended: Nvidia GTX 1080Ti or newer, with at least 8 GB VRAM per GPU.README.md
 
-
 Dependencies (via Anaconda environment):
 
-
-Python ≥3.6
-
-
-torch (PyTorch)
-
-
-cudatoolkit and cudnn
-
-
-tqdm, matplotlib, scipy, numpy, scikit-image, mrcfile, fire
-
+    • Python ≥3.6
+    • torch (PyTorch)
+    • cudatoolkit and cudnn
+    • tqdm, matplotlib, scipy, numpy, scikit-image, mrcfile, fire
 
 Installation steps:
 
+• Create a conda environment, install dependencies using install.sh or pip.
 
-Install cudatoolkit/cudnn compatible with the GPU.
+• Install cudatoolkit/cudnn compatible with the GPU.
 
+• Install PyTorch from https://pytorch.org.
 
-Install PyTorch from https://pytorch.org.
+• Update environment variables via .bashrc or source-env.sh:
 
+```{.bash language="bash"}
+export PATH=<PATH_TO_ISONET2_FOLDER>/IsoNet/bin:$PATH
+export PYTHONPATH=<PATH_TO_ISONET2_FOLDER>:$PYTHONPATH
+```
 
-Create a conda environment, install dependencies using install.sh or pip.
-
-
-Update environment variables via .bashrc or source-env.sh:
-export PATH=<PATHTOISONETFOLDER>/bin:$PATH  
-export PYTHONPATH=<PATHTOPARENTFOLDEROFISONETFOLDER>:$PYTHONPATH
-Start IsoNet with isonet.py.README.md
-
+• Start IsoNet with isonet.py.
 
 Verified environments:
 cuda 11.8, cudnn 8.5, PyTorch 2.0.1
 
-
 cuda 11.3, cudnn 8.2, PyTorch 1.13.1.README.md
 
+## 2. Examples
 
+The following two examples describe the basic steps of running the program and generating corrected tomograms. The dataset and a video tutorial can be found here https://drive.google.com/drive/folders/1DXjIsz6-EiQm7mBMuMHHwdZErZ_bXAgp
 
-2. Workflow
+### 2.1 Ribosome dataset with EVN/ODD split
 
-2.1 Prepare STAR and Manual Modification
+This Ribosome dataset contains 5 tomograms (1,2,3,4,5) from EMPIAR-10985 with EVN/ODD split.
+
+![fig1](figures/figxx.png)
+
+#### 2.1.1 Prepare Tomograms and Starfile
+
+#### 2.1.2 Refine
+
+#### 2.1.3. Predict
+
+#### 2.1.4. Optionally make mask
+
+This is useful if tomgoram has sparse sample and we can generated masked from correctedtomog or denoised tomograms
+
+#### 2.1.5. Optionally denoise
+
+First, create a folder for your project. In this folder, create subfolder (in this case subfolder name is tomograms/EVN and tomgrams/ODD) and move all tomogram (with suffix .mrc or .rec) to the corresponding subfolder.
+
+```{.bash language="bash"}
+mkdir tomograms
+mkdir tomograms/EVN
+mkdir tomograms/ODD
+mv *EVN.mrc tomograms/EVN
+mv *ODD.mrc tomograms/ODD
+```
+
+**_edit this_**
+Then run the following command in your project folder to generate a
+tomogram.star file. The number_subtomos defined how many tomograms are used for training in each epoch for a certain tomogram. Typically number_subtomos per tomograms times number of tomograms times number of epochs to train is about 100000 for adequate training. For example, for 500 number_subtomos and 4 tomograms, we recommend training to 50 epochs (500x4x50 == 100000)
+
+```{.bash language="bash"}
+isonet.py prepare_star -e tomograms/EVN -o tomograms/ODD --output_star tomograms.star --pixelsize <value> --number_subtomos 500
+```
+
+Please use your favorite text editor, such as vi or gedit, to open the **tomograms.star**, and enter one defocus value for each tomogram in the rlnDefocus column. This value should be the approximate defocus value calculated for the 0-degree tilt images in **Å**. Also modify the min and max tilt angles in the corresponding colums.
+
+After editing, your star file should look as follows. Note, defocus value is only for CTF deconvolution/correction, if you want to skip CTF relevant correction or the tomograms are acquired with a phase plate, leave this column as default 0.
+
+#### 2.1.2 Refine
+
+Train IsoNet to reconstruct missing wedge and denoise subtomograms:
+
+```{.bash language="bash"}
+isonet.py refine tomograms.star --outputdir <results_folder> --gpuID <ids> --epochs <number>
+```
+
+#### 2.5. Predict
+
+Apply the trained model to the original tomograms to recover missing wedge regions:
+
+```{.bash language="bash"}
+isonet.py predict tomograms.star <model_file.h5> --gpuID <ids> --outputdir <output_folder>
+```
+
+### 2.2 HIV dataset with full tomograms as input
+
+#### 2.1.1 Prepare Star
 
 Collect all tomogram files (.mrc or .rec) into a folder.
 
-
 Generate a STAR file:
+
+```{.bash language="bash"}
 isonet.py prepare_star <folder> --outputstar <tomograms.star> --pixelsize <value> --numbersubtomos <number>
+```
+
 Manually edit with Vim or other editors:
 
+IMAGE
 
-Add defocus for each tomogram in the fourth column (in Å).
+Add defocus for each tomogram in the fourth column (in Å). Adjust rlnNumberSubtomo for each tomogram as needed.
 
-
-Adjust rlnNumberSubtomo for each tomogram as needed.
-
-
-2.2 Deconv
+#### 2.1.2 Deconv
 
 Perform CTF deconvolution (optional, skip for phase plate tomograms or refinements using network-based deconvolution):
 isonet.py deconv <tomograms.star> --deconvfolder <output_folder> --snrfalloff <value> --deconvstrength <value>
 Other options: --highpassnyquist, --chunksize, --overlap_rate, --ncpu
-
 2.3. Make Mask
-
 Generate a mask for each tomogram to exclude empty regions:
 isonet.py make_mask <tomograms.star> --maskfolder <output_folder> --patchsize <value> --densitypercentage <val> --stdpercentage <val> --zcrop <val>
 
-
 2.4 Refine
-
 Train IsoNet to reconstruct missing wedge and denoise subtomograms:
 isonet.py refine <subtomo.star> --outputdir <results_folder> --gpuID <ids> --iterations <number> --noiselevel <list> --noisestartiter <list> --method <isonet2-n2n/isonet2> --arch <network type>
 2.5. Predict
 Apply the trained model to the original tomograms to recover missing wedge regions:
 isonet.py predict <tomograms.star> <model_file.h5> --gpuID <ids> --outputdir <output_folder> --inputcolumn <column name>
 
-
-3. Example (EMPIAR Ribosome Dataset)
+## 3. Example (EMPIAR Ribosome Dataset)
 
 dataset: https://www.ebi.ac.uk/empiar/EMPIAR-10985/
 
+### 3.1 Ribosome tomograms split into even and odd frames
 
-3.1 Ribosome tomograms split into even and odd frames (mw correction + ctf + denoise + prepare_star + refine)
+mw correction + ctf + denoise
 
-isonet.py prepare_star --even tomoset/EVN --odd tomoset/ODD --pixel_size 5.35 --number_subtomos 800 
+prepare_star + refine
 
-isonet.py refine tomograms.star -o 01_test --CTF_mode network >> 01_test/log.txt 2>&1 &
+isonet.py prepare_star --even tomoset/EVN --odd tomoset/ODD --pixel_size 5.35 --number_subtomos 800
+
+isonet.py refine tomograms.star -o 01_test --CTF_mode network
+
 isonet.py refine tomograms.star -o 01_test --CTF_mode wiener >> 01_test/log.txt 2>&1 &
 
+First, create a folder for your project. Inside your folder, create a subfolder (in this case the subfolder's name will be 'tomoset') and move all tomograms into the new subfolder.
 
+Next, we will use the prepare_star function to create a STAR file containing paths and parameters of all the tomograms in the dataset that will be used later. It can handle single tomograms as well as split even and odd tomograms. For this tutorial, our dataset contains an even and odd separation so we will use the --even and --odd parameters. We will also define our --pixel_size to be 5.35 and --number_subtomos to be 800.
+
+isonet.py prepare_star --even tomoset/EVN --odd tomoset/ODD --pixel_size 5.35 --number_subtomos 800
+
+After preparing our star file, we will use the refine function
 3.2 Ribosome tomograms without split
-
 mw correction + ctf+ denoise without EVN/ODD
 prepare_star + refine
 
-isonet.py prepare_star --even tomoset/EVN --odd tomoset/ODD --pixel_size 5.35 --number_subtomos 800  –create_average True
+isonet.py prepare_star --even tomoset/EVN --odd tomoset/ODD --pixel_size 5.35 --number_subtomos 800 --create_average True
 
 MODIFY STAR FILE WITH CORRECT DEFOCUS (ask)
 
@@ -141,11 +172,10 @@ isonet.py deconv tomograms.star
 isonet.py make_mask tomograms.star
 
 isonet.py refine tomograms.star -o 01_test --noise_level 0.2 >> 01_test/log.txt 2>&1 &
-
 3.3 denoise with n2n + ctf → cryocare + ctf
 
 prepare_star + denoise
-isonet.py prepare_star --even tomoset/EVN --odd tomoset/ODD --pixel_size 5.35 --number_subtomos 800 
+isonet.py prepare_star --even tomoset/EVN --odd tomoset/ODD --pixel_size 5.35 --number_subtomos 800
 
 #1.
 isonet.py deconv tomograms.star
@@ -162,7 +192,6 @@ isonet.py denoise tomograms.star -o 03_test --CTF_mode wiener >> 03_test/log.txt
 4. IsoNet commands
 
 prepare_star
-
 Generate a tomograms.star file that lists tomogram file paths and acquisition metadata used by all downstream IsoNet commands. The function can accept either a single set of full tomograms or paired even/odd half tomograms for noise2noise workflows.
 Key parameters
 full — Directory with full tomogram files; use for single-map training (isonet2).
@@ -183,7 +212,6 @@ If tilt range differs from ±60°, supply tilt_min and tilt_max so the code reco
 Inspect and edit the generated STAR if you need tomogram-specific subtomogram counts or different mask/defocus entries.
 
 deconv
-
 CTF deconvolution preprocessing that enhances low-resolution contrast and recovers information attenuated by the microscope contrast transfer function. Recommended for non–phase-plate data; skip for phase-plate data or if intending to use network-based CTF deconvolution.
 Key parameters
 star_file — Input STAR listing tomograms and acquisition metadata.
@@ -201,7 +229,6 @@ Inspect deconvolved outputs visually for ringing or other artifacts after changi
 Use chunking plus a moderate overlap_rate (0.25–0.5) when memory is limited.
 
 make_mask
-
 Generate masks to prioritize regions of interest. Masks improve sampling efficiency and training stability.
 Key parameters
 star_file — Input STAR listing tomograms.
@@ -217,7 +244,6 @@ Defaults are suitable for most datasets; tune density/std percentages for very s
 If automatic masks miss specimen regions, edit boundaries in the STAR or provide manual masks.
 
 denoise and refine
-
 Both functions are training entry points. Use denoise for pure noise-to-noise (n2n) training workflows; use refine for IsoNet2 missing-wedge correction (IsoNet2) or IsoNet2-n2n combined modes. Many parameters are shared between them.
 Key parameters
 method (refine only) — "isonet2" for single-map missing-wedge correction, "isonet2-n2n" for noise2noise when even/odd halves are present. If omitted, the code auto-detects the method from the STAR columns.
@@ -230,7 +256,7 @@ mixed_precision — If True, uses float16/mixed precision to reduce VRAM and spe
 CTF_mode — CTF handling mode: "None", "phase_only", "wiener", or "network". Choose according to your reconstruction pipeline and whether you want the network to handle CTF effects.
 "network" applies a CTF-shaped filter to network inputs so the network learns to restore it.
 "wiener" configures the pipeline to emulate a Wiener-filtered target.
-clip_first_peak_mode — Controls attenuation of overrepresented very-low-frequency CTF peak: 0 none, 1 constant clip, 2 negative sine, 3 cosine. 
+clip_first_peak_mode — Controls attenuation of overrepresented very-low-frequency CTF peak: 0 none, 1 constant clip, 2 negative sine, 3 cosine.
 bfactor — B-factor applied during training/prediction to boost high-frequency content; ideal values around 200 - 500.
 noise_level — For plain isonet2 (non-n2n) training, supply >0 to enable denoising capability (adds synthetic noise during training). For noise2noise (isonet2-n2n or denoise), this is typically not required.
 noise_mode — Controls filter applied when generating synthetic noise (used with noise_level).
@@ -247,7 +273,6 @@ Use split_halves to obtain gold-standard half-map workflows (independent models 
 If you request deconvolution within refine, tune snrfalloff and deconvstrength there to avoid overcorrection artifacts.
 
 predict
-
 Apply a trained IsoNet model to tomograms to produce denoised or missing-wedge–corrected volumes. Prediction utilizes the model's saved cube size and CTF handling options, but allows for runtime adjustments.
 Key parameters
 star_file — Input STAR describing tomograms to predict.
@@ -265,35 +290,6 @@ Practical notes
 Match prediction cube/crop sizes and padding to the network’s training settings (these come from the model object).
 When using CTF-aware models, ensure phaseflipped and STAR defocus/CTF fields are correct.
 
+```
 
-
-<!-- refine
-(ribsomes)
-n2n mw ctf denoise
-non2n mw ctf denoise
-n2n ctf denoise
-
-
-If we have evn/odd tomogram but we want to use IsoNet2 refine without noise2noise integrated training.
-isonet.py prepare_star -e EVN -o ODD --create_average True
-Then you will find the star file with column rlnTomoName #2
-
-Then run isonet.py with --method isonet2 specified such as
-isonet.py refine tomograms.star --method isonet2
-
-if we do not have evn/odd toomograms, when we prepare star, we use command such as
-isonet.py prepare_star tomograms
-or
-isonet.py prepare_star -f tomograms
-
-for predict refine make_mask and deconv, all of them have parameter called --input_column, if you want to specify what is the input for the command. For example,
-isonet.py make_mask tomograms.star --input_column rlnDeconvTomoName
-meaning generating mask using tomograms in the column of rlnDeconvTomoName
-
-or
-isonet.py refine tomograms.star --input_column rlnDeconvTomoName --method isonet2 --noise_level 0.2
-
-or
-isonet.py predict tomograms.star isonet_maps/network_isonet2_unet-medium_96_full.pt --tomo_idx 1 --input_column rlnDeconvTomoName
-
-prepare_star -->
+```

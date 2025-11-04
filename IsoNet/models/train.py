@@ -10,6 +10,7 @@ import torch.distributed as dist
 from IsoNet.utils.utils import debug_matrix
 import random
 from IsoNet.models.masked_loss import masked_loss, apply_fourier_mask_to_tomo
+from IsoNet.models.masked_loss import masked_loss, apply_fourier_mask_to_tomo
 from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.normalize import normalize_percentage, normalize_mean_std 
 from IsoNet.utils.rotations import rotation_list_90, generate_random_rotation, rotate_vol_around_axis_torch, rotate_vol_90
@@ -70,17 +71,21 @@ def apply_F_filter_torch(input_map,F_map):
     fft_input = torch.fft.fftshift(torch.fft.fftn(input_map, dim=(-1, -2, -3)),dim=(-1, -2, -3))
     # mw_shift = torch.fft.fftshift(F_map, dim=(-1, -2, -3))
     out = torch.fft.ifftn(torch.fft.fftshift(fft_input*F_map, dim=(-1, -2, -3)),dim=(-1, -2, -3))
+    fft_input = torch.fft.fftshift(torch.fft.fftn(input_map, dim=(-1, -2, -3)),dim=(-1, -2, -3))
+    # mw_shift = torch.fft.fftshift(F_map, dim=(-1, -2, -3))
+    out = torch.fft.ifftn(torch.fft.fftshift(fft_input*F_map, dim=(-1, -2, -3)),dim=(-1, -2, -3))
     out =  torch.real(out)
     return out
 def process_batch(batch):
     if len(batch) == 7:
+    if len(batch) == 7:
         return [b.cuda() for b in batch]
+    return batch[0].cuda(), batch[1].cuda(), None, None, None, None, None
     return batch[0].cuda(), batch[1].cuda(), None, None, None, None, None
 
 def ddp_train(rank, world_size, port_number, model, train_dataset, training_params):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = port_number
-    
     batch_size_gpu = training_params['batch_size'] // (training_params['acc_batches'] * world_size)
        
     n_workers = max(training_params["ncpus"] // world_size, 1)
@@ -143,8 +148,18 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             average_loss = torch.tensor(0, dtype=torch.float).to(rank)
             average_inside_loss = torch.tensor(0, dtype=torch.float).to(rank)
             average_outside_loss = torch.tensor(0, dtype=torch.float).to(rank)
+            average_inside_loss = torch.tensor(0, dtype=torch.float).to(rank)
+            average_outside_loss = torch.tensor(0, dtype=torch.float).to(rank)
 
             for i_batch, batch in enumerate(train_loader):  
+                x1, x2, gt, mw, ctf, wiener, noise_vol = process_batch(batch)
+
+                if training_params['CTF_mode'] in  ["phase_only", 'wiener','network']:
+                    if not training_params["phaseflipped"]:
+                        ctf = torch.abs(ctf)
+                        wiener = torch.abs(wiener) 
+                    else:
+                        if training_params['do_phaseflip_input']:
                 x1, x2, gt, mw, ctf, wiener, noise_vol = process_batch(batch)
 
                 if training_params['CTF_mode'] in  ["phase_only", 'wiener','network']:
@@ -456,11 +471,14 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):        
                     loss_str = (
                         f"Loss: {loss.item():6.6f}"
+                        f"Loss: {loss.item():6.6f}"
                     )
                     progress_bar.set_postfix_str(loss_str)
                     progress_bar.update()
 
                 average_loss += loss.item()
+                average_inside_loss += inside_loss.item()
+                average_outside_loss += outside_loss.item()
                 average_inside_loss += inside_loss.item()
                 average_outside_loss += outside_loss.item()
                 
@@ -517,6 +535,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             torch.save({
                     'method':training_params['method'],
                     'CTF_mode': training_params['CTF_mode'],
+                    'do_phaseflip_input': training_params['do_phaseflip_input'],
                     'arch':training_params['arch'],
                     'model_state_dict': model_params,
                     'metrics': training_params["metrics"],
@@ -558,9 +577,9 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
                 F_m = torch.from_numpy(F_mask[np.newaxis,np.newaxis,:,:,:]).to(rank)
                 batch_input = apply_F_filter_torch(batch_input, F_m)
             batch_output = model(batch_input).cpu()  # Move output to CPU immediately
-            # if rank == 0:
-            #     write_mrc('testIN.mrc', batch_input[0][0].cpu().numpy().astype(np.float32))
-            #     write_mrc('testOUT.mrc', batch_output[0][0].numpy().astype(np.float32))
+            if rank == 0:
+                write_mrc('testIN.mrc', batch_input[0][0].cpu().numpy().astype(np.float32))
+                write_mrc('testOUT.mrc', batch_output[0][0].numpy().astype(np.float32))
             outputs.append(batch_output)
 
     output = torch.cat(outputs, dim=0).cpu().numpy().astype(np.float32)

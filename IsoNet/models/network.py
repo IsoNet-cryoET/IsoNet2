@@ -120,6 +120,7 @@ class Net:
         checkpoint = torch.load(path, weights_only=False)
         self.method = checkpoint['method']
         self.arch = checkpoint['arch']
+        self.do_phaseflip_input = checkpoint['do_phaseflip_input'] if 'do_phaseflip_input' in checkpoint else True
         self.cube_size = checkpoint['cube_size']
         self.CTF_mode = checkpoint['CTF_mode'] if 'CTF_mode' in checkpoint else None
         self.initialize(self.method, self.arch, self.cube_size)
@@ -147,15 +148,7 @@ class Net:
         model_scripted = torch.jit.script(self.model) # Export to TorchScript
         model_scripted.save(path) # Save
 
-
-    def train(self, training_params):
-
-        self.model.zero_grad()
-        training_params['metrics'] = self.metrics
-
-        #### preparing data
-        # from chatGPT: The DistributedSampler shuffles the indices of the entire dataset, not just the portion assigned to a specific GPU. 
-        
+    def prepare_train_dataset(self, training_params):    
         if training_params['CTF_mode'] != 'network':
             clip_first_peak_mode = 0
         else:
@@ -163,7 +156,7 @@ class Net:
 
         if training_params['method'] == 'regular':
             from IsoNet.models.data_sequence import Train_sets_regular
-            train_dataset = Train_sets_regular(training_params['data_path'])
+            self.train_dataset = Train_sets_regular(training_params['data_path'])
 
         elif training_params['method'] in ['n2n', 'isonet2', 'isonet2-n2n']:
             if training_params["noise_level"] > 0:
@@ -176,12 +169,18 @@ class Net:
                                         cube_size=training_params['cube_size'], input_column=training_params['input_column'],\
                                         split=training_params['split'], noise_dir=noise_dir, clip_first_peak_mode=clip_first_peak_mode,\
                                         start_bt_size=training_params["start_bt_size"], bfactor=training_params["bfactor"])
-            # train_dataset = MRCDataset('sphere','GT')
+
+
+    def train(self, training_params):
+        training_params['metrics'] = self.metrics   
+
+        self.model.zero_grad()
+
         try:
             if self.world_size > 1:
-                mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, train_dataset, training_params), nprocs=self.world_size)
+                mp.spawn(ddp_train, args=(self.world_size, self.port_number, self.model, self.train_dataset, training_params), nprocs=self.world_size)
             else:
-                ddp_train(0, self.world_size, self.port_number, self.model, train_dataset, training_params)
+                ddp_train(0, self.world_size, self.port_number, self.model, self.train_dataset, training_params)
 
         except KeyboardInterrupt:
            logging.info('KeyboardInterrupt: Terminating all processes...')

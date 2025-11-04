@@ -125,7 +125,7 @@ class Train_sets_n2n(Dataset):
                 self.n_samples_per_tomo.append(len(coords))
             self.coords.append(coords)
 
-            min_angle, max_angle, tilt_step = row['rlnTiltMin'], row['rlnTiltMax'], row['rlnTiltStep']
+            min_angle, max_angle, tilt_step = row['rlnTiltMin'], row['rlnTiltMax'], 3
             if not self.correct_between_tilts:
                 tilt_step = None
             if tilt_step not in ["None", None]:

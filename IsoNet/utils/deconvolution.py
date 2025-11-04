@@ -178,17 +178,17 @@ class Chunks:
         return new[0:self._sp[0],0:self._sp[1],0:self._sp[2]]
 
 
-def deconv_one(tomo, out_tomo, voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.0,snrfalloff=1.0, deconvstrength=1.0,highpassnyquist=0.02,chunk_size=200,overlap_rate = 0.25,ncpu=4, phaseflipped=False):
+def deconv_one(tomo,  out_tomo, output_dir='.', voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.0,snrfalloff=1.0, deconvstrength=1.0,highpassnyquist=0.02,chunk_size=200,overlap_rate = 0.25,ncpu=4, phaseflipped=False):
     import mrcfile
     from multiprocessing import Pool
     from functools import partial
     from IsoNet.utils.deconvolution import tom_deconv_tomo,Chunks
     import shutil
-    # import time
-    # t1 = time.time()
-    if os.path.isdir('./deconv_temp'):
-        shutil.rmtree('./deconv_temp')
-    os.mkdir('./deconv_temp')
+    import time
+    t1 = time.time()
+    if os.path.isdir(f"{output_dir}/deconv_temp"):
+        shutil.rmtree(f"{output_dir}/deconv_temp")
+    os.mkdir(f"{output_dir}/deconv_temp")
 
 
     # root_name = os.path.splitext(os.path.basename(tomo))[0]
@@ -217,9 +217,9 @@ def deconv_one(tomo, out_tomo, voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.
             #print(mrc.header)
             mrc.header.origin = header_input.origin
             mrc.header.nversion=header_input.nversion
-    shutil.rmtree('./deconv_temp')
-    # t2 = time.time()
-    # logging.info('time consumed: {:10.4f} s'.format(t2-t1))
+    shutil.rmtree(f"{output_dir}/deconv_temp")
+    t2 = time.time()
+    logging.info('time consumed: {:10.4f} s'.format(t2-t1))
 
 
 
