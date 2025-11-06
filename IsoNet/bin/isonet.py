@@ -560,12 +560,12 @@ class ISONET:
         mixed_precision: use mixed precision to reduce VRAM and increase speed
         loss_func: L2, Huber
         '''
-        compile_model=False,
-        move_norm=False,
+        compile_model=False
+        move_norm=False
         # there is some questions about this parameter, relate to the placement of the zerograd
         acc_batches=1
-        correct_between_tilts: bool=False,
-        start_bt_size: int=128,
+        correct_between_tilts: bool=False
+        start_bt_size: int=128
 
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
