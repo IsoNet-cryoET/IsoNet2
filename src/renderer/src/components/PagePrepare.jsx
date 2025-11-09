@@ -1,44 +1,40 @@
 import React, { useState, useEffect } from 'react'
 import { renderContent } from '../utils/log_handler'
-import { Box, TextField, Button } from '@mui/material'
+import { Box, TextField, Button, CircularProgress } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import DataTable from './DataTable'
-import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 
 const PagePrepare = (props) => {
     const [JsonData, setJsonData] = useState('')
+    const [loading, setLoading] = useState(false)
 
     useEffect(() => {
         const handleJsonUpdate = (data) => {
             setJsonData(data.output) // Update the table data
+            setLoading(false);
         }
         window.api.onJson(handleJsonUpdate)
     }, [])
 
     useEffect(() => {
-        if (!props.starName) return
-        api.run({
-            id: -1,
-            type: 'star2json',
-            star_file: props.starName,
-            json_file: '.to_node.json',
-            status: 'completed'
-            //command_line: 'isonet.py star2json ' + props.starName + ' .to_node.json',
-        })
-    }, [props.starName])
+        if (!props.starName) return;
+        const runStar2Json = async () => {
+            setLoading(true);
+            await api.run({
+                id: -1,
+                type: 'star2json',
+                star_file: props.starName,
+                json_file: '.to_node.json',
+                status: 'completed',
+            });
+        };
+        runStar2Json();
+        }, [props.starName]);
 
     const handleFileSelect = async (property) => {
         try {
             const filePath = await api.selectFile(property)
             props.setStarName(filePath) // Update the state
-            api.run({
-                id: -1,
-                type: 'star2json',
-                star_file: props.starName,
-                json_file: '.to_node.json',
-                status: 'completed'
-                //command_line: 'isonet.py star2json ' + props.starName + ' .to_node.json',
-            })
         } catch (error) {
             console.error('Error selecting file:', error)
         }
@@ -65,23 +61,35 @@ const PagePrepare = (props) => {
                     disabled
                     sx={{ height: '56px' }} // Set the TextField's height to match the button
                 />
-                {/* <Button
-                    variant="outlined"
-                    color="primary"
-                    startIcon={<CleaningServicesIcon />}
-                    onClick={() => handleClear()}
-                    sx={{ height: '56px' }} // Ensure the button has a height
-                >
-                    clear screen
-                </Button> */}
             </Box>
-            <DataTable jsonData={JsonData} star_name={props.starName} />
-
+            <Box position="relative" minHeight={200}>
+                {loading && (
+                <Box
+                    sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundColor: 'rgba(255,255,255,0.6)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                    }}
+                >
+                    <CircularProgress color="primary" />
+                    <Box sx={{ mt: 2, fontWeight: 500, color: 'text.secondary' }}>
+                    Loading data...
+                    </Box>
+                </Box>
+                )}
+                <DataTable jsonData={JsonData} star_name={props.starName} />
+            </Box>
             <div className='page-prepare-logs-container'>
                 {renderContent(props.messages, props?.selectedJob?.id)}
             </div>
         </div>
     )
 }
+
 
 export default PagePrepare

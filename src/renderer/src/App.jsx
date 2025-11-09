@@ -147,6 +147,11 @@ const App = () => {
     }, []) // <-- empty deps: attach once
 
     useEffect(() => {
+        if(primaryMenuMapping[selectedPrimaryMenu].page !== PageCommon) return
+        window.jobList.get().then((list) => {
+            const first = list.find(o => o.type === selectedPrimaryMenu)
+            setSelectedJob(first)
+        })
         const interval = setInterval(() => {
             window.jobList.get().then((list) => {
                 setJobs(() => list)
@@ -155,17 +160,17 @@ const App = () => {
         return () => {
             clearInterval(interval)
         }
-    }, [])
+    }, [selectedPrimaryMenu])
 
     useEffect(() => {
         if (!selectedJob) return
         if (selectedJob.status === 'inqueue') return
-        const output_dir = `${selectedJob.type}/job${selectedJob.id}_${String(selectedJob.name).replace(/\s+/g, '_')}`
-
-        const logPath = `${output_dir}/log.txt`
+        
+        const logPath = `${selectedJob.output_dir}/log.txt`
         let alive = true
 
         const interval = setInterval(() => {
+            console.log("interval get logs")
             window.api.readFile(logPath).then((fileContent) => {
                 if (!alive) return
                 if (!fileContent) {
@@ -191,51 +196,6 @@ const App = () => {
             clearInterval(interval)
         }
     }, [selectedJob, jobs])
-
-    useEffect(() => {
-        if (selectedPrimaryMenu !== 'prepare_star') {
-            setMessages([])
-            return
-        }
-
-        const logPath = 'prepare_log.txt'
-        let alive = true
-
-        const interval = setInterval(async () => {
-            if (!alive) return
-
-            // ✅ First, check whether the file exists
-            const exists = await window.api.exists(logPath)
-            if (!exists) {
-                // If it doesn't exist, clear messages and skip the rest
-                setMessages([])
-                return
-            }
-
-            // ✅ Only run the rest if the file does exist
-            const fileContent = await window.api.readFile(logPath)
-            if (!alive || !fileContent) {
-                setMessages([])
-                return
-            }
-
-            const lines = fileContent.split(/\r?\n|\r/g).filter(Boolean)
-            const tmp = []
-            for (const line of lines) {
-                const msg = { cmd: 'prepare_star', output: line }
-                const processed = processMessage(msg)
-                const merged = mergeMsg(tmp, processed)
-                tmp.length = 0
-                tmp.push(...merged)
-            }
-            setMessages(tmp)
-        }, 300)
-
-        return () => {
-            alive = false
-            clearInterval(interval)
-        }
-    }, [selectedPrimaryMenu])
 
     useEffect(() => {
         const off = window.appClose?.onRequest?.(() => setConfirmOpen(true))
@@ -286,29 +246,69 @@ const App = () => {
         await window.appClose.reply(false)
     }
 
+    const intervalRef = useRef(null)
     const handleSubmit = useCallback(async (type, data) => {
         try {
-            const id = await window.count.next()
-            if (data.type !== 'prepare_star') {
-                data.output_dir = `${data.type}/job${id}_${String(data.name).replace(/\s+/g, '_')}`
-            }
-            const payload = {
-                ...data,
-                id
-            }
-            // setJobs((prev) => {prev, payload})
-            await window.jobList.add(payload)
-            window.api.run(payload)
-
-            if (type === 'prepare_star' && data?.star_name) {
-                setStarName(data.star_name)
+            const id = await window.count.next();
+            // avoid mutating incoming data
+            const withOutputDir =
+            type !== "prepare_star"
+                ? { ...data, output_dir: `${type}/job${id}` }
+                : { ...data };
+            const payload = { ...withOutputDir, id };
+            await window.jobList.add(payload);
+            window.api.run(payload);
+            if (type === "prepare_star" && withOutputDir?.star_name) {
+                setStarName(withOutputDir.star_name);
+                // clear any previous polling interval
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                }
+                const logPath = "prepare_log.txt";
+                intervalRef.current = setInterval(async () => {
+                    // 1) check existence first
+                    const exists = await window.api.exists(logPath);
+                    if (!exists) {
+                    setMessages([]);
+                    return;
+                    }
+            
+                    // 2) read content
+                    const fileContent = await window.api.readFile(logPath);
+                    if (!fileContent) {
+                    setMessages([]);
+                    return;
+                    }
+            
+                    // 3) process lines
+                    const lines = fileContent.split(/\r?\n|\r/g).filter(Boolean);
+                    const tmp = [];
+            
+                    for (const line of lines) {
+                    const msg = { cmd: "prepare_star", output: line };
+                    const processed = processMessage(msg);
+                    const merged = mergeMsg(tmp, processed);
+                    tmp.length = 0;
+                    tmp.push(...merged);
+            
+                    // stop condition
+                    if (line.toLowerCase().includes("exit")) {
+                        clearInterval(intervalRef.current);
+                        intervalRef.current = null;
+                        break;
+                    }
+                    }
+            
+                    setMessages(tmp);
+                }, 300);
             }
         } catch (error) {
-            console.error(`Error submitting ${type} form:`, error)
+            console.error(`Error submitting ${type} form:`, error);
         } finally {
-            setSelectedDrawer('')
+            setSelectedDrawer("");
         }
-    }, [])
+        }, [mergeMsg, processMessage, setSelectedDrawer, setStarName]);
 
     const DrawerComponent = primaryMenuMapping[selectedPrimaryMenu]?.drawer
     const PageComponent = primaryMenuMapping[selectedPrimaryMenu]?.page
@@ -333,25 +333,6 @@ const App = () => {
     `
     return (
         <ThemeProvider theme={theme}>
-            {/* <Box
-                sx={{
-                    width: '100%',
-                    color: 'white',
-                    textAlign: 'center',
-                    py: 1,
-                    fontWeight: 'bold',
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    fontFamily: 'sans-serif',
-                    backgroundColor: '#96B8E7',
-                    height: 16,
-                    zIndex: (theme) => theme.zIndex.drawer + 3
-                }}
-            >
-                🚀 IsoNet 2 — Experimental Build
-            </Box>
-            <Box sx={{ mt: 4 }}> */}
             {blocking && (
                 <Backdrop
                     open={blocking}
@@ -385,8 +366,6 @@ const App = () => {
                 </DialogActions>
             </Dialog>
             <div className="outer-container">
-                {/* customerized top bar -- delete temperally */}
-                {/* <div className="top-bar">IsoNet 2</div> */}
                 <div className="main-content">
                     <div className="primary-menu">
                         <List>
@@ -417,7 +396,7 @@ const App = () => {
 
                     {['denoise', 'deconv', 'make_mask', 'refine', 'predict'].includes(
                         selectedPrimaryMenu
-                    ) && (
+                    ) && visibleJobs.length > 0 && (
                         <Box
                             className="secondary-menu"
                             sx={{

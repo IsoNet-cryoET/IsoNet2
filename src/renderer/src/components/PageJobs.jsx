@@ -66,6 +66,7 @@ const PageJobs = ({ setBlocking }) => {
                             <TableRow>
                                 <TableCell>id</TableCell>
                                 <TableCell>status</TableCell>
+                                <TableCell>name</TableCell>
                                 <TableCell>command</TableCell>
                                 <TableCell>PID</TableCell>
                                 <TableCell>actions</TableCell>
@@ -77,6 +78,7 @@ const PageJobs = ({ setBlocking }) => {
                                     <TableRow key={index}>
                                         <TableCell>{job.id || 'N/A'}</TableCell>
                                         <TableCell>{job.status}</TableCell>
+                                        <TableCell>{job.name}</TableCell>
                                         <TableCell>{job.command_line}</TableCell>
                                         <TableCell>{job.pid || 'N/A'}</TableCell>
                                         <TableCell>
@@ -112,6 +114,7 @@ const PageJobs = ({ setBlocking }) => {
                             <TableRow>
                                 <TableCell>id</TableCell>
                                 <TableCell>status</TableCell>
+                                <TableCell>name</TableCell>
                                 <TableCell>command</TableCell>
                                 <TableCell>PID</TableCell>
                                 <TableCell>actions</TableCell>
@@ -123,6 +126,7 @@ const PageJobs = ({ setBlocking }) => {
                                     <TableRow key={index}>
                                         <TableCell>{job.id || 'N/A'}</TableCell>
                                         <TableCell>{job.status}</TableCell>
+                                        <TableCell>{job.name}</TableCell>
                                         <TableCell>{job.command_line}</TableCell>
                                         <TableCell>{job.pid || 'N/A'}</TableCell>
                                         <TableCell>

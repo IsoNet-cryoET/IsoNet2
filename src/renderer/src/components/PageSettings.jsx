@@ -11,6 +11,8 @@ import {
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 
 const PageSettings = () => {
+
+  console.log("render setting page")
   const [condaEnv, setCondaEnv] = useState('');
   const [isoNetPath, setIsoNetPath] = useState('');
   const [envOptions, setEnvOptions] = useState([]); // [{name, path, active}]
@@ -20,6 +22,7 @@ const PageSettings = () => {
 
   // Load saved values + available envs once
   useEffect(() => {
+    console.log("setting page first useEffect")
     const run = async () => {
       try {
         const [savedEnv, savedIsoNetPath, envListResp] = await Promise.all([

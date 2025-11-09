@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { renderContent } from '../utils/log_handler'
 import { Box, Button, Snackbar, TextField } from '@mui/material'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
+import Nodata from './Nodata'
 
 const PageCommon = (props) => {
     const job = props?.selectedJob
@@ -32,9 +33,14 @@ const PageCommon = (props) => {
         }
     }
 
+    if(!job) {
+        return (
+            <Nodata message="Nothing here yet" sub="Create a new job from the left menu to get started" />
+        )
+    }
     return (
         <div>
-            <Box display="flex" alignItems="center" gap={2} marginY={2}>
+            <Box display="flex" alignItems="center" gap={2} marginY={2} sx={{ flexGrow: 1, height: "100%" }}>
                 {job?.status === 'completed' && (
                     <Button
                         variant="outlined"
@@ -74,7 +80,6 @@ const PageCommon = (props) => {
                             }
                         })()
                     }}
-                    disabled={!job?.id || job?.status === 'running'}
                     fullWidth
                     sx={{ height: '56px' }}
                     helperText={isSaving ? 'Saving…' : ' '}

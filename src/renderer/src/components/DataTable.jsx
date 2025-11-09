@@ -145,6 +145,7 @@ const DataTable = ({ jsonData, star_name }) => {
                                 >
                                     <Box display="flex" alignItems="center" gap={1}>
                                         <TextField
+                                            variant="outlined"
                                             value={row[col]}
                                             onChange={(e) =>
                                                 handleCellChange(rowIndex, col, e.target.value)
@@ -181,7 +182,6 @@ const DataTable = ({ jsonData, star_name }) => {
                                                     originalValue: null
                                                 })
                                             }}
-                                            variant="outlined"
                                             size="small"
                                             inputProps={{
                                                 title: row[col],

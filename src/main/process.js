@@ -79,13 +79,14 @@ ipcMain.handle('get-jobs-list', () => {
 // Function to process the inQueue list
 function handleProcess(event, data) {
     const cmd = toCommand(data, data.id)
-    if (data.type !== 'prepare_star' && data.type !== 'star2json') {
-        data.output_dir = data.type + '/job' + data.id + '_' + data.name
-    }
+    // if (data.type !== 'prepare_star' && data.type !== 'star2json') {
+    //     data.output_dir = data.type + '/job' + data.id + '_' + data.name
+    // }
     if (data.status == 'inqueue') {
         inQueueList.push({
             id: data.id,
             type: data.type,
+            name:data.name,
             command_line: cmd,
             output_dir: data.output_dir,
             event,
@@ -96,6 +97,7 @@ function handleProcess(event, data) {
         notInQueueList.push({
             id: data.id,
             type: data.type,
+            name:data.name,
             command_line: cmd,
             output_dir: data.output_dir,
             event,
