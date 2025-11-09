@@ -1,1 +1,4 @@
-
+The output_dir/log.txt during the software running used the job name as folder name, this cause txt not found when changing the job name during job running
+job viewer show job name
+fix the plot metric showimage bug
+predict all in the last iteration
