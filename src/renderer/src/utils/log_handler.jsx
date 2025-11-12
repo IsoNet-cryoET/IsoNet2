@@ -79,7 +79,7 @@ const ImageFromPath = ({ label, relativePath, imgStyle, ...imgProps }) => {
     const [imgData, setImgData] = useState(null)
     useEffect(() => {
         let mounted = true
-        window.api.getImageData(relativePath).then((res) => {
+        window.api.call('getImageData', relativePath).then((res) => {
             if (!mounted) return
             if (res.success) setImgData(res.content)
             else console.error(`Error loading image ${relativePath}: ${res.error}`)
@@ -130,7 +130,7 @@ export const renderContent = (messageList, id, themeMode = 'light') => {
     if (!messageList) return null
     const styles = lineStyleByLevel(themeMode)
     const handleView = (file) => {
-        api.view(file)
+        window.api.call('view', file)
     }
     let traceState = 'none' // 跨消息状态：'none' | 'trace'
 

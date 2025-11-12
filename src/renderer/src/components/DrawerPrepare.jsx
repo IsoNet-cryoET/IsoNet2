@@ -58,7 +58,7 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
     // }
 
     const handleFileSelect = async (field, property) => {
-        let folderPath = await api.selectFile(property)
+        let folderPath = await window.api.call('selectFile', property)
         setFormData((prevState) => ({
             ...prevState,
             [field]: folderPath

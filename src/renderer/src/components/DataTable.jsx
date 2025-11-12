@@ -57,7 +57,7 @@ const DataTable = ({ jsonData, star_name }) => {
 
     const handleOpen = async (rowIndex, columnName) => {
         try {
-            const filePath = await api.selectFile('openFile')
+            const filePath = await window.api.call('selectFile', 'openFile')
             if (filePath) {
                 handleCellChange(rowIndex, columnName, filePath)
             }
@@ -67,7 +67,7 @@ const DataTable = ({ jsonData, star_name }) => {
     }
 
     const handleView = (file) => {
-        api.view(file)
+        window.api.call('view', file)
     }
 
     const convertToJson = () => {
@@ -81,7 +81,7 @@ const DataTable = ({ jsonData, star_name }) => {
                 convertedJson[col][rowIndex] = row[col]
             })
         })
-        api.updateStar({ convertedJson, star_name })
+        window.api.call('updateStar', { convertedJson, star_name })
     }
     const measureTextWidth = (text, font = 'inherit') => {
         const canvas = document.createElement('canvas')
@@ -103,7 +103,7 @@ const DataTable = ({ jsonData, star_name }) => {
         }
     }
     return (
-        <TableContainer component={Paper}  style={{ maxHeight: 500 }}>
+        <TableContainer component={Paper} style={{ maxHeight: 500 }}>
             <Table stickyHeader>
                 <TableHead>
                     <TableRow>

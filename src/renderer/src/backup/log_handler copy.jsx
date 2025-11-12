@@ -5,7 +5,7 @@ const ImageFromPath = ({ label, relativePath }) => {
     const [imgData, setImgData] = useState(null)
 
     useEffect(() => {
-        window.api.getImageData(relativePath).then((res) => {
+        window.api.call('getImageData', relativePath).then((res) => {
             if (res.success) setImgData(res.content)
             else console.error(`Error loading image ${relativePath}: ${res.error}`)
         })
@@ -92,7 +92,7 @@ export const renderContent = (messageList) => {
         } else if (msg.type === 'text') {
             return (
                 <div style={{ marginBottom: '10px' }}>
-                    <p style={{fontFamily: 'monospace'}}>{msg.output}</p>
+                    <p style={{ fontFamily: 'monospace' }}>{msg.output}</p>
                 </div>
             )
         }

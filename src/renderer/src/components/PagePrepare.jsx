@@ -13,14 +13,14 @@ const PagePrepare = (props) => {
             setJsonData(data.output) // Update the table data
             setLoading(false);
         }
-        window.api.onJson(handleJsonUpdate)
+        window.api.on('json-star', handleJsonUpdate)
     }, [])
 
     useEffect(() => {
         if (!props.starName) return;
         const runStar2Json = async () => {
             setLoading(true);
-            await api.run({
+            await window.api.call('run', {
                 id: -1,
                 type: 'star2json',
                 star_file: props.starName,
@@ -29,11 +29,11 @@ const PagePrepare = (props) => {
             });
         };
         runStar2Json();
-        }, [props.starName]);
+    }, [props.starName]);
 
     const handleFileSelect = async (property) => {
         try {
-            const filePath = await api.selectFile(property)
+            const filePath = await window.api.call('selectFile', property)
             props.setStarName(filePath) // Update the state
         } catch (error) {
             console.error('Error selecting file:', error)
@@ -64,23 +64,23 @@ const PagePrepare = (props) => {
             </Box>
             <Box position="relative" minHeight={200}>
                 {loading && (
-                <Box
-                    sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    backgroundColor: 'rgba(255,255,255,0.6)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 10,
-                    }}
-                >
-                    <CircularProgress color="primary" />
-                    <Box sx={{ mt: 2, fontWeight: 500, color: 'text.secondary' }}>
-                    Loading data...
+                    <Box
+                        sx={{
+                            position: 'absolute',
+                            inset: 0,
+                            backgroundColor: 'rgba(255,255,255,0.6)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 10,
+                        }}
+                    >
+                        <CircularProgress color="primary" />
+                        <Box sx={{ mt: 2, fontWeight: 500, color: 'text.secondary' }}>
+                            Loading data...
+                        </Box>
                     </Box>
-                </Box>
                 )}
                 <DataTable jsonData={JsonData} star_name={props.starName} />
             </Box>

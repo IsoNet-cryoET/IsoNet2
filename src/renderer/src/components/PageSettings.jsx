@@ -17,8 +17,7 @@ const PageSettings = () => {
   const [isoNetPath, setIsoNetPath] = useState('');
   const [envOptions, setEnvOptions] = useState([]); // [{name, path, active}]
 
-  const envApi = typeof window !== 'undefined' ? window.environment : undefined;
-  const appApi = typeof window !== 'undefined' ? window.api : undefined;
+  // const appApi = typeof window !== 'undefined' ? window.api : undefined;
 
   // Load saved values + available envs once
   useEffect(() => {
@@ -26,9 +25,9 @@ const PageSettings = () => {
     const run = async () => {
       try {
         const [savedEnv, savedIsoNetPath, envListResp] = await Promise.all([
-          envApi?.getCondaEnv?.(),
-          envApi?.getIsoNetPath?.(),
-          envApi?.getAvailableCondaEnv?.(),
+          window.api.call('getCondaEnv'),
+          window.api.call('getIsoNetPath'),
+          window.api.call('getAvailableCondaEnv'),
         ]);
 
         if (typeof savedEnv === 'string') setCondaEnv(savedEnv);
@@ -52,7 +51,7 @@ const PageSettings = () => {
   const handleCondaChange = async (value) => {
     setCondaEnv(value);
     try {
-      await envApi?.setCondaEnv?.(value); // value can be '' for None
+      await window.api.call('setCondaEnv', value); // value can be '' for None
     } catch (e) {
       console.error('setCondaEnv failed:', e);
     }
@@ -62,7 +61,7 @@ const PageSettings = () => {
 
   const handleIsoNetPathBlur = async (v) => {
     try {
-      await envApi?.setIsoNetPath?.(v);
+      await window.api.call('setIsoNetPath', v);
     } catch (e) {
       console.error('setIsoNetPath failed:', e);
     }
@@ -70,10 +69,10 @@ const PageSettings = () => {
 
   const handleFileSelect = async (property) => {
     try {
-      const filePath = await appApi?.selectFile?.(property);
+      const filePath = await window.api.call('selectFile', property);
       if (!filePath) return; // canceled
       setIsoNetPath(filePath);
-      await envApi?.setIsoNetPath?.(filePath);
+      await window.api.call('setIsoNetPath', filePath);
     } catch (error) {
       console.error('Error selecting file:', error);
     }

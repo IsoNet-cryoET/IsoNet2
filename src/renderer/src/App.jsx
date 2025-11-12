@@ -132,28 +132,29 @@ const App = () => {
         [jobs, selectedPrimaryMenu]
     )
 
+    // todo : delete or not
     useEffect(() => {
-        const off = window.api.onPythonUpdateStatus(({ id, status, pid }) => {
-            if (id > 0){
-            window.jobList.updateStatus({ id, status })
-            window.jobList.updatePID({ id, pid })
+        const off = window.api.on('python-status-change', ({ id, status, pid }) => {
+            if (id > 0) {
+                window.api.call('updateJobStatus', id, status)
+                window.api.call('updateJobPID', id, pid)
             }
         })
         return () => {
             try {
                 off?.()
-            } catch {}
+            } catch { }
         }
     }, []) // <-- empty deps: attach once
 
     useEffect(() => {
-        if(primaryMenuMapping[selectedPrimaryMenu].page !== PageCommon) return
-        window.jobList.get().then((list) => {
+        if (primaryMenuMapping[selectedPrimaryMenu].page !== PageCommon) return
+        window.api.call('getJobList').then((list) => {
             const first = list.find(o => o.type === selectedPrimaryMenu)
             setSelectedJob(first)
         })
         const interval = setInterval(() => {
-            window.jobList.get().then((list) => {
+            window.api.call('getJobList').then((list) => {
                 setJobs(() => list)
             })
         }, 500)
@@ -165,13 +166,13 @@ const App = () => {
     useEffect(() => {
         if (!selectedJob) return
         if (selectedJob.status === 'inqueue') return
-        
+
         const logPath = `${selectedJob.output_dir}/log.txt`
         let alive = true
 
         const interval = setInterval(() => {
             console.log("interval get logs")
-            window.api.readFile(logPath).then((fileContent) => {
+            window.api.call('readFile', logPath).then((fileContent) => {
                 if (!alive) return
                 if (!fileContent) {
                     setMessages([])
@@ -198,12 +199,8 @@ const App = () => {
     }, [selectedJob, jobs])
 
     useEffect(() => {
-        const off = window.appClose?.onRequest?.(() => setConfirmOpen(true))
-        return () => {
-            try {
-                off?.()
-            } catch {}
-        }
+        const off = window.api.on('app-close-request', () => setConfirmOpen(true))
+        return () => off?.()
     }, [])
 
     const withBlocking = async (fn) => {
@@ -221,43 +218,43 @@ const App = () => {
         withBlocking(async () => {
             setConfirmOpen(false)
 
-            const all_jobs = await window.jobList.get()
+            const all_jobs = await window.api.call('getJobList')
 
             const running = all_jobs.filter((j) => j.status === 'running')
 
             await Promise.allSettled(
                 running.map((j) => {
-                    api.killJob(j.pid)
-                    window.jobList.updateStatus({ id: j.id, status: 'completed' })
+                    window.api.call('killJob', j.pid)
+                    window.api.call('updateJobStatus', j.id, 'completed')
                 })
             )
 
             const queued = all_jobs.filter((j) => j.status === 'inqueue')
             await Promise.allSettled(
-                queued.map((j) => window.jobList.updateStatus({ id: j.id, status: 'completed' }))
+                queued.map((j) => window.api.call('updateJobStatus', j.id, 'completed'))
             )
 
             // 4) Tell main we’re safe to close
-            await window.appClose.reply(true)
+            await window.api.call('appClose', true)
         })
 
     const cancelClose = async () => {
         setConfirmOpen(false)
-        await window.appClose.reply(false)
+        await window.api.call('appClose', false)
     }
 
     const intervalRef = useRef(null)
     const handleSubmit = useCallback(async (type, data) => {
         try {
-            const id = await window.count.next();
+            const id = await window.api.call('nextId');
             // avoid mutating incoming data
             const withOutputDir =
-            type !== "prepare_star"
-                ? { ...data, output_dir: `${type}/job${id}` }
-                : { ...data };
+                type !== "prepare_star"
+                    ? { ...data, output_dir: `${type}/job${id}` }
+                    : { ...data };
             const payload = { ...withOutputDir, id };
-            await window.jobList.add(payload);
-            window.api.run(payload);
+            await window.api.call('addJob', payload);
+            window.api.call('run', payload);
             if (type === "prepare_star" && withOutputDir?.star_name) {
                 setStarName(withOutputDir.star_name);
                 // clear any previous polling interval
@@ -268,38 +265,38 @@ const App = () => {
                 const logPath = "prepare_log.txt";
                 intervalRef.current = setInterval(async () => {
                     // 1) check existence first
-                    const exists = await window.api.exists(logPath);
+                    const exists = await window.api.call('isFileExist', logPath);
                     if (!exists) {
-                    setMessages([]);
-                    return;
+                        setMessages([]);
+                        return;
                     }
-            
+
                     // 2) read content
-                    const fileContent = await window.api.readFile(logPath);
+                    const fileContent = await window.api.call('readFile', logPath);
                     if (!fileContent) {
-                    setMessages([]);
-                    return;
+                        setMessages([]);
+                        return;
                     }
-            
+
                     // 3) process lines
                     const lines = fileContent.split(/\r?\n|\r/g).filter(Boolean);
                     const tmp = [];
-            
+
                     for (const line of lines) {
-                    const msg = { cmd: "prepare_star", output: line };
-                    const processed = processMessage(msg);
-                    const merged = mergeMsg(tmp, processed);
-                    tmp.length = 0;
-                    tmp.push(...merged);
-            
-                    // stop condition
-                    if (line.toLowerCase().includes("exit")) {
-                        clearInterval(intervalRef.current);
-                        intervalRef.current = null;
-                        break;
+                        const msg = { cmd: "prepare_star", output: line };
+                        const processed = processMessage(msg);
+                        const merged = mergeMsg(tmp, processed);
+                        tmp.length = 0;
+                        tmp.push(...merged);
+
+                        // stop condition
+                        if (line.toLowerCase().includes("exit")) {
+                            clearInterval(intervalRef.current);
+                            intervalRef.current = null;
+                            break;
+                        }
                     }
-                    }
-            
+
                     setMessages(tmp);
                 }, 300);
             }
@@ -308,7 +305,7 @@ const App = () => {
         } finally {
             setSelectedDrawer("");
         }
-        }, [mergeMsg, processMessage, setSelectedDrawer, setStarName]);
+    }, [mergeMsg, processMessage, setSelectedDrawer, setStarName]);
 
     const DrawerComponent = primaryMenuMapping[selectedPrimaryMenu]?.drawer
     const PageComponent = primaryMenuMapping[selectedPrimaryMenu]?.page
@@ -375,8 +372,8 @@ const App = () => {
                                         selected={selectedPrimaryMenu === key}
                                         onClick={() => togglePrimaryMenu(key)}
                                     >
-                                        {React.createElement(primaryMenuMapping[key].icon, 
-                                            { sx: { mr: 1, color: 'primary.main',fontSize:16 } })}
+                                        {React.createElement(primaryMenuMapping[key].icon,
+                                            { sx: { mr: 1, color: 'primary.main', fontSize: 16 } })}
                                         <ListItemText primary={primaryMenuMapping[key]?.label} />
                                         {primaryMenuMapping[key]?.drawer && (
                                             <IconButton
@@ -385,7 +382,7 @@ const App = () => {
                                                     setSelectedDrawer(key)
                                                 }}
                                             >
-                                                <EditIcon sx={{fontSize: 16,color: 'primary.main'}}/>
+                                                <EditIcon sx={{ fontSize: 16, color: 'primary.main' }} />
                                             </IconButton>
                                         )}
                                     </ListItemButton>
@@ -397,53 +394,53 @@ const App = () => {
                     {['denoise', 'deconv', 'make_mask', 'refine', 'predict'].includes(
                         selectedPrimaryMenu
                     ) && visibleJobs.length > 0 && (
-                        <Box
-                            className="secondary-menu"
-                            sx={{
-                                height: 'calc(100vh)',
-                                overflowY: 'auto'
-                            }}
-                        >
-                            <List>
-                                {visibleJobs.map((job) => (
-                                    <ListItem>
-                                        <ListItemButton
-                                            key={job.id}
-                                            selected={selectedJob?.id === job.id}
-                                            onClick={() => setSelectedJob(job)}
-                                            // divider
-                                            sx={{
-                                                '--ring-strong': (t) =>
-                                                    alpha(t.palette.primary.main, 0.55),
-                                                '--ring-weak': (t) =>
-                                                    alpha(t.palette.primary.main, 0.22),
-                                                ...(job.status === 'running' && {
-                                                    '&::after': {
-                                                        content: '""',
-                                                        position: 'absolute',
-                                                        inset: 0,
-                                                        borderRadius: '30px',
-                                                        pointerEvents: 'none',
-                                                        animation: `${innerGlowPulse} 1.8s ease-in-out infinite`
-                                                    },
-                                                    '@media (prefers-reduced-motion: reduce)': {
-                                                        '&::after': { animation: 'none' }
-                                                    }
-                                                })
-                                            }}
-                                        >
-                                            <Tooltip title={`job ${job.id} ${job.name}`} arrow placement='right'>
-                                                <Typography
-                                                    className="secondary-menu-text"
+                            <Box
+                                className="secondary-menu"
+                                sx={{
+                                    height: 'calc(100vh)',
+                                    overflowY: 'auto'
+                                }}
+                            >
+                                <List>
+                                    {visibleJobs.map((job) => (
+                                        <ListItem>
+                                            <ListItemButton
+                                                key={job.id}
+                                                selected={selectedJob?.id === job.id}
+                                                onClick={() => setSelectedJob(job)}
+                                                // divider
+                                                sx={{
+                                                    '--ring-strong': (t) =>
+                                                        alpha(t.palette.primary.main, 0.55),
+                                                    '--ring-weak': (t) =>
+                                                        alpha(t.palette.primary.main, 0.22),
+                                                    ...(job.status === 'running' && {
+                                                        '&::after': {
+                                                            content: '""',
+                                                            position: 'absolute',
+                                                            inset: 0,
+                                                            borderRadius: '30px',
+                                                            pointerEvents: 'none',
+                                                            animation: `${innerGlowPulse} 1.8s ease-in-out infinite`
+                                                        },
+                                                        '@media (prefers-reduced-motion: reduce)': {
+                                                            '&::after': { animation: 'none' }
+                                                        }
+                                                    })
+                                                }}
+                                            >
+                                                <Tooltip title={`job ${job.id} ${job.name}`} arrow placement='right'>
+                                                    <Typography
+                                                        className="secondary-menu-text"
                                                     // variant="body2"
-                                                >{`${job.name}`}</Typography>
-                                            </Tooltip>
-                                        </ListItemButton>
-                                    </ListItem>
-                                ))}
-                            </List>
-                        </Box>
-                    )}
+                                                    >{`${job.name}`}</Typography>
+                                                </Tooltip>
+                                            </ListItemButton>
+                                        </ListItem>
+                                    ))}
+                                </List>
+                            </Box>
+                        )}
 
                     {PageComponent && (
                         <div className="content-area">

@@ -17,7 +17,7 @@ const PageJobs = ({ setBlocking }) => {
     const [jobList, setJobList] = useState({ inQueueList: [], notInQueueList: [] })
 
     const fetchJobLists = async () => {
-        let data = await api.onFetchJobs()
+        let data = await window.api.call('jobsQueue')
         setJobList(data)
     }
 
@@ -26,21 +26,21 @@ const PageJobs = ({ setBlocking }) => {
     }, [])
 
     useEffect(() => {
-        const off = window.api.onPythonUpdateStatus(async ({ id, status, pid }) => {
-          await window.jobList.updateStatus({ id, status }).catch(() => {})
-          await window.jobList.updatePID({ id, pid }).catch(() => {})
-          await fetchJobLists()
-          setBlocking(false)
+        const off = window.api.on('python-status-change', async ({ id, status, pid }) => {
+            await window.api.call('updateJobStatus', id, status).catch(() => { })
+            await window.api.call('updateJobPID', id, pid).catch(() => { })
+            await fetchJobLists()
+            setBlocking(false)
         })
-        return () => { try { off?.() } catch {} }
-      }, [])
+        return () => { try { off?.() } catch { } }
+    }, [])
 
     const handleKillJob = (pid, id) => {
         setBlocking(true)                                  // 开遮罩
-        api.killJob(pid)
-            .then( async () => {
-            await window.jobList.updateStatus({ id, status: 'completed' })
-            await fetchJobLists()
+        window.api.call('killJob', pid)
+            .then(async () => {
+                await window.api.call('updateJobStatus', id, 'completed')
+                await fetchJobLists()
             })
             .catch(console.error)
             .finally()               // 关遮罩
@@ -48,13 +48,13 @@ const PageJobs = ({ setBlocking }) => {
 
     const handleRemoveJob = (id) => {
         setBlocking(true)                                  // 开遮罩
-        api.removeJobFromQueue(id)
-          .then( () => {
-             window.jobList.updateStatus({ id, status: 'completed' })
-             fetchJobLists()
-        }).then(() => setBlocking(false))
-          .catch(console.error)
-          .finally()               // 关遮罩
+        window.api.call('removeJobFromQueue', id)
+            .then(() => {
+                window.api.call('updateJobStatus', id, 'completed')
+                fetchJobLists()
+            }).then(() => setBlocking(false))
+            .catch(console.error)
+            .finally()               // 关遮罩
     }
     return (
         <div>

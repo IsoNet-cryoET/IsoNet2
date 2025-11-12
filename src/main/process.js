@@ -1,42 +1,39 @@
 import { spawn } from 'child_process';
-import { ipcMain } from 'electron';
 import toCommand from '../renderer/src/utils/handle_json'
 import fs from 'fs';
 import path from 'path';
 import ElectronStore from 'electron-store';
 const Store = (ElectronStore && ElectronStore.default) ? ElectronStore.default : ElectronStore;
 
-
 // same store file as main.js
 const store = new Store({ name: 'settings', cwd: process.cwd() });
 
-
 /** read + validate settings */
 function readRuntimeSettings() {
-  const condaEnv = String(store.get('condaEnv', '') || '');
-  const isoNetPath = String(store.get('IsoNetPath', '') || '');
+    const condaEnv = String(store.get('condaEnv', '') || '');
+    const isoNetPath = String(store.get('IsoNetPath', '') || '');
 
-  const isoBin = isoNetPath ? path.join(isoNetPath, 'IsoNet', 'bin') : '';
-  const isoOk = isoNetPath && fs.existsSync(isoNetPath);
-  const isoBinOk = isoBin && fs.existsSync(isoBin);
+    const isoBin = isoNetPath ? path.join(isoNetPath, 'IsoNet', 'bin') : '';
+    const isoOk = isoNetPath && fs.existsSync(isoNetPath);
+    const isoBinOk = isoBin && fs.existsSync(isoBin);
 
-  return { condaEnv, isoNetPath, isoBin, isoOk, isoBinOk };
+    return { condaEnv, isoNetPath, isoBin, isoOk, isoBinOk };
 }
 
 /** build merged env (PATH / PYTHONPATH) cross-platform */
 function buildEnvOverlay(isoNetPath, isoBin) {
-  const sep = process.platform === 'win32' ? ';' : ':';
-  const env = { ...process.env };
+    const sep = process.platform === 'win32' ? ';' : ':';
+    const env = { ...process.env };
 
-  if (isoBin && fs.existsSync(isoBin)) {
-    env.PATH = env.PATH ? `${isoBin}${sep}${env.PATH}` : isoBin;
-  }
-  if (isoNetPath && fs.existsSync(isoNetPath)) {
-    env.PYTHONPATH = env.PYTHONPATH
-      ? `${isoNetPath}${sep}${env.PYTHONPATH}`
-      : isoNetPath;
-  }
-  return env;
+    if (isoBin && fs.existsSync(isoBin)) {
+        env.PATH = env.PATH ? `${isoBin}${sep}${env.PATH}` : isoBin;
+    }
+    if (isoNetPath && fs.existsSync(isoNetPath)) {
+        env.PYTHONPATH = env.PYTHONPATH
+            ? `${isoNetPath}${sep}${env.PYTHONPATH}`
+            : isoNetPath;
+    }
+    return env;
 }
 
 /**
@@ -46,47 +43,36 @@ function buildEnvOverlay(isoNetPath, isoBin) {
  * - keeps your current { shell:true, detached:true, stdio:['ignore','pipe','pipe'] }
  */
 function spawnWithRuntime(commandLine) {
-  const { condaEnv, isoNetPath, isoBin } = readRuntimeSettings();
-  const env = buildEnvOverlay(isoNetPath, isoBin);
+    const { condaEnv, isoNetPath, isoBin } = readRuntimeSettings();
+    const env = buildEnvOverlay(isoNetPath, isoBin);
 
-  // Prefer conda run so we don't rely on activation scripts
-  // If no condaEnv saved, run raw command
-  const cmd = condaEnv
-    ? `conda run -n "${condaEnv}" --no-capture-output ${commandLine}`
-    : commandLine;
+    // Prefer conda run so we don't rely on activation scripts
+    // If no condaEnv saved, run raw command
+    const cmd = condaEnv
+        ? `conda run -n "${condaEnv}" --no-capture-output ${commandLine}`
+        : commandLine;
 
-  return spawn(cmd, {
-    shell: true,
-    detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env, // ← inject our PATH/PYTHONPATH overlay
-  });
+    return spawn(cmd, {
+        shell: true,
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env, // ← inject our PATH/PYTHONPATH overlay
+    });
 }
 
 
 let inQueueList = [] // List for queued processes
 let notInQueueList = [] // List for non-queued processes
 let currentInQueueProcess = null // Track the current inQueue process being executed
-ipcMain.handle('get-jobs-list', () => {
-    const sanitizedInQueueList = inQueueList.map(({ event, ...rest }) => rest)
-    const sanitizedNotInQueueList = notInQueueList.map(({ event, ...rest }) => rest)
 
-    return {
-        inQueueList: sanitizedInQueueList,
-        notInQueueList: sanitizedNotInQueueList
-    }
-})
 // Function to process the inQueue list
 function handleProcess(event, data) {
     const cmd = toCommand(data, data.id)
-    // if (data.type !== 'prepare_star' && data.type !== 'star2json') {
-    //     data.output_dir = data.type + '/job' + data.id + '_' + data.name
-    // }
     if (data.status == 'inqueue') {
         inQueueList.push({
             id: data.id,
             type: data.type,
-            name:data.name,
+            name: data.name,
             command_line: cmd,
             output_dir: data.output_dir,
             event,
@@ -97,7 +83,7 @@ function handleProcess(event, data) {
         notInQueueList.push({
             id: data.id,
             type: data.type,
-            name:data.name,
+            name: data.name,
             command_line: cmd,
             output_dir: data.output_dir,
             event,
@@ -122,10 +108,6 @@ function processInQueue() {
     if (nextProcess) {
         currentInQueueProcess = nextProcess
         currentInQueueProcess.status = 'running'
-        // currentInQueueProcess.event.sender.send('jobList:updateStatus', {
-        //     id: currentInQueueProcess.id,
-        //     status: 'running'
-        // })
         runProcess(nextProcess, () => {
             currentInQueueProcess = null // Clear when finished
             inQueueList.shift()
@@ -151,14 +133,7 @@ function processNotInQueue() {
 function runProcess(processItem, callback) {
     console.log(`Running command: ${processItem.command_line}`)
 
-    const pythonProcess = spawnWithRuntime(processItem.command_line); // 👈
-  
-    // // Spawn the Python process
-    // const pythonProcess = spawn(processItem.command_line, {
-    //     shell: true, // <<< let the shell parse the whole string
-    //     detached: true,
-    //     stdio: ['ignore', 'pipe', 'pipe']
-    // })
+    const pythonProcess = spawnWithRuntime(processItem.command_line);
 
     processItem.event.sender.send('python-status-change', {
         id: processItem.id,
@@ -179,7 +154,7 @@ function runProcess(processItem, callback) {
         logStream = fs.createWriteStream(logFileName, { flags: 'a' })
     }
 
-    
+
     logStream.write(`Command: ${processItem.command_line}\n`)
     pythonProcess.stdout.on('data', (data) => {
         const output = data.toString()
@@ -189,10 +164,6 @@ function runProcess(processItem, callback) {
     // Capture stderr
     pythonProcess.stderr.on('data', (data) => {
         const output = data.toString()
-        // processItem.event.sender.send('python-stderr', {
-        //     cmd: processItem.cmd,
-        //     output: output
-        // })
         logStream.write(`${output}`) // Write stderr to log.txt
     })
 
@@ -225,27 +196,4 @@ function runProcess(processItem, callback) {
     })
 }
 
-ipcMain.on('remove-job', (event, id) => {
-    const jobIndex = inQueueList.findIndex((item) => item.id === id && item.status === 'inqueue')
-
-    if (jobIndex !== -1) {
-        // Job found, remove it
-        inQueueList.splice(jobIndex, 1)
-        event.reply('remove-job-response', true) // Send success response
-    } else {
-        event.reply('remove-job-response', false) // Send failure response
-    }
-})
-
-ipcMain.on('kill-job', (event, pid) => {
-    console.log(`Attempting to kill process group with PID: ${pid}`)
-    try {
-        process.kill(-pid, 'SIGINT') // Kill entire process group
-        console.log('Python process group killed')
-        event.reply('kill-job-response', true) // Send success response
-    } catch (err) {
-        console.error('Failed to kill Python process group:', err)
-        event.reply('kill-job-response', false) // Send failure response
-    }
-})
-export { handleProcess, spawnWithRuntime };
+export { handleProcess, spawnWithRuntime, inQueueList, notInQueueList };

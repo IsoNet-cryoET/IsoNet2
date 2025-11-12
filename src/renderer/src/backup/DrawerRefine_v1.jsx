@@ -61,7 +61,7 @@ const DrawerRefine_v1 = ({ open, onClose, onSubmit }) => {
     }
 
     const handleFileSelect = async (field, property) => {
-        let folderPath = await api.selectFile(property)
+        let folderPath = await window.api.call('selectFile', property)
         setFormData((prevState) => ({
             ...prevState,
             [field]: folderPath
@@ -117,7 +117,7 @@ const DrawerRefine_v1 = ({ open, onClose, onSubmit }) => {
                             // id="demo-simple-select-standard"
                             value={formData.input_column}
                             onChange={(e) => handleChange('input_column', e.target.value)}
-                            // label="Age"
+                        // label="Age"
                         >
                             <MenuItem value={'rlnDeconvTomoName'}>rlnDeconvTomoName</MenuItem>
                             <MenuItem value={'rlnTomoName'}>rlnTomoName</MenuItem>
@@ -152,7 +152,7 @@ const DrawerRefine_v1 = ({ open, onClose, onSubmit }) => {
                             // id="demo-simple-select-standard"
                             value={formData.arch}
                             onChange={(e) => handleChange('arch', e.target.value)}
-                            // label="Age"
+                        // label="Age"
                         >
                             <MenuItem value={'unet-small'}>unet-small</MenuItem>
                             <MenuItem value={'unet-medium'}>unet-medium</MenuItem>

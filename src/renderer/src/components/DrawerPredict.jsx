@@ -41,7 +41,7 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
     }
 
     const handleFileSelect = async (field, property) => {
-        let folderPath = await api.selectFile(property)
+        let folderPath = await window.api.call('selectFile', property)
         setFormData((prevState) => ({
             ...prevState,
             [field]: folderPath
@@ -120,7 +120,7 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                             // id="demo-simple-select-standard"
                             value={formData.input_column}
                             onChange={(e) => handleChange('input_column', e.target.value)}
-                            // label="Age"
+                        // label="Age"
                         >
                             <MenuItem value={'rlnDeconvTomoName'}>rlnDeconvTomoName</MenuItem>
                             <MenuItem value={'rlnTomoName'}>rlnTomoName</MenuItem>

@@ -14,10 +14,8 @@ export default function CommandAccordion({ formData }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const id = await window.count.current()+1;
-
+      const id = await window.api.call('getCurrentId') + 1;
       const cmd = toCommand(formData, id);
-
       if (!cancelled) setCommandLine(cmd);
     })();
     return () => { cancelled = true; };

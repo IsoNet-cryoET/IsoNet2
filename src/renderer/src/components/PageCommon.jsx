@@ -23,7 +23,7 @@ const PageCommon = (props) => {
         if (!job?.id) return
         try {
             setIsDeleting(true)
-            const ok = await window.jobList.remove(job.id)
+            const ok = await window.api.call('removeJob', job.id)
             if (ok) setSnack({ open: true, message: `Deleted job ${job.id}` })
         } catch (e) {
             console.error('Delete job failed:', e)
@@ -33,7 +33,7 @@ const PageCommon = (props) => {
         }
     }
 
-    if(!job) {
+    if (!job) {
         return (
             <Nodata message="Nothing here yet" sub="Create a new job from the left menu to get started" />
         )
@@ -66,19 +66,19 @@ const PageCommon = (props) => {
                         // ensure a final save on blur (immediate, no debounce)
                         if (!job?.id) return
                         if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-                        ;(async () => {
-                            try {
-                                setIsSaving(true)
-                                const ok = await window.jobList.updateName({ id: job.id, name })
+                            ; (async () => {
+                                try {
+                                    setIsSaving(true)
+                                    const ok = await window.api.call('updateJobName', job.id, name)
 
-                                if (ok) setSnack({ open: true, message: 'Saved job name' })
-                            } catch (e) {
-                                console.error('Update name failed:', e)
-                                setSnack({ open: true, message: 'Failed to save name' })
-                            } finally {
-                                setIsSaving(false)
-                            }
-                        })()
+                                    if (ok) setSnack({ open: true, message: 'Saved job name' })
+                                } catch (e) {
+                                    console.error('Update name failed:', e)
+                                    setSnack({ open: true, message: 'Failed to save name' })
+                                } finally {
+                                    setIsSaving(false)
+                                }
+                            })()
                     }}
                     fullWidth
                     sx={{ height: '56px' }}
