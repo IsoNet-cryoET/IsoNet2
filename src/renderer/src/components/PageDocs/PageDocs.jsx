@@ -27,7 +27,7 @@ function getScrollContainer(el) {
   return document.scrollingElement || document.documentElement;
 }
 
-export default function DocumentationPage() {
+export default function PageDocs() {
   const content = introMd;
 
   const articleRef = useRef(null);          // <div class="docs-article">

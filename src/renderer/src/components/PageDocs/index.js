@@ -1,1 +1,1 @@
-export { default } from './DocumentationPage'
+export { default } from './PageDocs'
