@@ -51,6 +51,8 @@ import BallotTwoToneIcon from '@mui/icons-material/BallotTwoTone';
 import ModelTrainingTwoToneIcon from '@mui/icons-material/ModelTrainingTwoTone';
 import DescriptionIcon from '@mui/icons-material/Description';
 import SettingsIcon from '@mui/icons-material/Settings';
+import { CHANNELS } from './constants.js'
+
 const primaryMenuListinOrder = [
     'prepare_star',
     'denoise',
@@ -199,7 +201,7 @@ const App = () => {
     }, [selectedJob, jobs])
 
     useEffect(() => {
-        const off = window.api.on('app-close-request', () => setConfirmOpen(true))
+        const off = window.api.on(CHANNELS.APP_CLOSE_REQ, () => setConfirmOpen(true))
         return () => off?.()
     }, [])
 
