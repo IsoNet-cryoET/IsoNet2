@@ -29,8 +29,14 @@ export default function files() {
                 return null
             }
         },
-        isFileExist(_, filePath) {
+        async isFileExist(_, filePath) {
             return fs.existsSync(filePath)
+        },
+        async view(_, file) {
+            spawn('3dmod', [file], {
+                detached: true,
+                stdio: ['ignore', 'pipe', 'pipe']
+            })
         },
     }
 }

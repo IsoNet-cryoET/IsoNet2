@@ -3,12 +3,6 @@ import { handleProcess, spawnWithRuntime } from '../process.js'
 
 export default function other({ getMainWindow }) {
     return {
-        async view(_, file) {
-            spawn('3dmod', [file], {
-                detached: true,
-                stdio: ['ignore', 'pipe', 'pipe']
-            })
-        },
         async run(event, data) {
             handleProcess(event, data)
         },
