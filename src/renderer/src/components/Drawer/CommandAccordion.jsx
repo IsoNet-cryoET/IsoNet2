@@ -45,20 +45,17 @@ export default function CommandAccordion({ formData }) {
 
   return (
     <>
-      <Accordion sx={{ mt: 2 }}>
+      <Accordion className="cmd-accordion">
         <AccordionSummary
           expandIcon={<ArrowDownwardIcon />}
-          sx={{
-            backgroundColor: '#ebf9ff',
-            '&:hover': { backgroundColor: '#A9E5FF' },
-          }}
+          className="cmd-accordion-summary"
         >
           <Typography component="span">Show command</Typography>
         </AccordionSummary>
 
         <AccordionDetails>
-          <Box sx={{ position: 'relative' }}>
-            <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
+          <Box className="cmd-container">
+            <Box className="cmd-copy-btn-wrapper">
               <Tooltip title="Copy to clipboard">
                 <IconButton size="small" onClick={handleCopy} aria-label="Copy">
                   <ContentCopyIcon fontSize="small" />
@@ -66,25 +63,13 @@ export default function CommandAccordion({ formData }) {
               </Tooltip>
             </Box>
 
-            <Typography
-              component="pre"
-              sx={{
-                fontFamily: 'monospace',
-                fontSize: 12,
-                lineHeight: 1.6,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                bgcolor: 'grey.50',
-                p: 1.5,
-                pr: 5,          // leave room for the copy button
-                borderRadius: 1,
-              }}
-            >
+            <Typography component="pre" className="cmd-pre">
               {textToCopy}
             </Typography>
           </Box>
         </AccordionDetails>
       </Accordion>
+
 
       <Snackbar
         open={copied}

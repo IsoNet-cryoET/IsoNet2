@@ -32,15 +32,8 @@ const DataTable = ({ jsonData, star_name }) => {
         setRows(flattenData(jsonData))
     }, [jsonData])
 
-    // useEffect(() => {
-    //     convertToJson()
-    // }, [rows])
-
     const columns = Object.keys(jsonData[0]).filter((col) => col !== 'index')
 
-    // const handleCellBlur = () => {
-    //     convertToJson()
-    // }
     const isNumeric = (value) => {
         if (typeof value === 'number') return true
         if (typeof value !== 'string') return false
@@ -109,18 +102,13 @@ const DataTable = ({ jsonData, star_name }) => {
                 <TableHead>
                     <TableRow>
                         {columns.map((col) => {
-                            // const isString = typeof rows[0][col] === 'string'
                             return (
                                 <TableCell
                                     key={col}
                                     title={col}
+                                    className="head-table-cell"
                                     sx={{
                                         ...getCellWidth(col),
-                                        whiteSpace: 'nowrap',
-                                        textAlign: 'center',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        transition: 'min-width 0.3s ease, max-width 0.3s ease' // ✨ Smooth transition
                                     }}
                                 >
                                     {col}
@@ -135,13 +123,9 @@ const DataTable = ({ jsonData, star_name }) => {
                             {columns.map((col) => (
                                 <TableCell
                                     key={col}
+                                    className="body-table-cell"
                                     sx={{
                                         ...getCellWidth(col),
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        padding: '8px',
-                                        transition: 'min-width 0.3s ease, max-width 0.3s ease' // ✨ Smooth transition
                                     }}
                                 >
                                     <Box display="flex" alignItems="center" gap={1}>
@@ -186,60 +170,29 @@ const DataTable = ({ jsonData, star_name }) => {
                                             size="small"
                                             inputProps={{
                                                 title: row[col],
-                                                style: {
-                                                    overflow: 'auto',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap'
-                                                }
+                                                className: 'table-input-cell'
                                             }}
                                             fullWidth
                                         />
 
                                         {typeof row[col] === 'string' && (
-                                            <Box
-                                                display="flex"
-                                                flexDirection="column"
-                                                alignItems="center"
-                                                justifyContent="center"
-                                                sx={{
-                                                    width: 'auto',
-                                                    padding: 0, // Remove extra padding
-                                                    margin: 0 // Remove extra margin
-                                                }}
-                                            >
+                                            <Box className="file-action-container">
                                                 <Button
                                                     size="small"
                                                     color="primary"
                                                     onClick={() => handleOpen(rowIndex, col)}
-                                                    sx={{
-                                                        padding: 0, // Remove padding
-                                                        margin: 0, // Remove margin
-                                                        minWidth: 0 // Ensure the button occupies minimal space
-                                                    }}
+                                                    className="icon-button"
                                                 >
-                                                    <FileOpenIcon
-                                                        sx={{
-                                                            color: '#14446e',
-                                                            fontSize: 'medium'
-                                                        }}
-                                                    />
+                                                    <FileOpenIcon sx={{ color: '#14446e', fontSize: 'medium' }} />
                                                 </Button>
+
                                                 <Button
                                                     size="small"
                                                     color="secondary"
                                                     onClick={() => handleView(row[col])}
-                                                    sx={{
-                                                        padding: 0, // Remove padding
-                                                        margin: 0, // Remove margin
-                                                        minWidth: 0 // Ensure the button occupies minimal space
-                                                    }}
+                                                    className="icon-button"
                                                 >
-                                                    <VisibilityIcon
-                                                        sx={{
-                                                            color: '#14446e',
-                                                            fontSize: 'medium'
-                                                        }}
-                                                    />
+                                                    <VisibilityIcon sx={{ color: '#14446e', fontSize: 'medium' }} />
                                                 </Button>
                                             </Box>
                                         )}

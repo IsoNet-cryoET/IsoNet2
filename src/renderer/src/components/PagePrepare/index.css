@@ -1,0 +1,37 @@
+.load-star-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 16px 0;
+}
+
+.load-star-button {
+    height: 56px;
+    transition: all 0.2s ease;
+}
+
+.load-star-textfield .MuiInputBase-root {
+    height: 56px;
+}
+
+.data-table-wrapper {
+    position: relative;
+    min-height: 200px;
+}
+
+.loading-overlay {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(255, 255, 255, 0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.loading-text {
+    margin-top: 16px;
+    font-weight: 500;
+    color: var(--mui-palette-text-secondary, #666);
+}

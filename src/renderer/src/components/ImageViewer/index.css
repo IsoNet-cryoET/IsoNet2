@@ -1,0 +1,14 @@
+.image-preview-box {
+    height: 300px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid #ddd;
+}
+
+.image-preview-img {
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+}

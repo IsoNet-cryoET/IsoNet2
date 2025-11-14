@@ -1,0 +1,48 @@
+.drawer-paper {
+    width: 442px;
+    overflow-y: scroll;
+}
+
+.drawer-content {
+    width: 400px;
+    padding: 16px;
+}
+
+
+
+/* accordion */
+.cmd-accordion {
+    margin-top: 16px;
+}
+
+/* accordion summary hover + background */
+.cmd-accordion-summary {
+    background-color: #ebf9ff;
+}
+
+.cmd-accordion-summary:hover {
+    background-color: #ebf9ff !important;
+
+}
+
+/* command container */
+.cmd-container {
+    position: relative;
+}
+
+.cmd-copy-btn-wrapper {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
+.cmd-pre {
+    font-family: monospace !important;
+    font-size: 12px !important;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background-color: #f9f9f9;
+    padding: 12px;
+    padding-right: 40px;
+    border-radius: 4px;
+}

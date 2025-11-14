@@ -14,16 +14,14 @@ export default function DrawerBase({
             open={open}
             onClose={onClose}
             PaperProps={{
-                sx: {
-                    width: '442px',
-                    overflowY: 'scroll'
-                }
+                className: 'drawer-paper',   // ⬅️ 用 className 代替 sx
             }}
         >
-            <Box sx={{ width: 400, padding: 2 }}>
+            <Box className="drawer-content">
                 {children}
                 <CommandAccordion formData={formData} />
             </Box>
-        </Drawer >
+        </Drawer>
+
     )
 }

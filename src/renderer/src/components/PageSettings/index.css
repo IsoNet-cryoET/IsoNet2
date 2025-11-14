@@ -1,0 +1,23 @@
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 16px 0;
+}
+
+.conda-select-form {
+    min-width: 240px;
+}
+
+.isonet-path-input .MuiInputBase-root {
+    height: 56px;
+}
+
+.isonet-path-input .MuiInputBase-input {
+    padding: 0 14px;
+}
+
+.open-folder-button {
+    height: 56px;
+    transition: all 0.2s ease;
+}

@@ -1,3 +1,3 @@
-Command: isonet.py prepare_star --even /home/omen1/software/tomograms-20251011T073943Z-1-001/tomograms --odd /home/omen1/software/tomograms-20251011T073943Z-1-001/tomograms --full None --star_name tomograms.star --mask_folder None --coordinate_folder None --pixel_size 1 --cs 2.7 --voltage 300 --ac 0.1 --tilt_min -60 --tilt_max 60 --create_average False --number_subtomos 1000
-number of tomograms 3
+Command: isonet.py prepare_star --even None --odd None --full None --star_name tomograms.star --mask_folder None --coordinate_folder None --pixel_size 1 --cs 2.7 --voltage 300 --ac 0.1 --tilt_min -60 --tilt_max 60 --create_average False --number_subtomos 1000
+number of tomograms 23
 Process exited with code 0

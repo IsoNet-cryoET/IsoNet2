@@ -4,7 +4,6 @@ import {
     AccordionSummary,
     AccordionDetails,
     Box,
-    Drawer,
     Typography,
     Divider,
     TextField,
@@ -16,7 +15,6 @@ import {
 } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
-import CommandAccordion from './CommandAccordion'
 import { useDrawerForm } from './useDrawerForm.js'
 import DrawerBase from './DrawerBase.jsx'
 

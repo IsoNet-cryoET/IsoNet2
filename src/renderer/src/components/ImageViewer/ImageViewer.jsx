@@ -7,22 +7,9 @@ const ImageViewer = ({ imageSrc }) => {
             <Typography variant="h5" gutterBottom>
                 Uploaded Image
             </Typography>
-            <Box
-                sx={{
-                    height: 300,
-                    marginBottom: 2,
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    border: "1px solid #ddd",
-                }}
-            >
+            <Box className="image-preview-box">
                 {imageSrc ? (
-                    <img
-                        src={imageSrc}
-                        alt="Processed"
-                        style={{ maxHeight: "100%", maxWidth: "100%" }}
-                    />
+                    <img src={imageSrc} alt="Processed" className="image-preview-img" />
                 ) : (
                     <Typography>No Image to Display</Typography>
                 )}

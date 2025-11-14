@@ -42,50 +42,38 @@ const PagePrepare = (props) => {
     }
     return (
         <div>
-            <Box display="flex" alignItems="center" gap={2} marginY={2}>
+            <Box className="load-star-row">
                 <Button
                     variant="outlined"
                     color="primary"
                     startIcon={<FolderOpenIcon />}
                     onClick={() => handleFileSelect('openFile')}
-                    sx={{
-                        height: '56px',
-                        trainsition: 'auto'
-                    }} // Ensure the button has a height
+                    className="load-star-button"
                 >
                     Load from star
                 </Button>
+
                 <TextField
                     label="current star file"
                     value={props.starName}
                     fullWidth
                     disabled
-                    sx={{ height: '56px' }} // Set the TextField's height to match the button
+                    className="load-star-textfield"
                 />
             </Box>
-            <Box position="relative" minHeight={200}>
+
+            <Box className="data-table-wrapper">
                 {loading && (
-                    <Box
-                        sx={{
-                            position: 'absolute',
-                            inset: 0,
-                            backgroundColor: 'rgba(255,255,255,0.6)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 10,
-                        }}
-                    >
+                    <Box className="loading-overlay">
                         <CircularProgress color="primary" />
-                        <Box sx={{ mt: 2, fontWeight: 500, color: 'text.secondary' }}>
-                            Loading data...
-                        </Box>
+                        <Box className="loading-text">Loading data...</Box>
                     </Box>
                 )}
+
                 <DataTable jsonData={JsonData} star_name={props.starName} />
             </Box>
-            <div className='page-prepare-logs-container'>
+
+            <div className="page-prepare-logs-container">
                 {renderContent(props.messages, props?.selectedJob?.id)}
             </div>
         </div>
