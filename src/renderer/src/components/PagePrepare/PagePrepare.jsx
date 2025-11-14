@@ -1,6 +1,6 @@
 import "./index.css";
 import { useState, useEffect } from 'react'
-import { renderContent } from '../../utils/log_handler'
+import { renderContent } from '../LogHandler/log_handler'
 import { Box, TextField, Button, CircularProgress } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import DataTable from '../DataTable'
@@ -69,7 +69,6 @@ const PagePrepare = (props) => {
                         <Box className="loading-text">Loading data...</Box>
                     </Box>
                 )}
-
                 <DataTable jsonData={JsonData} star_name={props.starName} />
             </Box>
 

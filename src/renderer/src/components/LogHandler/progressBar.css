@@ -1,0 +1,18 @@
+.progressbar-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin: 10px 0;
+}
+
+.progressbar-label {
+    min-width: 35px;
+    color: var(--mui-palette-text-secondary, #666);
+    white-space: nowrap;
+    margin-right: 10px;
+}
+
+.progressbar-track {
+    flex-grow: 1;
+    margin-right: 8px;
+}

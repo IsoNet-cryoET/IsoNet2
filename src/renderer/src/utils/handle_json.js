@@ -26,22 +26,6 @@ function toCommand(data_raw, id) {
         data.output_dir = data.type + '/job' + id + '_' + data.name
     }
 
-    //     CTF_mode: 'None',
-    // isCTFflipped: false,
-    // do_phaseflip_input: true,
-    // clip_first_peak_mode: 1,
-    // bfactor: 0,
-
-    // noise_level: 0,
-    // noise_mode: 'nofilter',
-
-    // with_predict: true,
-    // pred_tomo_idx: 1,
-
-    // even_odd_input: true,
-    // snrfalloff: 0,
-    // deconvstrength: 1,
-    // highpassnyquist: 0.02
     if (data.hasOwnProperty('CTF_mode')) {
         if (data.CTF_mode === 'None') {
             delete data.do_phaseflip_input

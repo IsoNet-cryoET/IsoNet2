@@ -1,6 +1,6 @@
 import "./index.css";
 import { useEffect, useRef, useState } from 'react'
-import { renderContent } from '../../utils/log_handler'
+import { renderContent } from '../LogHandler/log_handler'
 import { Box, Button, Snackbar, TextField } from '@mui/material'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 import Nodata from '../NoData/Nodata'

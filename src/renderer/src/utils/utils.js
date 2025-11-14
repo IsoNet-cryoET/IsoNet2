@@ -1,5 +1,3 @@
-import { ConfirmationNumberOutlined } from '@mui/icons-material'
-
 export const processMessage = (msg) => {
     const output = msg.output
 
@@ -45,11 +43,3 @@ export const mergeMsg = (prevMessages, newMsg) => {
         return [...prevMessages, newMsg]
     }
 }
-
-// export const processJson = (msg) => {
-//     return {
-//         type: 'json',
-//         cmd: msg.cmd,
-//         output: msg.output
-//     }
-// }
