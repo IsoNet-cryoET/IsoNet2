@@ -64,6 +64,7 @@ const App = () => {
             setSelectedJob(first)
         })
         const interval = setInterval(() => {
+            console.log("interval get jobs")
             window.api.call('getJobList').then((list) => {
                 setJobs(() => list)
             })
@@ -206,7 +207,6 @@ const App = () => {
                             break;
                         }
                     }
-
                     setMessages(tmp);
                 }, 300);
             }
@@ -245,7 +245,7 @@ const App = () => {
                     open={blocking}
                     sx={{
                         color: '#fff',
-                        zIndex: (theme) => theme.zIndex.modal + 2, // 确保足够高
+                        zIndex: (theme) => theme.zIndex.modal + 2,
                         bgcolor: 'rgba(0,0,0,0.35)'
                     }}
                 >
@@ -342,7 +342,6 @@ const App = () => {
                                                 <Tooltip title={`job ${job.id} ${job.name}`} arrow placement='right'>
                                                     <Typography
                                                         className="secondary-menu-text"
-                                                    // variant="body2"
                                                     >{`${job.name}`}</Typography>
                                                 </Tooltip>
                                             </ListItemButton>
@@ -375,7 +374,6 @@ const App = () => {
                     )}
                 </div>
             </div>
-            {/* </Box> */}
         </ThemeProvider>
     )
 }

@@ -2,7 +2,7 @@ html {
   scroll-behavior: smooth;
 }
 
-body{
+body {
   margin: 0;
   overflow-y: hidden;
   box-sizing: border-box;
@@ -13,15 +13,15 @@ body{
   width: 10px !important;
   height: 10px !important;
 }
+
 ::-webkit-scrollbar-thumb {
   background-color: #dfebfe;
   border-radius: 8px;
   width: 18px;
 }
+
 ::-webkit-scrollbar-track {
   background: #fdfdfd;
-  /* border-radius: 8px; */
-  /* border:1px solid #cacaca; */
 }
 
 
@@ -60,61 +60,69 @@ body{
   margin: 0 3px;
 }
 
-.primary-menu li{
+.primary-menu li {
   border-radius: 30px;
   margin-top: 2px;
 }
-.primary-menu li:hover{
+
+.primary-menu li:hover {
   background-color: #acd2ff;
 }
+
 .primary-menu li .Mui-selected {
   background-color: #D5E2F4;
   border-radius: 30px;
 }
-.primary-menu li button{
+
+.primary-menu li button {
   padding: 3px;
   border-radius: 50%;
 }
-.primary-menu li button:hover{
+
+.primary-menu li button:hover {
   background-color: #e0e0e0;
 }
-/* .primary-menu li button path{
-  color: #14446e;
-} */
-.primary-menu li span{
+
+.primary-menu li span {
   font-size: 14px;
 }
 
 
 /* Secondary Menu */
 .secondary-menu {
-    width: 160px;
-    background-color: #f6f8fc;
-    padding: 0 4px;
+  width: 160px;
+  background-color: #f6f8fc;
+  padding: 0 4px;
 }
 
-.secondary-menu li{
+.secondary-menu li {
   border-radius: 30px;
   padding: 0;
   margin-top: 2px;
 }
-.secondary-menu li:hover{
+
+.secondary-menu li:hover {
   background-color: #abd0fe;
 }
+
 .secondary-menu li .Mui-selected {
   background-color: #d5e2f4;
   border-radius: 30px;
 }
-.secondary-menu li div{
+
+.secondary-menu li div {
   height: 40px;
 }
-.secondary-menu li button{
+
+.secondary-menu li button {
   padding: 0;
 }
-.secondary-menu li p{
+
+.secondary-menu li p {
   font-size: 14px;
 }
-.secondary-menu-text{
+
+.secondary-menu-text {
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
@@ -128,11 +136,11 @@ body{
 .content-area {
   flex: 1;
   height: calc(100vh - 41px);
-  /* max-width: calc(100vw - 41px); */
   padding: 20px;
   background-color: #fff;
   overflow-y: auto;
 }
+
 .content-area .log-line {
   padding: 4px 8px;
   margin: 0;
@@ -145,6 +153,6 @@ body{
   border-radius: 0 10px 10px 0;
 }
 
-.page-prepare-logs-container{
+.page-prepare-logs-container {
   margin-top: 16px;
 }
