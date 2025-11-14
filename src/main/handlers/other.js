@@ -1,4 +1,3 @@
-import { spawn } from 'child_process'
 import { handleProcess, spawnWithRuntime } from '../process.js'
 
 export default function other({ getMainWindow }) {
