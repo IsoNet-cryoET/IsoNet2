@@ -21,8 +21,7 @@
 }
 
 .cmd-accordion-summary:hover {
-    background-color: #ebf9ff;
-
+    background-color: #a9e5ff !important;
 }
 
 /* command container */
