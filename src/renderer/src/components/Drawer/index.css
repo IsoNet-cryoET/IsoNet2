@@ -17,11 +17,11 @@
 
 /* accordion summary hover + background */
 .cmd-accordion-summary {
-    background-color: #ebf9ff;
+    background-color: #ebf9ff !important;
 }
 
 .cmd-accordion-summary:hover {
-    background-color: #ebf9ff !important;
+    background-color: #ebf9ff;
 
 }
 
