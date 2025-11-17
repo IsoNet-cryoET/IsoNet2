@@ -37,16 +37,24 @@ ODD
 *.sln
 *.sw?
 *.star
-*.json
+settings.json
+.*.json
 *~
 sum*
 corrected_tomos
 deconv
 denoise/
+refine
+predict
+make_mask
+
 mask
 *.mrc
 *.rec
 log.txt
+.star2json_log.txt
+prepare_log.txt
+*.txt
 # Ignore OS generated files
 .DS_Store
 Thumbs.db

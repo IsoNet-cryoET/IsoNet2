@@ -1,31 +1,38 @@
-import "./index.css";
+import './index.css'
 import { useEffect, useRef, useState } from 'react'
 import { renderContent } from '../LogHandler/log_handler'
 import { Box, Button, Snackbar, TextField } from '@mui/material'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 import Nodata from '../NoData/Nodata'
+import { useDispatch } from 'react-redux'
+import { removeJobAsync, updateJobNameAsync } from '../../store/jobSlice'
 
 const PageCommon = (props) => {
     const job = props?.selectedJob
     const [isDeleting, setIsDeleting] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [snack, setSnack] = useState({ open: false, message: '' })
+    const dispatch = useDispatch()
 
-    // local name for responsive input
+    // Local name state, so typing is responsive even before Redux updates
     const [name, setName] = useState(job?.name || '')
     useEffect(() => {
+        // When a different job is selected, reset input to that job's name
         setName(job?.name || '')
-    }, [job?.id]) // when a new job is selected, reset input to its name
+    }, [job?.id])
 
-    // simple debounce without extra deps
+    // Placeholder for future debounce logic (currently only used to clear timer)
     const saveTimerRef = useRef(null)
 
     const handleDelete = async () => {
         if (!job?.id) return
         try {
             setIsDeleting(true)
-            const ok = await window.api.call('removeJob', job.id)
-            if (ok) setSnack({ open: true, message: `Deleted job ${job.id}` })
+            // Remove job from Redux + disk
+            await dispatch(removeJobAsync(job.id))
+            setSnack({ open: true, message: `Deleted job ${job.id}` })
+            // NOTE: parent still holds selectedJob state; if you want to clear
+            // selection, pass down a callback from parent and call it here.
         } catch (e) {
             console.error('Delete job failed:', e)
             setSnack({ open: true, message: 'Failed to delete job' })
@@ -36,12 +43,22 @@ const PageCommon = (props) => {
 
     if (!job) {
         return (
-            <Nodata message="Nothing here yet" sub="Create a new job from the left menu to get started" />
+            <Nodata
+                message="Nothing here yet"
+                sub="Create a new job from the left menu to get started"
+            />
         )
     }
+
     return (
         <div>
-            <Box display="flex" alignItems="center" gap={2} marginY={2} sx={{ flexGrow: 1, height: "100%" }}>
+            <Box
+                display="flex"
+                alignItems="center"
+                gap={2}
+                marginY={2}
+                sx={{ flexGrow: 1, height: '100%' }}
+            >
                 {job?.status === 'completed' && (
                     <Button
                         variant="outlined"
@@ -61,21 +78,29 @@ const PageCommon = (props) => {
                     onChange={(e) => {
                         const v = e.target.value
                         setName(v) // update UI immediately
-                        //   debouncedSaveName(v)    // save after debounce
+
+                        // If you later add debounce, you can use saveTimerRef here,
+                        // e.g. clearTimeout + setTimeout to call updateJobNameAsync.
                     }}
                     onBlur={() => {
-                        // ensure a final save on blur (immediate, no debounce)
                         if (!job?.id) return
                         if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
                             ; (async () => {
                                 try {
                                     setIsSaving(true)
-                                    const ok = await window.api.call('updateJobName', job.id, name)
-
-                                    if (ok) setSnack({ open: true, message: 'Saved job name' })
+                                    await dispatch(
+                                        updateJobNameAsync({ id: job.id, name })
+                                    )
+                                    setSnack({
+                                        open: true,
+                                        message: 'Saved job name',
+                                    })
                                 } catch (e) {
-                                    console.error('Update name failed:', e)
-                                    setSnack({ open: true, message: 'Failed to save name' })
+                                    console.error('Failed to save job name:', e)
+                                    setSnack({
+                                        open: true,
+                                        message: 'Failed to save name',
+                                    })
                                 } finally {
                                     setIsSaving(false)
                                 }

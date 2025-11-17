@@ -6,74 +6,101 @@ import { inQueueList, notInQueueList } from '../process.js'
 
 export default function jobs({ store }) {
     const KEY_JOB = STORE_KEYS.JOBS
+    function getList() {
+        const list = store.get(KEY_JOB, [])
+        return Array.isArray(list) ? list : []
+    }
+    function setList(list) {
+        store.set(KEY_JOB, list)
+        return list
+    }
 
     return {
         async getJobList() {
-            return store.get(KEY_JOB, [])
+            return getList()
         },
+
         async addJob(_, data) {
             if (!data || typeof data !== 'object') {
-                return store.get(KEY_JOB, [])
+                return getList()
             }
-            const list = store.get(KEY_JOB, [])
-            list.push(data)
-            store.set(KEY_JOB, list)
-            return list
+            const list = getList()
+            const newList = [...list, data]
+            return setList(newList)
         },
+
         async updateJob(_, data) {
             if (!data || data.id == null) {
-                return store.get(KEY_JOB, [])
+                return getList()
             }
-            const list = store.get(KEY_JOB, [])
+            const list = getList()
             const idx = list.findIndex((j) => j && j.id === data.id)
             if (idx >= 0) {
-                list[idx] = { ...list[idx], ...data }
-                store.set(KEY_JOB, list)
+                const newList = [...list]
+                newList[idx] = { ...newList[idx], ...data }
+                return setList(newList)
             }
             return list
         },
+
         async updateJobStatus(_, id, status) {
-            const list = store.get(KEY_JOB, [])
-            const idx = list.findIndex(j => j && j.id === id)
-            if (idx >= 0) list[idx].status = status
-            store.set(KEY_JOB, list)
+            const list = getList()
+            const idx = list.findIndex((j) => j && j.id === id)
+            if (idx >= 0) {
+                const newList = [...list]
+                newList[idx] = { ...newList[idx], status }
+                return setList(newList)
+            }
             return list
         },
-        async updateJobPID(_, id, pid) {
-            const list = store.get(KEY_JOB, [])
-            const idx = list.findIndex(j => j && j.id === id)
-            if (idx >= 0) list[idx].pid = pid
-            store.set(KEY_JOB, list)
-            return list
-        },
-        async updateJobName(_, id, name) {
-            const list = store.get(KEY_JOB, [])
-            const idx = list.findIndex(j => j && j.id === id)
-            if (idx >= 0) list[idx].name = name
-            store.set(KEY_JOB, list)
-            return list
-        },
-        async removeJob(_, id) {
-            const list = store.get(KEY_JOB, [])
-            const nid = String(id)
-            const job = list.find(j => j && String(j.id) === nid)
-            if (!job) return false
 
-            try {
-                const rel = job.output_dir
-                if (rel) {
-                    const base = app.isPackaged ? app.getPath('userData') : process.cwd()
-                    const abs = path.isAbsolute(rel) ? rel : path.join(base, rel)
-                    if (abs.startsWith(base)) await fs.promises.rm(abs, { recursive: true, force: true })
+        async updateJobPID(_, id, pid) {
+            const list = getList()
+            const idx = list.findIndex((j) => j && j.id === id)
+            if (idx >= 0) {
+                const newList = [...list]
+                newList[idx] = { ...newList[idx], pid }
+                return setList(newList)
+            }
+            return list
+        },
+
+        async updateJobName(_, id, name) {
+            const list = getList()
+            const idx = list.findIndex((j) => j && j.id === id)
+            if (idx >= 0) {
+                const newList = [...list]
+                newList[idx] = { ...newList[idx], name }
+                return setList(newList)
+            }
+            return list
+        },
+
+        async removeJob(_, id) {
+            const list = getList()
+            const nid = String(id)
+            const job = list.find((j) => j && String(j.id) === nid)
+
+            if (job) {
+                try {
+                    const rel = job.output_dir
+                    if (rel) {
+                        const base = app.isPackaged ? app.getPath('userData') : process.cwd()
+                        const abs = path.isAbsolute(rel) ? rel : path.join(base, rel)
+                        if (abs.startsWith(base)) {
+                            await fs.promises.rm(abs, { recursive: true, force: true })
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to remove job output dir:', e)
                 }
-            } catch (e) {
-                console.error('Failed to remove job output dir:', e)
             }
 
-            const newList = list.filter(j => j && String(j.id) !== nid)
-            store.set(KEY_JOB, newList)
-            return true
+            const newList = list.filter((j) => j && String(j.id) !== nid)
+            return setList(newList)
         },
+
+
         async jobsQueue() {
             const sanitizedIn = inQueueList.map(({ event, ...rest }) => rest)
             const sanitizedNot = notInQueueList.map(({ event, ...rest }) => rest)
@@ -82,9 +109,11 @@ export default function jobs({ store }) {
                 notInQueueList: sanitizedNot
             }
         },
+
         async killJob(_, pid) {
             process.kill(-pid, 'SIGINT')
         },
+
         async removeJobFromQueue(_, id) {
             const idx = inQueueList.findIndex(i => i.id === id && i.status === 'inqueue')
             if (idx >= 0) inQueueList.splice(idx, 1)

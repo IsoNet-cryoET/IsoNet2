@@ -1,2 +1,0 @@
-Command: isonet.py star2json --star_file /home/omen1/software/data/tomograms.star --json_file .to_node.json
-Process exited with code 0
