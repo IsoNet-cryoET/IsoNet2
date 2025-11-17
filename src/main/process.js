@@ -185,6 +185,16 @@ function runProcess(processItem, callback) {
                     })
                 }
             })
+        } else if (processItem.type === 'star2json') {
+            processItem.event.sender.send('json-star', {
+                cmd: 'prepare_star',
+                output: null,
+                error: `Error code ${code}`
+            })
+            logFileName = 'prepare_log.txt'
+            const logStream_json = fs.createWriteStream(logFileName, { flags: 'w' })
+            logStream_json.write('')
+            logStream_json.end()
         }
         processItem.event.sender.send('python-status-change', {
             id: processItem.id,

@@ -2,6 +2,7 @@ import './index.css'
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import PageCommon from '../components/PageCommon'
 import theme from '../theme.js'
+import { ErrorProvider } from '../context/ErrorContext';
 import { mergeMsg, processMessage } from '../utils/utils.js'
 import {
     List,
@@ -73,16 +74,6 @@ const App = () => {
             } catch { }
         }
     }, [dispatch])
-
-    // // When primary menu changes OR Redux job list changes:
-    // // For PageCommon pages, automatically select the first job of that type
-    // useEffect(() => {
-    //     const mapping = primaryMenuMapping[selectedPrimaryMenu]
-    //     if (!mapping || mapping.page !== PageCommon) return
-
-    //     const first = jobs.find((o) => o.type === selectedPrimaryMenu)
-    //     setSelectedJob(first || null)
-    // }, [selectedPrimaryMenu, jobs])
 
     // Poll log file of the currently selected job
     useEffect(() => {
@@ -231,6 +222,7 @@ const App = () => {
                         setMessages(tmp)
                     }, 300)
                 }
+                else if (type === 'star2json') setMessages([])
             } catch (error) {
                 console.error(`Error submitting ${type} form:`, error)
             } finally {
@@ -274,154 +266,156 @@ const App = () => {
     `
 
     return (
-        <ThemeProvider theme={theme}>
-            {/* Full-screen blocking overlay */}
-            {blocking && (
-                <Backdrop
-                    open={blocking}
-                    sx={{
-                        color: '#fff',
-                        zIndex: (theme) => theme.zIndex.modal + 2,
-                        bgcolor: 'rgba(0,0,0,0.35)'
-                    }}
-                >
-                    <CircularProgress />
-                </Backdrop>
-            )}
-
-            {/* Confirm quit dialog */}
-            <Dialog open={confirmOpen} onClose={cancelClose}>
-                <DialogTitle>Close and clean up?</DialogTitle>
-                <DialogContent>
-                    <Typography variant="body2">
-                        This will kill all running jobs and remove all queued jobs. Proceed?
-                    </Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={cancelClose}>No</Button>
-                    <Button
-                        disableFocusRipple
-                        onClick={doCleanupThenClose}
-                        autoFocus
-                        variant="contained"
-                        color="error"
+        <ErrorProvider>
+            <ThemeProvider theme={theme}>
+                {/* Full-screen blocking overlay */}
+                {blocking && (
+                    <Backdrop
+                        open={blocking}
+                        sx={{
+                            color: '#fff',
+                            zIndex: (theme) => theme.zIndex.modal + 2,
+                            bgcolor: 'rgba(0,0,0,0.35)'
+                        }}
                     >
-                        Yes, close and clean up
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                        <CircularProgress />
+                    </Backdrop>
+                )}
 
-            <div className="outer-container">
-                <div className="main-content">
-                    {/* Left primary menu */}
-                    <div className="primary-menu">
-                        <List>
-                            {primaryMenuListinOrder.map((key) => (
-                                <ListItem disablePadding key={key}>
-                                    <ListItemButton
-                                        selected={selectedPrimaryMenu === key}
-                                        onClick={() => togglePrimaryMenu(key)}
-                                    >
-                                        {React.createElement(primaryMenuMapping[key].icon, {
-                                            sx: { mr: 1, color: 'primary.main', fontSize: 16 }
-                                        })}
-                                        <ListItemText primary={primaryMenuMapping[key]?.label} />
-                                        {primaryMenuMapping[key]?.drawer && (
-                                            <IconButton
-                                                onClick={() => setSelectedDrawer(key)}
-                                            >
-                                                <EditIcon
-                                                    sx={{ fontSize: 16, color: 'primary.main' }}
-                                                />
-                                            </IconButton>
-                                        )}
-                                    </ListItemButton>
-                                </ListItem>
-                            ))}
-                        </List>
-                    </div>
+                {/* Confirm quit dialog */}
+                <Dialog open={confirmOpen} onClose={cancelClose}>
+                    <DialogTitle>Close and clean up?</DialogTitle>
+                    <DialogContent>
+                        <Typography variant="body2">
+                            This will kill all running jobs and remove all queued jobs. Proceed?
+                        </Typography>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={cancelClose}>No</Button>
+                        <Button
+                            disableFocusRipple
+                            onClick={doCleanupThenClose}
+                            autoFocus
+                            variant="contained"
+                            color="error"
+                        >
+                            Yes, close and clean up
+                        </Button>
+                    </DialogActions>
+                </Dialog>
 
-                    {/* Right secondary menu: job list */}
-                    {['denoise', 'deconv', 'make_mask', 'refine', 'predict'].includes(
-                        selectedPrimaryMenu
-                    ) &&
-                        visibleJobs.length > 0 && (
-                            <Box
-                                className="secondary-menu"
-                                sx={{
-                                    height: 'calc(100vh)',
-                                    overflowY: 'auto'
-                                }}
-                            >
-                                <List>
-                                    {visibleJobs.map((job) => (
-                                        <ListItem key={job.id}>
-                                            <ListItemButton
-                                                selected={selectedJob?.id === job.id}
-                                                onClick={() => setSelectedJob(job)}
-                                                sx={{
-                                                    position: 'relative',
-                                                    '--ring-strong': (t) =>
-                                                        alpha(t.palette.primary.main, 0.55),
-                                                    '--ring-weak': (t) =>
-                                                        alpha(t.palette.primary.main, 0.22),
-                                                    ...(job.status === 'running' && {
-                                                        '&::after': {
-                                                            content: '""',
-                                                            position: 'absolute',
-                                                            inset: 0,
-                                                            borderRadius: '30px',
-                                                            pointerEvents: 'none',
-                                                            animation: `${innerGlowPulse} 1.8s ease-in-out infinite`
-                                                        },
-                                                        '@media (prefers-reduced-motion: reduce)': {
-                                                            '&::after': { animation: 'none' }
-                                                        }
-                                                    })
-                                                }}
-                                            >
-                                                <Tooltip
-                                                    title={`job ${job.id} ${job.name}`}
-                                                    arrow
-                                                    placement="right"
+                <div className="outer-container">
+                    <div className="main-content">
+                        {/* Left primary menu */}
+                        <div className="primary-menu">
+                            <List>
+                                {primaryMenuListinOrder.map((key) => (
+                                    <ListItem disablePadding key={key}>
+                                        <ListItemButton
+                                            selected={selectedPrimaryMenu === key}
+                                            onClick={() => togglePrimaryMenu(key)}
+                                        >
+                                            {React.createElement(primaryMenuMapping[key].icon, {
+                                                sx: { mr: 1, color: 'primary.main', fontSize: 16 }
+                                            })}
+                                            <ListItemText primary={primaryMenuMapping[key]?.label} />
+                                            {primaryMenuMapping[key]?.drawer && (
+                                                <IconButton
+                                                    onClick={() => setSelectedDrawer(key)}
                                                 >
-                                                    <Typography className="secondary-menu-text">
-                                                        {job.name}
-                                                    </Typography>
-                                                </Tooltip>
-                                            </ListItemButton>
-                                        </ListItem>
-                                    ))}
-                                </List>
-                            </Box>
+                                                    <EditIcon
+                                                        sx={{ fontSize: 16, color: 'primary.main' }}
+                                                    />
+                                                </IconButton>
+                                            )}
+                                        </ListItemButton>
+                                    </ListItem>
+                                ))}
+                            </List>
+                        </div>
+
+                        {/* Right secondary menu: job list */}
+                        {['denoise', 'deconv', 'make_mask', 'refine', 'predict'].includes(
+                            selectedPrimaryMenu
+                        ) &&
+                            visibleJobs.length > 0 && (
+                                <Box
+                                    className="secondary-menu"
+                                    sx={{
+                                        height: 'calc(100vh)',
+                                        overflowY: 'auto'
+                                    }}
+                                >
+                                    <List>
+                                        {visibleJobs.map((job) => (
+                                            <ListItem key={job.id}>
+                                                <ListItemButton
+                                                    selected={selectedJob?.id === job.id}
+                                                    onClick={() => setSelectedJob(job)}
+                                                    sx={{
+                                                        position: 'relative',
+                                                        '--ring-strong': (t) =>
+                                                            alpha(t.palette.primary.main, 0.55),
+                                                        '--ring-weak': (t) =>
+                                                            alpha(t.palette.primary.main, 0.22),
+                                                        ...(job.status === 'running' && {
+                                                            '&::after': {
+                                                                content: '""',
+                                                                position: 'absolute',
+                                                                inset: 0,
+                                                                borderRadius: '30px',
+                                                                pointerEvents: 'none',
+                                                                animation: `${innerGlowPulse} 1.8s ease-in-out infinite`
+                                                            },
+                                                            '@media (prefers-reduced-motion: reduce)': {
+                                                                '&::after': { animation: 'none' }
+                                                            }
+                                                        })
+                                                    }}
+                                                >
+                                                    <Tooltip
+                                                        title={`job ${job.id} ${job.name}`}
+                                                        arrow
+                                                        placement="right"
+                                                    >
+                                                        <Typography className="secondary-menu-text">
+                                                            {job.name}
+                                                        </Typography>
+                                                    </Tooltip>
+                                                </ListItemButton>
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </Box>
+                            )}
+
+                        {/* Main content area */}
+                        {PageComponent && (
+                            <div className="content-area">
+                                <PageComponent
+                                    starName={starName}
+                                    setStarName={setStarName}
+                                    messages={messages || []}
+                                    setMessages={setMessages}
+                                    selectedJob={selectedJob}
+                                    setBlocking={setBlocking}
+                                />
+                            </div>
                         )}
 
-                    {/* Main content area */}
-                    {PageComponent && (
-                        <div className="content-area">
-                            <PageComponent
-                                starName={starName}
-                                setStarName={setStarName}
-                                messages={messages || []}
-                                setMessages={setMessages}
-                                selectedJob={selectedJob}
-                                setBlocking={setBlocking}
+                        {/* Drawer forms */}
+                        {DrawerComponent && selectedDrawer === selectedPrimaryMenu && (
+                            <DrawerComponent
+                                key={selectedDrawer}
+                                open={true}
+                                onClose={() => setSelectedDrawer('')}
+                                onSubmit={(data) => handleSubmit(selectedDrawer, data)}
                             />
-                        </div>
-                    )}
-
-                    {/* Drawer forms */}
-                    {DrawerComponent && selectedDrawer === selectedPrimaryMenu && (
-                        <DrawerComponent
-                            key={selectedDrawer}
-                            open={true}
-                            onClose={() => setSelectedDrawer('')}
-                            onSubmit={(data) => handleSubmit(selectedDrawer, data)}
-                        />
-                    )}
+                        )}
+                    </div>
                 </div>
-            </div>
-        </ThemeProvider>
+            </ThemeProvider>
+        </ErrorProvider>
     )
 }
 

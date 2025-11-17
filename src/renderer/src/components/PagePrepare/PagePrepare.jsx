@@ -4,15 +4,20 @@ import { renderContent } from '../LogHandler/log_handler'
 import { Box, TextField, Button, CircularProgress } from '@mui/material'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import DataTable from '../DataTable'
+import { useError } from '../../context/ErrorContext';
 
 const PagePrepare = (props) => {
     const [JsonData, setJsonData] = useState('')
     const [loading, setLoading] = useState(false)
+    const { showError } = useError();
 
     useEffect(() => {
         const handleJsonUpdate = (data) => {
             setJsonData(data.output) // Update the table data
             setLoading(false);
+            if (data.error) {
+                showError(data.error);
+            }
         }
         window.api.on('json-star', handleJsonUpdate)
     }, [])
@@ -21,13 +26,18 @@ const PagePrepare = (props) => {
         if (!props.starName) return;
         const runStar2Json = async () => {
             setLoading(true);
-            await window.api.call('run', {
-                id: -1,
-                type: 'star2json',
-                star_file: props.starName,
-                json_file: '.to_node.json',
-                status: 'completed',
-            });
+            try {
+                await window.api.call('run', {
+                    id: -1,
+                    type: 'star2json',
+                    star_file: props.starName,
+                    json_file: '.to_node.json',
+                    status: 'completed',
+                });
+            } catch (error) {
+                showError(data.error);
+                setLoading(false);
+            }
         };
         runStar2Json();
     }, [props.starName]);
