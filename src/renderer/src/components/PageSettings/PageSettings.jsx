@@ -119,6 +119,7 @@ const PageSettings = () => {
 					className="isonet-path-input"
 				/>
 				<Button
+					disableFocusRipple
 					variant="outlined"
 					color="primary"
 					startIcon={<FolderOpenIcon />}

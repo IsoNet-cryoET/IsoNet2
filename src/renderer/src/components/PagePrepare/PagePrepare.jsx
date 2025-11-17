@@ -44,6 +44,7 @@ const PagePrepare = (props) => {
         <div>
             <Box className="load-star-row">
                 <Button
+                    disableFocusRipple
                     variant="outlined"
                     color="primary"
                     startIcon={<FolderOpenIcon />}

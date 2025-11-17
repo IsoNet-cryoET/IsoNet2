@@ -300,6 +300,7 @@ const App = () => {
                 <DialogActions>
                     <Button onClick={cancelClose}>No</Button>
                     <Button
+                        disableFocusRipple
                         onClick={doCleanupThenClose}
                         autoFocus
                         variant="contained"
