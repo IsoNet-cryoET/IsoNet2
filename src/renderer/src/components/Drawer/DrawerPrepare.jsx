@@ -76,6 +76,7 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                             onChange={(e) => handleChange('full', e.target.value)}
                         />
                         <Button
+                            disableFocusRipple
                             variant="contained"
                             color="primary"
                             startIcon={<FolderOpenIcon />}
@@ -96,6 +97,7 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                             onChange={(e) => handleChange('even', e.target.value)}
                         />
                         <Button
+                            disableFocusRipple
                             variant="contained"
                             color="primary"
                             startIcon={<FolderOpenIcon />}
@@ -112,6 +114,7 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                             onChange={(e) => handleChange('odd', e.target.value)}
                         />
                         <Button
+                            disableFocusRipple
                             variant="contained"
                             color="primary"
                             startIcon={<FolderOpenIcon />}
