@@ -386,7 +386,7 @@ class ISONET:
             out_data = sum(out_data) / len(out_data)
 
             out_file = f"{prefix}.mrc"
-            write_mrc(out_file, out_data.astype(np.float32) * -1)
+            write_mrc(out_file, out_data.astype(np.float32) * -1, voxel_size = row.rlnPixelSize)
             all_tomo_paths.append(out_file)
 
 
@@ -772,22 +772,24 @@ class ISONET:
              mrc.set_data(result)
         return result
 
-    def postprocessing(self, t1, t2, b1, b2):
+    def FSC(self, t1, t2, m):
         t1, _ = read_mrc(t1)
         t2, _ = read_mrc(t2)
-        b1, _ = read_mrc(b1)
-        b2, _ = read_mrc(b2)
+        m, _ = read_mrc(m)
+        # b1, _ = read_mrc(b1)
+        # b2, _ = read_mrc(b2)
 
-        shape = t1.shape
-        mask_top = np.zeros_like(t1)
-        mask_top[:,:shape[1]//2,:] = 1
-        mask_bottom = 1 - mask_top
+        # shape = t1.shape
+        # mask_top = np.zeros_like(t1)
+        # mask_top[:,:shape[1]//2,:] = 1
+        # mask_bottom = 1 - mask_top
 
-        half1 = t1*mask_bottom+b1*mask_top
-        half2 = t2*mask_bottom+b2*mask_top
+        # half1 = t1*mask_bottom+b1*mask_top
+        # half2 = t2*mask_bottom+b2*mask_top
 
-        from IsoNet.utils.processing import FSC
-        print(FSC(half1,half2))
+        from IsoNet.utils.FSC import FSC
+        np.savetxt('FSC.txt',
+                   FSC(t1,t2, m))
         return 0
     
     def resize(self, star_file:str, apix: float=15, out_folder="tomograms_resized"):
