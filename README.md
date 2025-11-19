@@ -7,43 +7,46 @@
 # 1. Installation and System Requirements
 The following tutorial is written for assuming absolutely no experience with Anaconda or Linux environments.
 
-Software Requirements: This Linux installation of IsoNet requires [`CUDA Version >= 12.0`](https://docs.nvidia.com/cuda/archive/11.8.0/cuda-installation-guide-linux/index.html) and [Anaconda](https://www.anaconda.com/download). A more comprehensive guide for installing CUDA can be found in the [TomoPy UI docs](https://tomopyui.readthedocs.io/en/latest/install.html).
+
+Software Requirements: This Linux installation of IsoNet requires CUDA Version >= 12.0 and Conda.
 
 
 Hardware Requirements: ***Nvidia GTX 1080Ti or newer, with at least 8 GB VRAM ?***
 
-Installing conda
-First, you’ll need to install anaconda or miniconda if you want conda to take up less space on your hard drive. If you are not familiar with conda, read the Getting Started page.
 
-Open up an anaconda prompt. You should see the following:
+## [Installing Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html)
++ Download the installer:
 
-(base)
-This is your base environment. You generally don’t want to mess with your base environment. However, we will install mamba and git here. Run the following:
+  + [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main) installer for Linux.
 
-conda install -c conda-forge mamba
-conda install -c anaconda git
-and type ‘y’ when prompted.
+  + [Anaconda Distribution](https://www.anaconda.com/download) installer for Linux.
 
-Installing CUDA
-This installation can be very confusing, and I hope to not confuse you further with this guide. You might be able to run this software with an old GPU, but you’ll have to check whether or not this GPU is compatible with CUDA 10.2 or higher.
+  + [Miniforge](https://conda-forge.org/download/) installer for Linux.
 
-Note
++ Verify your installer [hashes](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html#hash-verification).
 
-I have only tested this on Windows machines. If someone would like to write up install instructions for Linux or Mac, be my guest.
++ In your terminal window, run `bash <conda-installer-name>-latest-Linux-x86_64.sh`
 
-To check compatibility, follow this list of instructions:
+  `conda-installer-name` will be one of "Miniconda3", "Anaconda", or "Miniforge3".
 
-Find information on your GPU on Windows 10, linux, or Mac.
++ Follow the prompts on the installer screens. If you are unsure about any setting, accept the defaults. You can change them later.
 
-Check out whether or not your GPU is supported on this page. Obviously this doesn’t tell you what version of CUDA you should install, because that would be convenient. Make note of your compute capability. If it is lower than 3.0 compute capability, don’t bother continuing this installation. We need at least that to install cupy.
++ Close and then re-open your terminal window.
 
-Check to see what your latest graphics card driver version is on the NVIDIA driver page(e.g., Version: 391.35).
++ After successful installation, running the command conda list should display a list of installed packages.
 
-See Table 3 on the CUDA Toolkit Docs.
+## [Installing CUDA](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
++ Find information on your GPU for [Linux](https://itsfoss.com/check-graphics-card-linux/).
 
-Check under “Toolkit Driver Version”. We need at least CUDA 10.2 for this installation (as of this documentation, cupy supports drivers at or above CUDA Toolkit version 10.2). If your driver number is above the number under “Toolkit Driver Version”, you should be good to forge on with this installation.
++ Look up your GPU to make sure it is supported. If its [CUDA GPU Compute Capability](https://developer.nvidia.com/cuda-gpus) is below ***XXX***, you will not be able to run IsoNet2.
 
-You can check your `CUDA` version using `nvidia-smi`, which should produce something similar to below:
++ Make sure you have the latest graphics card driver version for your GPU from the [NVIDIA driver page](https://www.nvidia.com/en-us/drivers/).
+
++ Reference your Toolkit Driver Version in Table 3 on the [CUDA Toolkit Docs.](https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html#cuda-major-component-versions__table-cuda-toolkit-driver-versions) to see that it has a corresponding `CUDA Version >= 12.0 (Toolkit Driver Version >=525.60.13)`.
+
++ Select the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit-archive) version that matches what you read in Table 3 and follow the install instructions.
+
+After successfully installing, you can check your `CUDA` version using `nvidia-smi`, which should produce something similar to below:
 ```
 +---------------------------------------------------------------------------------------+
 | NVIDIA-SMI 535.261.03             Driver Version: 535.261.03   CUDA Version: 12.2     |
@@ -56,15 +59,16 @@ You can check your `CUDA` version using `nvidia-smi`, which should produce somet
 |=======================================================================================|
 |  No running processes found                                                           |
 +---------------------------------------------------------------------------------------+
-
 ```
+## Installing IsoNet2
+
 Clone this repository:
 ```
 git clone https://github.com/procyontao/IsoNet2.git
 cd IsoNet2
 ```
 
-Run `./install.sh`. This creates an Conda environment (installing requirements) using the included **isonet2_environment.yml** file and updates your environment variables (allowing you to call isonet.py) by running `source isonet2.bashrc`. You may append this command to your .bashrc file.
+Run `bash install.sh`. This creates an Conda environment (installing requirements) using the included **isonet2_environment.yml** file and updates your environment variables (allowing you to call isonet.py) by running `source isonet2.bashrc`. You may append this command to your .bashrc file so you don't have to re-source it every time you wish to use IsoNet.
 
 
 Installation should take 5-10 minutes. Upon successful installation, running the command `isonet.py --help` should display the following help message.
@@ -111,7 +115,7 @@ The IsoNet2 GUI provides intuitive, detailed, and organized process management, 
 
 ### 2.1.0 Launch GUI
 
-Launch the GUI using `IsoNet2 -no-sandbox &`
+Launch the GUI by entering `IsoNet2 -no-sandbox &` into your terminal.
 
 ### 2.1.1 Prepare Star
 
@@ -147,41 +151,42 @@ Open the **Refine** tab. Keep **Even/Odd Input** enabled and adjust **mw weight*
 
 ![](./IsoNet/tutorial/figures/GUI/07OpenRefine.png)
 
- **Submit (In Queue)** this job. Clicking on your job in the new column will display your progress This output is saved to **./refine/jobID/log.txt**.
+ Click **Submit (In Queue)** for this job. Clicking on your job in the new column will display your progress. This output is saved to **./refine/jobID/log.txt**. A graphical representation of the loss is saved to **./refine/jobID_refine/loss_full.png**
 
 ![](./IsoNet/tutorial/figures/GUI/08RunRefine.png)
 
-To practice queuing jobs, open the **Refine** tab again, using the same parameters as before. Scroll down and select an arbitrary **CTF_moder** to differentiate it from the first job. Click **Submit (In Queue)** to queue your job. You will see a second marker appear in the refine column. Clicking **Submit (Run Immediately)** will bypass the queue, causing both jobs to run simultaneously. This will increase training time for both jobs.
+To practice queuing jobs, open the **Refine** tab again, using the same parameters as before. Scroll down and select an arbitrary **CTF_mode** to differentiate it from the first job. Click **Submit (In Queue)** to queue your job. You will see a second marker appear in the refine column. 
+> Clicking **Submit (Run Immediately)** will bypass the queue, causing both jobs to run simultaneously. This will increase training time for both jobs.
 
 ![](./IsoNet/tutorial/figures/GUI/09QueueRefine.png)
 
-Open the **Jobs Viewer** tab. Here we can see the our jobs' statuses and IDs. You can kill the second job.
+Open the **Jobs Viewer** tab. Here we can see the our jobs' statuses and IDs. You can remove the second job.
 
 ![](./IsoNet/tutorial/figures/GUI/10JobsViewer.png)
 
 ### 2.1.4 Predict
 
-After training is complete, open the **Predict** tab. Adjust **gpuID** as needed.
+After training is complete, open the **Predict** tab. Adjust **gpuID** as needed. Specifying a tomo index will limit prediction to the corresponding tomograms. We will leave it as 'all' here.
 
 ![](./IsoNet/tutorial/figures/GUI/11OpenPredict.png)
 
-Select the completed (*"... full.pt"*) model from your refine directory. **Submit** your job. Clicking on your job in the new column will display your progress. This output is saved to **./predict/jobID/log.txt**.
+Select the completed model file from your **./refine/jobID_refine** directory. **Submit** your job. Clicking on your job in the new column will display your progress. This output is saved to **./predict/jobID/log.txt**.
 
 ![](./IsoNet/tutorial/figures/GUI/12SelectModel.png)
 
-Wait for prediction to finish. View your corrected tomograms in **./predict/jobID_predict**
+Wait for prediction to finish. View your corrected tomograms in **./predict/jobID_predict**.
 
 ![](./IsoNet/tutorial/figures/Fig2.png)
 
 ## 2.2 Command Line
 
-The IsoNet2 CLI requires more hands-on data management and familiarity with parameters, but may be ideal for rapid experimentation with different parameters in the pipeline.
+The IsoNet2 CLI requires more hands-on data management and familiarity with parameters, but may be ideal for rapid preliminary fine-tuning of different parameters in the pipeline. 
 
 ### 2.2.1 Prepare Star
 Prepare the starfile.
 You may enter a single defocus value to be used for every tomogram or a list of values to be applied to their respective tomograms. You may also use your default text editor or the GUI to open **tomograms.star** and manually enter the defocus values.
 ```
-isonet.py prepare_star --even tomograms_split/EVN --odd tomograms_split/ODD --star_name tomograms.star --pixel_size 5.35 --defocus "[25928.79, 25048.72, 25785.23, 26376.26, 26910.0]"
+isonet.py prepare_star --even tomograms_split/EVN --odd tomograms_split/ODD --star_name tomograms.star --pixel_size 5.4 --defocus "[39057,14817,25241,29776,15463]" --number_subtomos 200
 ```
 
 Output for `cat tomograms.star`:
@@ -194,29 +199,15 @@ data_
 
 loop_
 _rlnIndex #1
-_rlnTomoName #2
-_rlnTomoReconstructedTomogramHalf1 #3
-_rlnTomoReconstructedTomogramHalf2 #4
-_rlnPixelSize #5
-_rlnDefocus #6
-_rlnVoltage #7
-_rlnSphericalAberration #8
-_rlnAmplitudeContrast #9
-_rlnMaskBoundary #10
-_rlnMaskName #11
-_rlnTiltMin #12
-_rlnTiltMax #13
-_rlnBoxFile #14
-_rlnNumberSubtomo #15
-1       None    tomograms_split/EVN/9x9_ts_01_sort_EVN_Vol-rotx.mrc     tomograms_split/ODD/9x9_ts_01_sort_ODD_Vol-rotx.mrc     5.400000        25928.790000    300   2.700000 0.100000        None    None    -60     60      None    1000
 
 ...
 
-5       None    tomograms_split/EVN/9x9_ts_05_sort_EVN_Vol-rotx.mrc     tomograms_split/ODD/9x9_ts_05_sort_ODD_Vol-rotx.mrc     5.400000        26910.000000    300   2.700000 0.100000        None    None    -60     60      None    1000
+5       None    tomograms_split/EVN/TS_54_EVN.mrc       tomograms_split/ODD/TS_54_ODD.mrc       5.400000     15463   300     2.700000        0.100000        None    None    -60     60      None    200 None
+
 ```
 ### 2.2.2 Refine
 
-Train IsoNet to reconstruct missing wedge and denoise subtomograms. **with_mask** automatically generates the masks for each tomogram before refinement. **mw_weight** determines how heavily the network prioritizes missing wedge correction over denoising. Here the ratio is 200:1. We recommend directing the output to a logfile.
+Train IsoNet to reconstruct missing wedge and denoise subtomograms. **with_mask** automatically generates the masks for each tomogram before refinement. **mw_weight** determines how heavily the network prioritizes missing wedge correction over denoising. Here the ratio is 200:1. We recommend directing the output to a logfile so you can review the loss values, but this can also be done graphically by viewing **./isonet_maps/loss_full.png**.
 
 ```
 isonet.py refine tomograms.star --with_mask True --gpuID <ids> --mw_weight 200 > refine_log.txt

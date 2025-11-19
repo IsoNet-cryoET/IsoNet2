@@ -513,9 +513,9 @@ class ISONET:
             do_phaseflip_input: Whether to apply phase flip during training.
             bfactor: B-factor for filtering.
             clip_first_peak_mode: Mode for clipping first peak in CTF: 0 - no clipping, 1 - constant, 2 - negative sine function, 3 - cosine function.
-            snrfalloff: SNR falloff parameter.
-            deconvstrength: Deconvolution strength parameter.
-            highpassnyquist: High-pass filter parameter.
+            snrfalloff: SNR falloff parameter. A higher value means less high frequency data.
+            deconvstrength: Deconvolution strength parameter. A higher value means stronger deconvolution.
+            highpassnyquist: High-pass filter parameter. A higher value means more low frequency data is removed.
             with_predict: Whether to run prediction after training.
             pred_tomo_idx: If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
         """
@@ -639,7 +639,6 @@ class ISONET:
             method: Training method (isonet2, isonet2-n2n). If None, will be auto-detected from star file.
             arch: Model architecture (unet-large, unet-small, unet-medium, HSFormer, vtunet).
             pretrained_model: Path to pretrained model to continue training. Previous method, arch, cube_size, CTF_mode, and metrics will be loaded.
-            pretrained_model2: Path to second pretrained model for dual network training.
             cube_size: Size of training cubes.
             epochs: Number of training epochs.
             input_column: Column name in star file to use as input tomograms.
@@ -653,13 +652,14 @@ class ISONET:
             mixed_precision: Whether to use mixed precision to reduce VRAM and increase speed.
             CTF_mode: CTF correction mode (None, phase_only, wiener, network).
             clip_first_peak_mode: Mode for clipping first peak in CTF: 0 - no clipping, 1 - constant, 2 - negative sine function, 3 - cosine function.
-            bfactor: B-factor for filtering.
-            phaseflipped: Whether input tomograms are phase flipped.
+            bfactor: B-factor applied during training/prediction to boost high-frequency content; ideal values around 200 - 500.
+            isCTFflipped: Whether input tomograms are phase flipped.
             do_phaseflip_input: Whether to apply phase flip during training.
             noise_level: Noise level to add during training.
             noise_mode: Noise generation mode (None, ramp, hamming).
-            random_rot_weight: Weight for random rotation augmentation.
-            with_predict: Whether to run prediction after training.
+            random_rot_weight: Percentage of rotations applied as random augmentation.
+            with_predict: Whether to run prediction every save interval.
+            pred_tomo_idx: If set, automatically predict only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
             snrfalloff: SNR falloff parameter.
             deconvstrength: Deconvolution strength parameter.
             highpassnyquist: High-pass filter parameter.
