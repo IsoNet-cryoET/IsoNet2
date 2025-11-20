@@ -9,10 +9,12 @@ def process_tomograms(star_path, output_dir, idx_str, desc, row_processor):
     idx_list = idx2list(idx_str, star.rlnIndex)
     os.makedirs(output_dir, exist_ok=True)
 
-    with tqdm.tqdm(total=len(idx_list), desc=desc) as pbar:
+    with tqdm.tqdm(total=len(idx_list), desc=desc, unit='tomogram') as pbar:
+        # pbar.update(0)
         for i, row in star.iterrows():
             if str(row.rlnIndex) in idx_list:
-                row_processor(i, row, new_star)
+                row_processor(i, row, new_star, pbar)
+                # pbar.set_postfix_str(output_str)
                 pbar.update(1)
 
     starfile.write(new_star, star_path)
@@ -28,7 +30,7 @@ def process_gpuID(gpuID):
         import torch
         gpuID_list = list(range(torch.cuda.device_count()))
         gpuID=','.join(map(str, gpuID_list))
-        print("using all GPUs in this node: %s" %gpuID)  
+        logging.info("using all GPUs in this node: %s" %gpuID)  
         ngpus = len(gpuID_list)
 
     if type(gpuID) == str:
@@ -80,7 +82,7 @@ def parse_params(batch_size_in, gpuID_in, ncpus_in, fit_ncpus_to_ngpus= False):
         if n_workers == 0:
             n_workers = 1
         ncpus = ngpus*n_workers
-        print(f"{n_workers} CPU cores per GPU, total {ncpus} CPUs")
+        logging.info(f"{n_workers} CPU cores per GPU, total {ncpus} CPUs")
     return batch_size, ngpus, ncpus
 
 

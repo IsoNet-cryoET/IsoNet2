@@ -169,7 +169,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
             outmodel_path = f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt"
             
-            print(f"Epoch [{epoch+1:3d}/{training_params['epochs']:3d}], "
+            logging.info(f"Epoch [{epoch+1:3d}/{training_params['epochs']:3d}], "
                 f"Loss: {average_loss:6.4f}, "
                 f"in_mw_loss: {average_inside_mw_loss:6.4f}, "
                 f"out_mw_loss: {average_outside_mw_loss:6.4f}, "

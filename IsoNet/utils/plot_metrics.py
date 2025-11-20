@@ -40,6 +40,7 @@ import matplotlib
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import logging
 
 def min_max_normalize_image_with_clipping(data):
     # Compute 5th and 95th percentiles
@@ -113,4 +114,4 @@ def save_slices_and_spectrum(volume_file, output_folder, iteration):
         plt.savefig(filename, bbox_inches='tight', pad_inches=0)
         plt.close()
 
-    print(f"Saved all slices and square power spectrum for epoch {iteration} to '{output_folder}', the tomo file name is {volume_file}")
+    logging.info(f"Saved slices and square power spectrum for epoch {iteration} to {volume_file}")
