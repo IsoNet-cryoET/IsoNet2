@@ -40,6 +40,7 @@ const App = () => {
     const [selectedJob, setSelectedJob] = useState(null)
     const [messages, setMessages] = useState([])
     const [starName, setStarName] = useState('')
+    const [jsonData, setJsonData] = useState('')
     const [selectedPrimaryMenu, setSelectedPrimaryMenu] = useState('prepare_star')
     const [confirmOpen, setConfirmOpen] = useState(false)
     const inflight = useRef(0)
@@ -395,6 +396,8 @@ const App = () => {
                                 <PageComponent
                                     starName={starName}
                                     setStarName={setStarName}
+                                    jsonData={jsonData}
+                                    setJsonData={setJsonData}
                                     messages={messages || []}
                                     setMessages={setMessages}
                                     selectedJob={selectedJob}

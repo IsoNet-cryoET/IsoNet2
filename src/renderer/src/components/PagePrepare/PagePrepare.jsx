@@ -7,13 +7,12 @@ import DataTable from '../DataTable'
 import { useError } from '../../context/ErrorContext';
 
 const PagePrepare = (props) => {
-    const [JsonData, setJsonData] = useState('')
     const [loading, setLoading] = useState(false)
     const { showError } = useError();
 
     useEffect(() => {
         const handleJsonUpdate = (data) => {
-            setJsonData(data.output) // Update the table data
+            props.setJsonData(data.output) // Update the table data
             setLoading(false);
             if (data.error) {
                 showError(data.error);
@@ -22,32 +21,28 @@ const PagePrepare = (props) => {
         window.api.on('json-star', handleJsonUpdate)
     }, [])
 
-    useEffect(() => {
-        if (!props.starName) return;
-        const runStar2Json = async () => {
-            setLoading(true);
-            try {
-                await window.api.call('run', {
-                    id: -1,
-                    type: 'star2json',
-                    star_file: props.starName,
-                    json_file: '.to_node.json',
-                    status: 'completed',
-                });
-            } catch (error) {
-                showError(data.error);
-                setLoading(false);
-            }
-        };
-        runStar2Json();
-    }, [props.starName]);
-
     const handleFileSelect = async (property) => {
+        let filePath
         try {
-            const filePath = await window.api.call('selectFile', property)
+            filePath = await window.api.call('selectFile', property)
+            if (!filePath) { return }
             props.setStarName(filePath) // Update the state
         } catch (error) {
             console.error('Error selecting file:', error)
+            showError(`'Error selecting file:'${error}`);
+        }
+        setLoading(true);
+        try {
+            await window.api.call('run', {
+                id: -1,
+                type: 'star2json',
+                star_file: filePath,
+                json_file: '.to_node.json',
+                status: 'completed',
+            });
+        } catch (error) {
+            showError(data.error);
+            setLoading(false);
         }
     }
     return (
@@ -80,7 +75,7 @@ const PagePrepare = (props) => {
                         <Box className="loading-text">Loading data...</Box>
                     </Box>
                 )}
-                <DataTable jsonData={JsonData} star_name={props.starName} />
+                <DataTable jsonData={props.jsonData} star_name={props.starName} />
             </Box>
 
             <div className="page-prepare-logs-container">

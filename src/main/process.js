@@ -185,7 +185,7 @@ function runProcess(processItem, callback) {
                     })
                 }
             })
-        } else if (processItem.type === 'star2json') {
+        } else if (processItem.type === 'star2json') {//error
             processItem.event.sender.send('json-star', {
                 cmd: 'prepare_star',
                 output: null,
