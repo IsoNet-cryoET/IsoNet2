@@ -23,7 +23,7 @@ function toCommand(data_raw, id) {
         data.evn = 'None'
     }
     if (data.type !== 'prepare_star' && data.type !== 'star2json') {
-        data.output_dir = data.type + '/job' + id + '_' + data.name
+        data.output_dir = data.type + '/job' + id
     }
 
     if (data.hasOwnProperty('CTF_mode')) {

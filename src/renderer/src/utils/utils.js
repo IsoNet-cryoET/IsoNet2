@@ -14,7 +14,6 @@ export const processMessage = (msg) => {
         const epochMatch = output.match(/epoch\s+(\d+)/i)
         const folderMatch = output.match(/to\s+'([^']+)'/i)
         const volumeMatch = output.match(/the tomo file name is\s+(.+)$/i)
-        console.log(volumeMatch[1].trim())
 
         return {
             type: 'power_spectrum',
