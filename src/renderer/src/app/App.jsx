@@ -79,7 +79,6 @@ const App = () => {
     // Poll log file of the currently selected job
     useEffect(() => {
         if (!selectedJob) return
-        if (selectedJob.status === 'inqueue') return
 
         const logPath = `${selectedJob.output_dir}/log.txt`
         let alive = true
@@ -176,7 +175,9 @@ const App = () => {
                 const payload = { ...withOutputDir, id, type }
 
                 // Add job to Redux + save to settings.json
-                dispatch(addJobAsync(payload))
+                const jobs = await dispatch(addJobAsync(payload)).unwrap()
+                const currentJob = jobs[jobs.length - 1]
+                setSelectedJob(currentJob)
 
                 // Run associated backend Python process
                 window.api.call('run', payload)
