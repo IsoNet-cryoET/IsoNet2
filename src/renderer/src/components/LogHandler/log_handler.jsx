@@ -85,14 +85,17 @@ export const renderContent = (messageList, id, themeMode = 'light') => {
         }
 
         if (msg.type === 'power_spectrum') {
-            const { epoch, folder, volume_file } = msg
+            let { epoch, folder, volume_file } = msg
             console.log(volume_file)
+            const volumeName = volume_file?.split('/').pop().replace(/\.[^/.]+$/, '');
+
             const basePath = `${folder}/`
+            if (!epoch) epoch = ""
             return (
                 <div key={`ps-${i}`} className="epoch-block">
                     <div className="epoch-top-row">
                         <ImageFromPath
-                            relativePath={`${basePath}xy_epoch_${epoch}.png`}
+                            relativePath={`${basePath}${volumeName}_xy_epoch_${epoch}.png`}
                             imgStyle={{ width: '100%', display: 'block' }}
                         />
 
@@ -113,7 +116,7 @@ export const renderContent = (messageList, id, themeMode = 'light') => {
                     <div className="epoch-bottom-row">
                         <div className="epoch-bottom-item">
                             <ImageFromPath
-                                relativePath={`${basePath}xz_epoch_${epoch}.png`}
+                                relativePath={`${basePath}${volumeName}_xz_epoch_${epoch}.png`}
                                 imgStyle={{ width: '100%', display: 'block' }}
                             />
                             <div className="epoch-caption">XZ Slice</div>
@@ -121,7 +124,7 @@ export const renderContent = (messageList, id, themeMode = 'light') => {
 
                         <div className="epoch-bottom-item">
                             <ImageFromPath
-                                relativePath={`${basePath}power_epoch_${epoch}.png`}
+                                relativePath={`${basePath}${volumeName}_power_epoch_${epoch}.png`}
                                 imgStyle={{ width: '100%', display: 'block' }}
                             />
                             <div className="epoch-caption">Power Spectrum</div>

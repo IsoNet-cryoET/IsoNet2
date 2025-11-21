@@ -1,11 +1,11 @@
 import './index.css'
 import { useEffect, useRef, useState } from 'react'
 import { renderContent } from '../LogHandler/log_handler'
-import { Box, Button, Snackbar, TextField } from '@mui/material'
+import { Box, Button, Snackbar, TextField, Typography } from '@mui/material'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
-import Nodata from '../NoData/Nodata'
 import { useDispatch } from 'react-redux'
 import { removeJobAsync, updateJobNameAsync } from '../../store/jobSlice'
+import Placeholder from '../PlaceHolder/Placeholder'
 
 const PageCommon = (props) => {
     const job = props?.selectedJob
@@ -43,9 +43,10 @@ const PageCommon = (props) => {
 
     if (!job) {
         return (
-            <Nodata
-                message="Nothing here yet"
-                sub="Create a new job from the left menu to get started"
+            <Placeholder
+                src="figures/no_data.svg"
+                title="Nothing here yet"
+                subtitle="Create a new job from the left menu to get started"
             />
         )
     }
@@ -113,6 +114,13 @@ const PageCommon = (props) => {
             </Box>
 
             {renderContent(props.messages, job?.id)}
+
+            {job?.status === 'inqueue' && (
+                <Placeholder
+                    src="figures/queue.svg"
+                    title=""
+                    subtitle="job is in waiting list" />
+            )}
 
             <Snackbar
                 open={snack.open}

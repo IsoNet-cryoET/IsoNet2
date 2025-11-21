@@ -109,7 +109,16 @@ const App = () => {
             alive = false
             clearInterval(interval)
         }
-    }, [selectedJob])
+    }, [selectedJob?.id])
+
+    useEffect(() => {
+        if (!selectedJob) return
+
+        const updated = jobs.find((j) => j.id === selectedJob.id)
+        if (updated && updated !== selectedJob) {
+            setSelectedJob(updated)
+        }
+    }, [jobs, selectedJob?.id])
 
     // When main process sends app-close-request, open confirmation dialog
     useEffect(() => {
