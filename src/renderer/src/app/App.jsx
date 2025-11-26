@@ -67,13 +67,14 @@ const App = () => {
         return () => {
             try {
                 off?.()
-            } catch {}
+            } catch { }
         }
     }, [dispatch])
 
     // Poll log file of the currently selected job
     useEffect(() => {
         if (!selectedJob) return
+        if (selectedJob.type === 'prepare_star') return
 
         const logPath = `${selectedJob.output_dir}/log.txt`
         let alive = true
@@ -371,11 +372,11 @@ const App = () => {
                                                                 animation: `${innerGlowPulse} 1.8s ease-in-out infinite`
                                                             },
                                                             '@media (prefers-reduced-motion: reduce)':
-                                                                {
-                                                                    '&::after': {
-                                                                        animation: 'none'
-                                                                    }
+                                                            {
+                                                                '&::after': {
+                                                                    animation: 'none'
                                                                 }
+                                                            }
                                                         })
                                                     }}
                                                 >
