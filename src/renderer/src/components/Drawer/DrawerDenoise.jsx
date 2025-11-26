@@ -49,8 +49,8 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
         snrfalloff: 0,
         deconvstrength: 1,
         highpassnyquist: 0.02,
-        with_predict: true,
-        pred_tomo_idx: 1
+        with_preview: true,
+        prev_tomo_idx: 1
     })
 
     return (
@@ -62,8 +62,8 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
             <Typography variant="h6" gutterBottom>
                 Denoise
             </Typography>
-            <Typography variant="body" gutterBottom>
-                only support even odd input
+            <Typography variant="subtitle1" gutterBottom>
+                Only supports even/odd input
             </Typography>
             <Divider sx={{ marginBottom: 2 }} />
 
@@ -113,18 +113,18 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                 <FormControlLabel
                     control={
                         <Switch
-                            checked={formData.with_predict}
-                            onChange={(e) => handleChange('with_predict', e.target.checked)}
+                            checked={formData.with_preview}
+                            onChange={(e) => handleChange('with_preview', e.target.checked)}
                         />
                     }
-                    label="with predict"
+                    label="with preview"
                 />
-                {formData.with_predict && (
+                {formData.with_preview && (
                     <TextField
-                        label="predict tomo index"
+                        label="preview tomo index"
                         type="str"
-                        value={formData.pred_tomo_idx}
-                        onChange={(e) => handleChange('pred_tomo_idx', e.target.value)}
+                        value={formData.prev_tomo_idx}
+                        onChange={(e) => handleChange('prev_tomo_idx', e.target.value)}
                         fullWidth
                     />
                 )}

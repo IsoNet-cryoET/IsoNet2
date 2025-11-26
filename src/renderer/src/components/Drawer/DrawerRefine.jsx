@@ -53,8 +53,8 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
         bfactor: 0,
         noise_level: 0,
         noise_mode: 'nofilter',
-        with_predict: true,
-        pred_tomo_idx: 1,
+        with_preview: true,
+        prev_tomo_idx: 1,
         even_odd_input: true,
         snrfalloff: 0,
         deconvstrength: 1,
@@ -180,18 +180,18 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                 <FormControlLabel
                     control={
                         <Switch
-                            checked={formData.with_predict}
-                            onChange={(e) => handleChange('with_predict', e.target.checked)}
+                            checked={formData.with_preview}
+                            onChange={(e) => handleChange('with_preview', e.target.checked)}
                         />
                     }
-                    label="with predict"
+                    label="with preview"
                 />
-                {formData.with_predict && (
+                {formData.with_preview && (
                     <TextField
-                        label="predict tomo index"
+                        label="preview tomo index"
                         type="str"
-                        value={formData.pred_tomo_idx}
-                        onChange={(e) => handleChange('pred_tomo_idx', e.target.value)}
+                        value={formData.prev_tomo_idx}
+                        onChange={(e) => handleChange('prev_tomo_idx', e.target.value)}
                         fullWidth
                     />
                 )}

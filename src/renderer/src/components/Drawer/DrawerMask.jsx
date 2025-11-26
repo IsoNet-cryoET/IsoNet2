@@ -40,8 +40,8 @@ const DrawerMask = ({ open, onClose, onSubmit }) => {
             <Typography variant="h6" gutterBottom>
                 Create mask
             </Typography>
-            <Typography variant="body" gutterBottom>
-                does not support even odd input
+            <Typography variant="subtitle1" gutterBottom>
+                Only supports full input
             </Typography>
             <Divider sx={{ marginBottom: 2 }} />
             <Box display="flex" alignItems="center" gap={2} marginY={2}>

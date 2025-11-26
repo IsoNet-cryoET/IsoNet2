@@ -33,14 +33,14 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
         star_name: 'tomograms.star',
         mask_folder: 'None',
         coordinate_folder: 'None',
-        pixel_size: 1.0,
+        pixel_size: 'auto',
         cs: 2.7,
         voltage: 300,
         ac: 0.1,
         tilt_min: -60,
         tilt_max: 60,
         create_average: false,
-        number_subtomos: 1000
+        number_subtomos: 'auto'
     })
 
     const handleTabChange = (event, newValue) => {
@@ -122,7 +122,7 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                         />
                     </Box>
                     <FormControlLabel
-                        control={<Switch defaultChecked />}
+                        control={<Switch />}
                         label="create average"
                         value={formData.create_average}
                         onChange={(e) => handleChange('create_average', e.target.checked)}
