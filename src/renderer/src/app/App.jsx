@@ -2,7 +2,7 @@ import './index.css'
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import PageCommon from '../components/PageCommon'
 import theme from '../theme.js'
-import { ErrorProvider } from '../context/ErrorContext';
+import { ErrorProvider } from '../context/ErrorContext'
 import { mergeMsg, processMessage } from '../utils/utils.js'
 import {
     List,
@@ -27,12 +27,7 @@ import EditIcon from '@mui/icons-material/Edit'
 import Backdrop from '@mui/material/Backdrop'
 import { primaryMenuListinOrder, primaryMenuMapping } from './menuMapping.js'
 import { useSelector, useDispatch } from 'react-redux'
-import {
-    fetchJobs,
-    updateJobStatusAsync,
-    updateJobPIDAsync,
-    addJobAsync
-} from '../store/jobSlice'
+import { fetchJobs, updateJobStatusAsync, updateJobPIDAsync, addJobAsync } from '../store/jobSlice'
 
 const App = () => {
     const [blocking, setBlocking] = useState(false)
@@ -72,7 +67,7 @@ const App = () => {
         return () => {
             try {
                 off?.()
-            } catch { }
+            } catch {}
         }
     }, [dispatch])
 
@@ -103,7 +98,7 @@ const App = () => {
                 }
                 setMessages(tmp)
             })
-        }, 300)
+        }, 500)
 
         return () => {
             alive = false
@@ -155,9 +150,7 @@ const App = () => {
 
             const queued = jobs.filter((j) => j.status === 'inqueue')
             await Promise.allSettled(
-                queued.map((j) =>
-                    dispatch(updateJobStatusAsync({ id: j.id, status: 'completed' }))
-                )
+                queued.map((j) => dispatch(updateJobStatusAsync({ id: j.id, status: 'completed' })))
             )
 
             await window.api.call('appClose', true)
@@ -232,8 +225,7 @@ const App = () => {
                         }
                         setMessages(tmp)
                     }, 300)
-                }
-                else if (type === 'star2json') setMessages([])
+                } else if (type === 'star2json') setMessages([])
             } catch (error) {
                 console.error(`Error submitting ${type} form:`, error)
             } finally {
@@ -329,11 +321,11 @@ const App = () => {
                                             {React.createElement(primaryMenuMapping[key].icon, {
                                                 sx: { mr: 1, color: 'primary.main', fontSize: 16 }
                                             })}
-                                            <ListItemText primary={primaryMenuMapping[key]?.label} />
+                                            <ListItemText
+                                                primary={primaryMenuMapping[key]?.label}
+                                            />
                                             {primaryMenuMapping[key]?.drawer && (
-                                                <IconButton
-                                                    onClick={() => setSelectedDrawer(key)}
-                                                >
+                                                <IconButton onClick={() => setSelectedDrawer(key)}>
                                                     <EditIcon
                                                         sx={{ fontSize: 16, color: 'primary.main' }}
                                                     />
@@ -378,9 +370,12 @@ const App = () => {
                                                                 pointerEvents: 'none',
                                                                 animation: `${innerGlowPulse} 1.8s ease-in-out infinite`
                                                             },
-                                                            '@media (prefers-reduced-motion: reduce)': {
-                                                                '&::after': { animation: 'none' }
-                                                            }
+                                                            '@media (prefers-reduced-motion: reduce)':
+                                                                {
+                                                                    '&::after': {
+                                                                        animation: 'none'
+                                                                    }
+                                                                }
                                                         })
                                                     }}
                                                 >
