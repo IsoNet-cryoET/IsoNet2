@@ -46,24 +46,40 @@ def simple_loss(model_output, target, rot_mw_mask,loss_func='L2'):
     else:
         print("loss name is not correct")
 
-        
-
-def masked_loss(model_output, target, rot_mw_mask, mw_mask, loss_func=None):
-    # This is essence of deepdewedge
-    # inside_mw_loss is for IsoNet
-    # outside_mw_loss is for noise2noise
+def masked_loss2(model_output, target, rot_mw_mask, mw_mask, mw_weight=2.0, loss_func=None):
+    """
+    The self-supervised per-sample loss function for denoising and missing wedge reconstruction.
+    """
     outside_mw_mask = rot_mw_mask * mw_mask
     outside_mw_tomo = apply_fourier_mask_to_tomo(tomo=target - model_output, mask=outside_mw_mask, output="real")
 
     inside_mw_mask = rot_mw_mask * (torch.ones_like(mw_mask) - mw_mask)
-    inside_mw_tomo = apply_fourier_mask_to_tomo(tomo=target - model_output, mask=inside_mw_mask, output="real")
+    inside_mw_loss = (
+        apply_fourier_mask_to_tomo(
+            tomo=target - model_output, mask=inside_mw_mask, output="real"
+        )
+        .abs()
+        .pow(2)
+        .mean()
+    )
+    #loss = outside_mw_loss + mw_weight * inside_mw_loss
+    #return loss
+    return outside_mw_loss,inside_mw_loss
+
+def masked_loss(model_output, target, rot_mw_mask, mw_mask, loss_func=None):
+
+    inside_mask = rot_mw_mask * mw_mask
+    inside_tomo = apply_fourier_mask_to_tomo(tomo=target - model_output, mask=inside_mask, output="real")
+
+    outside_mask = rot_mw_mask * (torch.ones_like(mw_mask) - mw_mask)
+    outside_tomo = apply_fourier_mask_to_tomo(tomo=target - model_output, mask=outside_mask, output="real")
 
     zero_target = torch.zeros_like(target)
     if loss_func == None:
         print("loss name is not correct")
     else:
         #filtered_model_output = apply_fourier_mask_to_tomo(tomo=model_output, mask=rot_mw_mask, output="real")
-        return [loss_func(outside_mw_tomo,zero_target),loss_func(inside_mw_tomo,zero_target)]
+        return [loss_func(outside_tomo,zero_target),loss_func(inside_tomo,zero_target)]
 
 # def masked_loss(model_output, target, rot_mw_mask, mw_mask, mw_weight=2.0, loss_func='L2'):
 #     # This is essence of deepdewedge
@@ -87,8 +103,8 @@ def masked_loss(model_output, target, rot_mw_mask, mw_mask, loss_func=None):
 #         .pow(2)
 #         .mean()
 #     )
-#     loss = outside_mw_loss + mw_weight * inside_mw_loss
-#     return loss
+#     # loss = outside_mw_loss + mw_weight * inside_mw_loss
+#     return outside_mw_loss, inside_mw_loss
 
 def fft_3d(tomo, norm="ortho"):
     fft_dim = (-1, -2, -3)

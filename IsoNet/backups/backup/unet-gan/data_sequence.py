@@ -45,7 +45,7 @@ class Predict_sets(Dataset):
 
 
 def get_datasets(settings):
-    base_folder = settings.data_dir#pathlib.Path(get_brats_folder(on)).resolve()
+    base_folder = settings['data_dir']#pathlib.Path(get_brats_folder(on)).resolve()
     print(base_folder)
 
     train_dataset = Brats(base_folder, prefix="train")

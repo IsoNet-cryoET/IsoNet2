@@ -1,0 +1,115 @@
+name: isonet2_environment
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  # --- Conda Packages ---
+  - python=3.10
+  - pip
+
+  # PyTorch Core (Keep these pinned strictly)
+  - pytorch==2.1.1
+  - torchvision==0.16.1
+  - torchaudio==2.1.1
+  - pytorch-cuda=12.1
+
+  # Core PyTorch Dependencies (Relaxed to let Conda solve)
+  - sympy
+  - jinja2
+  - filelock
+  - mpmath
+  - typing-extensions
+  
+  # Scientific/Binary Packages 
+  # (Unpinned to resolve the Numpy/Tifffile/SimpleITK conflicts)
+  - numpy<2.0             # Restrict to <2.0 for PyTorch compatibility, but allow >1.24
+  - scipy
+  - pandas
+  - scikit-image
+  - pillow
+  - mrcfile
+  - pyarrow
+  - simpleitk
+  - tifffile
+  - matplotlib
+  - imageio
+  - networkx
+  
+  # Binaries
+  - graphviz
+  - python-blosc
+  - pyyaml
+
+  # --- Pip Packages ---
+  - pip:
+    - aiohttp==3.9.3
+    - aiosignal==1.3.1
+    - anyio==4.8.0
+    - async-timeout==4.0.3
+    - attrs==23.2.0
+    - backoff==2.2.1
+    - boto3==1.35.92
+    - botocore==1.35.92
+    - certifi==2022.12.7
+    - charset-normalizer==2.1.1
+    - click==8.1.7
+    - contourpy==1.2.0
+    - cryoet-data-portal==4.2.1
+    - cycler==0.12.1
+    - deepmerge==2.0
+    - einops==0.8.0
+    - exceptiongroup==1.2.2
+    - fidder==0.0.8
+    - fire==0.5.0
+    - focustools==0.2.3
+    - fonttools==4.46.0
+    - frozenlist==1.4.1
+    - fsspec==2024.10.0
+    - git-filter-repo==2.47.0
+    - gql==3.5.0
+    - graphql-core==3.2.5
+    - huggingface-hub==0.26.2
+    - humanize==4.11.0
+    - idna==3.4
+    - jmespath==1.0.1
+    - joblib==1.4.2
+    - kiwisolver==1.4.5
+    - lazy-loader==0.3
+    - lightning-utilities==0.10.1
+    - markdown-it-py==3.0.0
+    - markupsafe==2.1.3
+    - mdurl==0.1.2
+    - mrcz==0.5.7
+    - multidict==6.0.5
+    - ndjson==0.3.1
+    - numexpr==2.10.2
+    - packaging==23.2
+    - platformdirs==4.3.6
+    - pooch==1.8.2
+    - pygments==2.18.0
+    - pyparsing==3.1.1
+    - python-dateutil==2.8.2
+    - pytorch-lightning==2.1.4
+    - pytz==2024.1
+    - requests==2.28.1
+    - requests-toolbelt==1.0.0
+    - rich==13.7.1
+    - s3transfer==0.10.4
+    - safetensors==0.4.5
+    - shellingham==1.5.4
+    - six==1.16.0
+    - sniffio==1.3.1
+    - starfile==0.5.6
+    - strcase==1.0.0
+    - termcolor==2.4.0
+    - tiler==0.5.7
+    - timm==1.0.11
+    - torchmetrics==1.3.0.post0
+    - torchviz==0.0.2
+    - tqdm==4.66.1
+    # - triton==2.1.0 
+    - typer==0.12.3
+    - typer-config==1.4.2
+    - tzdata
