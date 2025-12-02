@@ -284,10 +284,11 @@ def apply_ctf2d(image, defocus, angpix=1, voltage=300, cs=2.7,
     return apply_filter_2d(image, ctf_filter)
 
 if __name__ == '__main__':
-    w=get_ctf3d(angpix=8, voltage=300, cs=2.7, defocus=2.4, amplitude=0.1, phaseshift=0, bfactor=0, shape=[96,96,96], clip_first_peak=False)
+    # w=get_ctf3d(angpix=8, voltage=300, cs=2.7, defocus=2.4, amplitude=0.1, phaseshift=0, bfactor=0, shape=[96,96,96], clip_first_peak=False)
     # c = get_wiener_2d(angpix=5.4, voltage=300, cs=2.7, defocus=3.8,amplitude=0.1, snrfalloff=0, deconvstrength=0, highpassnyquist=0.02, phaseflipped=0, phaseshift=0,length=96)
 
-    from fileio import write_mrc, read_mrc
+    #from fileio import write_mrc, read_mrc
     # write_mrc('ctf.mrc',c)
-    write_mrc('ctf3-keepfirstpeaks.mrc',abs(w))
-
+    #write_mrc('ctf3-keepfirstpeaks.mrc',abs(w))
+    ctf = get_ctf1d(5, 300, 2.7, 4, 0.1, 0, 300, length=2048, clip_first_peak_mode=1)
+    np.savetxt('ctf.txt',ctf,fmt="%03f")

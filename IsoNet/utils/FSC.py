@@ -227,9 +227,12 @@ def get_FSC_map(halfmaps, mask):
     ret = np.real(np.multiply(f1,np.conj(f2)))
     n1 = np.real(np.multiply(f1,np.conj(f1)))
     n2 = np.real(np.multiply(f2,np.conj(f2)))
-    FSC_map = ret/np.sqrt(n1*n2)
+    FSC_map = ret/(np.sqrt(n1*n2)+0.000001)
     return FSC_map
 
+def FSC(m1, m2, m):
+    FSC_map = get_FSC_map([m1,m2], m)
+    return rotational_average(FSC_map)
 def rotational_average(input_map):
     nz,ny,nx = input_map.shape
     r = np.arange(nz)-nz//2
