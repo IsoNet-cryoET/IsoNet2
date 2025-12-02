@@ -362,10 +362,11 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
             outmodel_path = f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt"
             
-            print(f"Epoch [{epoch+1:3d}/{training_params['epochs']:3d}] "
-                f"Loss: {average_loss:6.5f}, "
-                f"inside_loss: {average_inside_loss:6.5f}, "
-                f"outside_loss: {average_outside_loss:6.5f}")
+            loss_str = f"Epoch [{epoch+1:3d}/{training_params['epochs']:3d}] Loss: {average_loss:6.5f}"
+
+            if training_params['method'] in ['isonet2', 'isonet2-n2n']:
+                loss_str += f", inside_loss: {average_inside_loss:6.5f}, outside_loss: {average_outside_loss:6.5f}"
+            print(loss_str)
 
             plot_metrics(training_params["metrics"],f"{training_params['output_dir']}/loss_{training_params['split']}.png")
             if world_size > 1:

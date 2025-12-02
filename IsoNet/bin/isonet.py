@@ -56,7 +56,7 @@ class ISONET:
                      tilt_min: float=-60,
                      tilt_max: float=60,
                      create_average: bool=False,
-                     number_subtomos: int = 'auto'):
+                     number_subtomos = 'auto'):
         """
         Generate a tomograms.star file from folder(s) containing tomogram files.
 
@@ -159,7 +159,7 @@ class ISONET:
         # subtomogram coordinates
         add_param(coordinate_folder, 'rlnBoxFile', "None")
         if number_subtomos in [None, "None","auto"]:
-            number_subtomos = 3000/num_tomo
+            number_subtomos = int(3000/num_tomo)
         if coordinate_folder not in ["None", None]:
             number_subtomos = "None"
             logging.info("the number of subtomogram for each tomogram will be determined by the subtomogram coordinate files")
@@ -456,7 +456,7 @@ class ISONET:
                    cube_size: int=96,
                    epochs: int=50,
 
-                   batch_size: int=None, 
+                   batch_size = "auto", 
                    loss_func: str = "L2",
                    save_interval: int=10,
                    learning_rate: float=3e-4,
@@ -610,7 +610,7 @@ class ISONET:
                    highpassnyquist:float=0.02,
                    with_deconv: bool=False,
                    with_mask: bool=False,
-                   num_mask_updates: int=0,
+                   mask_update_interval: int=0,
                    ):
         """
         Train missing wedge correction model for tomogram refinement.
@@ -764,7 +764,7 @@ class ISONET:
                 network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
                 model_file = f"{output_dir}/network_{method}_{arch}_{cube_size}_full.pt"
                 shutil.copy(model_file, f"{output_dir}/network_{method}_{arch}_{cube_size}_epoch{step}_full.pt")
-                if num_mask_updates > 0:
+                if mask_update_interval == step // save_interval:
                     all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
                                 isCTFflipped=isCTFflipped, tomo_idx=None,output_prefix=f"corrected_epochs{step}")
                     logging.info(f"Updating masks based on the corrected tomograms at epoch {step}")
@@ -772,7 +772,6 @@ class ISONET:
                            input_column="rlnCorrectedTomoName",
                            output_dir=f"{output_dir}/masks",
                            tomo_idx=None)
-                    num_mask_updates -= 1
                 else:
                     all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
                                 isCTFflipped=isCTFflipped, tomo_idx=prev_tomo_idx,output_prefix=f"corrected_epochs{step}")
