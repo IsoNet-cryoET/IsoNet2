@@ -1,4 +1,4 @@
-
+import os
 def plot_metrics(metrics, filename, bottom=None, top=None):
     import numpy as np
     import matplotlib.pyplot as plt
@@ -104,14 +104,15 @@ def save_slices_and_spectrum(volume_file, output_folder, iteration):
         (yz_slice, "yz"),
         (power_spectrum, "power")
     ]
-
+    basename = os.path.basename(volume_file)        # example.tar.gz
+    name, ext = os.path.splitext(basename)   # name = example.tar
     for data, label in image_data:
         plt.figure(figsize=(6, 6))
         plt.imshow(data, cmap='gray')
         plt.axis('off')
         plt.axis('image')  # Keep square pixel ratio
-        filename = os.path.join(output_folder, f"{label}_epoch_{iteration}.png")
+        filename = os.path.join(output_folder, f"{name}_{label}_epoch_{iteration}.png")
         plt.savefig(filename, bbox_inches='tight', pad_inches=0)
         plt.close()
 
-    logging.info(f"Saved slices and square power spectrum for epoch {iteration} to {volume_file}")
+    logging.info(f"Saved all slices and square power spectrum for epoch {iteration} to '{output_folder}', the tomo file name is {volume_file}")
