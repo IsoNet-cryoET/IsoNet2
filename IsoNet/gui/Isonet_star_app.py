@@ -180,7 +180,7 @@ class MainWindowUIClass( Ui_MainWindow ):
                 if self.model.btn_pressed_text:
                     btn.setText(self.model.btn_pressed_text)
         else:
-            self.warn_window("Already runing another job, please wait until it finished!")
+            self.warn_window("Already running another job, please wait until it finished!")
 
     def process_finished(self, btn):
         if btn.text() == "Stop":

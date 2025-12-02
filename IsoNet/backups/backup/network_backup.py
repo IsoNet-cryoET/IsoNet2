@@ -357,7 +357,7 @@ class Net:
 
         data = data[:,np.newaxis,:,:]
         data = torch.from_numpy(data)
-        print('data_shape',data.shape)
+        # print('data_shape',data.shape)
 
         tmp_data_path = f"{output_dir}/tmp.npy"
         mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path), nprocs=self.world_size)

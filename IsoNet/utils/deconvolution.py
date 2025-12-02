@@ -178,7 +178,7 @@ class Chunks:
         return new[0:self._sp[0],0:self._sp[1],0:self._sp[2]]
 
 
-def deconv_one(tomo, out_tomo, voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.0,snrfalloff=1.0, deconvstrength=1.0,highpassnyquist=0.02,chunk_size=200,overlap_rate = 0.25,ncpu=4):
+def deconv_one(tomo,  out_tomo, output_dir='.', voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.0,snrfalloff=1.0, deconvstrength=1.0,highpassnyquist=0.02,chunk_size=200,overlap_rate = 0.25,ncpu=4, phaseflipped=False):
     import mrcfile
     from multiprocessing import Pool
     from functools import partial
@@ -186,15 +186,15 @@ def deconv_one(tomo, out_tomo, voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.
     import shutil
     import time
     t1 = time.time()
-    if os.path.isdir('./deconv_temp'):
-        shutil.rmtree('./deconv_temp')
-    os.mkdir('./deconv_temp')
+    if os.path.isdir(f"{output_dir}/deconv_temp"):
+        shutil.rmtree(f"{output_dir}/deconv_temp")
+    os.mkdir(f"{output_dir}/deconv_temp")
 
 
-    root_name = os.path.splitext(os.path.basename(tomo))[0]
+    # root_name = os.path.splitext(os.path.basename(tomo))[0]
     logging.info('deconv: {}| pixel: {}| defocus: {}| snrfalloff:{}| deconvstrength:{}'.format(tomo, pixel_size, defocus ,snrfalloff, deconvstrength))
     if chunk_size is None:
-        tom_deconv_tomo(tomo,out_tomo,pixel_size, voltage, cs, defocus,snrfalloff,deconvstrength,highpassnyquist,phaseflipped=False, phaseshift=0,ncpu=ncpu)
+        tom_deconv_tomo(tomo,out_tomo,pixel_size, voltage, cs, defocus,snrfalloff,deconvstrength,highpassnyquist,phaseflipped=phaseflipped, phaseshift=0,ncpu=ncpu)
     else:    
         c = Chunks(chunk_size=chunk_size,overlap=overlap_rate)
         chunks_list = c.get_chunks(tomo) # list of name of subtomograms
@@ -217,7 +217,7 @@ def deconv_one(tomo, out_tomo, voltage=300.0, cs=2.7, defocus=1.0, pixel_size=1.
             #print(mrc.header)
             mrc.header.origin = header_input.origin
             mrc.header.nversion=header_input.nversion
-    shutil.rmtree('./deconv_temp')
+    shutil.rmtree(f"{output_dir}/deconv_temp")
     t2 = time.time()
     logging.info('time consumed: {:10.4f} s'.format(t2-t1))
 

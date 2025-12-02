@@ -85,9 +85,15 @@ def mw2D(dim, missingAngle=[30,30], tilt_step=None, start_dim = 48):
 
     return mw.astype(np.float32)
 
-def mw3D(dim,missingAngle=[30,30],tilt_step=None, start_dim = 48):
+def mw3D(dim,missingAngle=[30,30],tilt_step=None, start_dim = 48, spherical=True, dose_weight=1):
     mw = mw2D(dim,missingAngle,tilt_step, start_dim)
     mw = np.repeat(mw[:,np.newaxis,:], dim, axis=1).astype(np.float32)
+    if spherical:
+        center = dim // 2
+        x, y, z = np.ogrid[:dim, :dim, :dim]
+        distance_squared = ((x - center)/dose_weight) ** 2 + ((y - center)/dose_weight) ** 2 + ((z - center)/dose_weight) ** 2
+        mask = distance_squared > center ** 2
+        mw[mask] = 0
     return mw
 
 

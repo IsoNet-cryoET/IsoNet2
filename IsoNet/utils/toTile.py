@@ -34,7 +34,7 @@ class reform3D:
         # pad_right + pad_left + shape >= (self._sp + edge_depth * 2) + (crop_size-cube_size)
         pad_right = (self._sidelen * self.cubesize + (self.cropsize-self.cubesize) - pad_left - self._sp).astype(int)
 
-        data = np.pad(self._orig_data,((pad_left,pad_right[0]),(pad_left,pad_right[1]),(pad_left,pad_right[2])),'symmetric')
+        data = np.pad(self._orig_data,((pad_left,pad_right[0]),(pad_left,pad_right[1]),(pad_left,pad_right[2])),'symmetric').astype(np.float32)
         outdata=[]
 
         for i in range(self._sidelen[0]):
@@ -67,7 +67,7 @@ class reform3D:
         array_z  = array_z[:,np.newaxis,np.newaxis]
 
         out = array_x * array_y * array_z
-        return out[:x_len,:y_len,:z_len]
+        return out[:x_len,:y_len,:z_len].astype(np.float32)
 
 
     def restore(self,cubes):
@@ -79,7 +79,7 @@ class reform3D:
         restored = np.zeros((self._sidelen[0]*self.cubesize+self.edge_depth*2,
                         self._sidelen[1]*self.cubesize+self.edge_depth*2,
                         self._sidelen[2]*self.cubesize+self.edge_depth*2), dtype = np.float32)
-        print("size restored", restored.shape)
+        # logging.info("size restored", restored.shape)
         mask_cube = self.mask(self.cubesize+self.edge_depth*2,self.cubesize+self.edge_depth*2,self.cubesize+self.edge_depth*2)
         for i in range(self._sidelen[0]):
             for j in range(self._sidelen[1]):
@@ -130,7 +130,7 @@ class reform3D:
     #     sp = np.expand_dims(sp,axis=0)
     #     padsize = (sp // time + 1) * time - sp
     #     self._padsize =padsize
-    #     print(padsize, np.zeros((len(self._orig_data.shape),1)))
+    #     logging.info(padsize, np.zeros((len(self._orig_data.shape),1)))
     #     width = np.concatenate((np.zeros((len(self._orig_data.shape),1),int),padsize.T),axis=1)
     #     return np.pad(self._orig_data,width,'edge')
     def cropback(self,padded):

@@ -13,17 +13,18 @@ def maxmask(tomo, side=5,percentile=60):
 
 def stdmask(tomo,side=10,threshold=60):
     from scipy.signal import convolve
-    # print('std_filter')
     tomosq = tomo**2
-    ones = np.ones(tomo.shape)
-    eps = 0.001
-    kernel = np.ones((2*side+1, 2*side+1, 2*side+1))
+    ones = np.ones(tomo.shape).astype(np.float32)
+    kernel = np.ones((2*side+1, 2*side+1, 2*side+1)).astype(np.float32)
     s = convolve(tomo, kernel, mode="same")
     s2 = convolve(tomosq, kernel, mode="same")
-    ns = convolve(ones, kernel, mode="same") + eps
-
-    out = np.sqrt((s2 - s**2 / ns) / ns + eps)
-    # out = out>np.std(tomo)*threshold
+    ns = ones* np.sum(kernel)#convolve(ones, kernel, mode="same")
+    out = s**2
+    out = out / ns
+    out = (s2 - out)
+    out = out / ns
+    out[out<0] = 0
+    out = np.sqrt(out)
     out  = out>np.percentile(out, 100-threshold)
     return out.astype(np.uint8)
 

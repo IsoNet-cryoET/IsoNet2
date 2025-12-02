@@ -7,6 +7,56 @@ import starfile
 import mrcfile
 from tqdm import tqdm
 import random
+from IsoNet.utils.missing_wedge import mw3D
+
+def normalize_percentage(volume, percentile=4, lower_bound = None, upper_bound=None):
+    # original_shape = tensor.shape
+    
+    # batch_size = tensor.size(0)
+    # flattened_tensor = tensor.reshape(1, -1)
+
+    factor = percentile/100.
+    # lower_bound_subtomo = np.quantile(volume, factor, dim=1, keepdim=True)
+    # upper_bound_subtomo = np.quantile(volume, 1-factor, dim=1, keepdim=True)
+    lower_bound_subtomo = np.percentile(volume,factor,axis=None,keepdims=True)
+    upper_bound_subtomo = np.percentile(volume,1-factor,axis=None,keepdims=True)
+    if lower_bound is None: 
+        normalized_volume = (volume - lower_bound_subtomo) / (upper_bound_subtomo - lower_bound_subtomo)
+    else:
+        normalized_volume = (volume - lower_bound) / (upper_bound - lower_bound)
+    
+    return normalized_volume, lower_bound_subtomo, upper_bound_subtomo
+
+class MRCDataset(Dataset):
+    def __init__(self, input_dir, target_dir, transform=None):
+        self.input_files = sorted([os.path.join(input_dir, f) for f in os.listdir(input_dir) if f.endswith(".mrc")])
+        self.target_files = sorted([os.path.join(target_dir, f) for f in os.listdir(target_dir) if f.endswith(".mrc")])
+        print(len(self.input_files))
+        print(len(self.target_files))
+        
+        self.mw = mw3D(64, missingAngle=[30, 30], tilt_step=None, start_dim=100000)
+        self.mw = torch.from_numpy(self.mw).unsqueeze(0)
+        assert len(self.input_files) == len(self.target_files), "Mismatch in number of input and target files"
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.input_files)
+
+    def __getitem__(self, idx):
+        with mrcfile.open(self.input_files[idx], permissive=True) as mrc:
+            input_vol = mrc.data.astype("float32")
+        with mrcfile.open(self.target_files[idx], permissive=True) as mrc:
+            target_vol = mrc.data.astype("float32")
+
+        # Add channel dimension for CNNs: (C, D, H, W) or (C, H, W)
+        input_tensor = torch.from_numpy(input_vol).unsqueeze(0)
+        target_tensor = torch.from_numpy(target_vol).unsqueeze(0)
+
+        if self.transform:
+            input_tensor, target_tensor = self.transform(input_tensor, target_tensor)
+        # print(self.mw.shape)
+        mw = self.mw
+        return input_tensor, target_tensor, mw
 
 class Train_sets_regular(Dataset):
     def __init__(self, paths, shuffle=True):
@@ -40,25 +90,40 @@ class Train_sets_n2n(Dataset):
     Dataset class to load tomograms and provide subvolumes for n2n and spisonet methods.
     """
 
-    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", split="full", noise_dir=None, start_bt_size=48):
+    def __init__(self, tomo_star, method="n2n", cube_size=64, input_column = "rlnTomoName", 
+                 split="full", noise_dir=None,correct_between_tilts=False, start_bt_size=48,
+                 snrfalloff=0, deconvstrength=1, highpassnyquist=0.02, clip_first_peak_mode=0, bfactor = 0):
         self.star = starfile.read(tomo_star)
         self.method = method
         self.n_tomos = len(self.star)
         self.input_column = input_column
         self.cube_size = cube_size
         self.split = split
+        self.clip_first_peak_mode = clip_first_peak_mode
 
         self.n_samples_per_tomo = []
         self.tomo_paths_odd = []
         self.tomo_paths_even = []
+        self.tomo_paths_gt = []
+
         self.tomo_paths = []
         self.coords = []
         self.mean = []
         self.std = []
+
+        self.upperbounds = []
+        self.lowerbounds = []
+
         self.mw_list = []
         self.wiener_list = []
         self.CTF_list = []
         self.start_bt_size=start_bt_size
+        self.correct_between_tilts = correct_between_tilts
+        self.snrfalloff=snrfalloff
+        self.deconvstrength=deconvstrength
+        self.highpassnyquist=highpassnyquist
+        self.has_groundtruth = False
+        self.bfactor = bfactor
 
         self._initialize_data()
         self.length = sum([coords.shape[0] for coords in self.coords])
@@ -74,21 +139,23 @@ class Train_sets_n2n(Dataset):
 
         # Initialize tqdm progress bar
         for _, row in tqdm(self.star.iterrows(), total=len(self.star), desc="Preprocess tomograms", ncols=100):
-            n_samples = row['rlnNumberSubtomo']
-            if self.split in ["top", "bottom"]:
-                n_samples = n_samples // 2
-            self.n_samples_per_tomo.append(n_samples)
-            
+            if 'rlnGroundTruth' in row and row['rlnGroundTruth'] not in [None, "None"]:
+                self.has_groundtruth = True
             mask = self._load_statistics_and_mask(row, column_name_list)
-            
-            if row['rlnBoxFile'] in [None, "None"]:
+            if 'rlnBoxFile' not in row or row['rlnBoxFile'] in [None, "None"]:
+                n_samples = row['rlnNumberSubtomo']
+                if self.split in ["top", "bottom"]:
+                    n_samples = n_samples // 2
+                self.n_samples_per_tomo.append(n_samples)
                 coords = self.create_random_coords(mask.shape, mask, n_samples)
             else:
-                coords = np.loadtxt(row['rlnBoxFile'])
-            
+                coords = np.loadtxt(row['rlnBoxFile'], dtype=int)[:, [2, 1, 0]]
+                self.n_samples_per_tomo.append(len(coords))
             self.coords.append(coords)
 
-            min_angle, max_angle, tilt_step = row['rlnTiltMin'], row['rlnTiltMax'], row['rlnTiltStep']
+            min_angle, max_angle, tilt_step = row['rlnTiltMin'], row['rlnTiltMax'], 3
+            if not self.correct_between_tilts:
+                tilt_step = None
             if tilt_step not in ["None", None]:
                 start_dim = self.start_bt_size/tilt_step
             else:
@@ -110,17 +177,30 @@ class Train_sets_n2n(Dataset):
 
         self.tomo_paths_even.append(row[even_column])
         self.tomo_paths_odd.append(row[odd_column])
+        if self.has_groundtruth:
+            self.tomo_paths_gt.append(row['rlnGroundTruth'])
 
+        # with mrcfile.mmap(row[even_column], mode='r', permissive=True) as tomo_even:
+        #     tomo_shape = tomo_even.data.shape
         with mrcfile.mmap(row[even_column], mode='r', permissive=True) as tomo_even, \
              mrcfile.mmap(row[odd_column], mode='r', permissive=True) as tomo_odd:
             tomo_shape = tomo_even.data.shape
             Z = tomo_shape[0]
-            mean = [np.mean(tomo_even.data[Z//2-16:Z//2+16]), np.mean(tomo_odd.data[Z//2-16:Z//2+16])]
-            std = [np.std(tomo_even.data[Z//2-16:Z//2+16]), np.std(tomo_odd.data[Z//2-16:Z//2+16])]
+
+            # _, lower_evn, upper_evn = normalize_percentage(tomo_even.data)
+            # _, lower_odd, upper_odd = normalize_percentage(tomo_odd.data)
+
+            # _, upper_evn, lower_evn = normalize_percentage(tomo_even.data[Z//2-30:Z//2+30])
+            # _, upper_odd, lower_odd = normalize_percentage(tomo_odd.data[Z//2-30:Z//2+30])
+
+            mean = [np.mean(tomo_even.data[Z//2-30:Z//2+30]), np.mean(tomo_odd.data[Z//2-30:Z//2+30])]
+            std = [np.std(tomo_even.data[Z//2-30:Z//2+30]), np.std(tomo_odd.data[Z//2-30:Z//2+30])]
 
         self.mean.append(mean)
         self.std.append(std)
 
+        # self.upperbounds.append([upper_evn, upper_odd])
+        # self.lowerbounds.append([lower_evn, lower_odd])
         if "rlnMaskName" not in column_name_list or row.get("rlnMaskName") in [None, "None"]:
             mask = np.ones(tomo_shape, dtype=np.float32)
         else:
@@ -172,11 +252,13 @@ class Train_sets_n2n(Dataset):
         """Compute the missing wedge mask for given tilt angles."""
         # defocus in Anstron convert to um
         defocus = row['rlnDefocus']/10000.
-        from IsoNet.utils.CTF import get_wiener_3d,get_ctf_3d
-        ctf3d = get_ctf_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
-                                    phaseflipped=False, phaseshift=0, amplitude=row['rlnAmplitudeContrast'],length=self.cube_size)
+        from IsoNet.utils.CTF import get_wiener_3d
+        from IsoNet.utils.CTF_new import get_ctf3d
+        ctf3d = get_ctf3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
+                                    phaseshift=0, amplitude=row['rlnAmplitudeContrast'],bfactor=self.bfactor, \
+                                        shape=[self.cube_size,self.cube_size,self.cube_size], clip_first_peak_mode=self.clip_first_peak_mode)
         wiener3d = get_wiener_3d(angpix=row['rlnPixelSize'], voltage=row['rlnVoltage'], cs=row['rlnSphericalAberration'], defocus=defocus,\
-                                  snrfalloff=row['rlnSnrFalloff'], deconvstrength=row['rlnDeconvStrength'], highpassnyquist=0.02, \
+                                  snrfalloff=self.snrfalloff, deconvstrength=self.deconvstrength, highpassnyquist=self.highpassnyquist, \
                                     phaseflipped=False, phaseshift=0, amplitude=row['rlnAmplitudeContrast'], length=self.cube_size)
         return ctf3d, wiener3d
 
@@ -190,6 +272,13 @@ class Train_sets_n2n(Dataset):
         half_size = self.cube_size // 2
         with mrcfile.mmap(tomo_paths[tomo_index], mode='r', permissive=True) as tomo:
             subvolume = tomo.data[z-half_size:z+half_size, y-half_size:y+half_size, x-half_size:x+half_size]
+        
+        # if invert:
+        #     #return 1 - (subvolume - self.lowerbounds[tomo_index][eo_idx]) / (self.upperbounds[tomo_index][eo_idx]- self.lowerbounds[tomo_index][eo_idx])
+        #     return (self.upperbounds[tomo_index][eo_idx] - subvolume) / (self.upperbounds[tomo_index][eo_idx]- self.lowerbounds[tomo_index][eo_idx])
+
+        # else:
+        #     return (subvolume - self.lowerbounds[tomo_index][eo_idx]) / (self.upperbounds[tomo_index][eo_idx]- self.lowerbounds[tomo_index][eo_idx])
         if invert:
             return (self.mean[tomo_index][eo_idx] - subvolume) / self.std[tomo_index][eo_idx]
         else:
@@ -208,7 +297,7 @@ class Train_sets_n2n(Dataset):
         even_subvolume = self.load_and_normalize(self.tomo_paths_even, tomo_index, z, y, x, eo_idx=0)
         odd_subvolume = self.load_and_normalize(self.tomo_paths_odd, tomo_index, z, y, x, eo_idx=1)
 
-        x, y = self.random_swap(
+        x1_volume, x2_volume = self.random_swap(
             np.array(even_subvolume, dtype=np.float32)[np.newaxis, ...], 
             np.array(odd_subvolume, dtype=np.float32)[np.newaxis, ...]
         )
@@ -223,9 +312,18 @@ class Train_sets_n2n(Dataset):
         else:
             noise_volume = np.array([0], dtype=np.float32)
 
-        return x, y, self.mw_list[tomo_index][np.newaxis, ...], \
-                self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...], noise_volume[np.newaxis, ...]
+        if self.has_groundtruth:
+            gt_subvolume = self.load_and_normalize(self.tomo_paths_gt, tomo_index, z, y, x, eo_idx=1)[np.newaxis, ...]
+        else:
+            gt_subvolume = np.array([0], dtype=np.float32)
+        return x1_volume, x2_volume, gt_subvolume, self.mw_list[tomo_index][np.newaxis, ...], \
+            self.CTF_list[tomo_index][np.newaxis, ...], self.wiener_list[tomo_index][np.newaxis, ...], noise_volume[np.newaxis, ...]        
 
+if __name__ == '__main__':
+    from IsoNet.utils.missing_wedge import mw3D
+    mw = mw3D(128, missingAngle=[90 + (-64), 90 - 42],spherical=False, tilt_step=3, start_dim=10000)
+    from IsoNet.utils.fileio import write_mrc
+    write_mrc('wedge4.mrc',mw)
 
 
 

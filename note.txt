@@ -1,0 +1,120 @@
+prepare_star:
+
+EVN-ODD:
+isonet.py prepare_star -e tomograms/EVN -o tomograms/ODD --create_average True (good)
+
+single tomograms input:
+isonet.py prepare_star sum_even_odd_tomograms -s tomograms_single.star (good)
+
+devonv:
+isonet.py deconv tomograms_single.star -o deconv1 
+(ERROR: The argument '-o' is ambiguous as it could refer to any of the following arguments: ['output_dir', 'overlap_rate'])
+
+isonet.py deconv tomograms_single.star --output_dir deconv1 (good)
+FIXED: the default SNR fall off is 0 which should be 1.
+
+make_mask:
+isonet.py make_mask tomograms_single.star (good)
+
+isonet.py make_mask tomograms_single.star -d 70 (good)
+
+denoise:
+isonet.py denoise tomograms.star --gpuID 0,1 (runs)
+
+isonet.py denoise tomograms.star --gpuID 0,1 (runs)
+
+if CTF_mode is "None": no ctf correction
+if CTF_mode is "network": CTF approximated within network. likely to be preferred
+if CTF_mode is "wiener": do amplititude and phase correction
+if CTF_mode is "phase_only": do phase correction
+
+generate_mask:
+1. slabify
+2. flytomo
+3. coordinate based
+4. user defined segmentation, membrain, dragonfly
+5. IsoNet1
+
+TODO:
+isonet.py slabify
+isonet.py make_mask option="slabify" parameters
+isonet.py make_mask option="density based" parameters
+isonet.py make_mask option="coordinate-based" parameters
+
+TODO:
+we need to test tomo_idx
+
+TODO:
+IsoNet.py resize need to implement for the half maps.
+
+TODO:
+
+
+apply_F_filter_torch is identital to apply_fourier_mask_to_tomo
+masked_loss is identital to ddw mask_loss
+
+
+The mrcdataloader performs better than the dataset_n2n dataloader
+The reason could be:
+1. the output of the dataloader are different
+2. there are something relevent to the edge of the subtomograms, if the tomograms are crowded the algorithum does not work as good;
+ or this is related to the rotation?
+
+
+
+ IsoNet1 loss in IsoNet2 is much better than the mask loss 
+
+ IsoNet1 whether there is normalize problem
+ predict:
+             data.append(real_data)
+            data = np.array(data)
+            predicted=model.predict(data[:,:,:,:,np.newaxis], batch_size= settings.predict_batch_size,verbose=0)
+            predicted = predicted.reshape(predicted.shape[0:-1])
+            for j,outData in enumerate(predicted):
+                count = i + j - N + 1
+                if count < len(settings.mrc_list):
+                    m_name = settings.mrc_list[count]
+
+                    root_name = m_name.split('/')[-1].split('.')[0]
+                    end_size = pad_size1+cube_size
+                    outData1 = outData[pad_size1:end_size, pad_size1:end_size, pad_size1:end_size]
+                    outData1 = normalize(outData1, percentile = settings.normalize_percentile)
+                    with mrcfile.new('{}/{}_iter{:0>2d}.mrc'.format(settings.result_dir,root_name,settings.iter_count-1), overwrite=True) as output_mrc:
+                        output_mrc.set_data(-outData1)
+            data = []
+
+
+I change the normalization to the place similar to IsoNet1. So we can compare the loss betweeen IsoNet1 and 2
+I temperarlly reverse the rotation to IsoNet1 rotation 
+
+
+TODO
+1. we need to fix line 134 in noise.py to make it the match isonet1,not with fixed angles
+ def simulate_noise(params):
+    size = params[0]
+    global angles
+    angles = np.arange(-60,61,3)
+    print(angles)
+
+3. The protocol to test:
+    a. modify the code such as 
+        A. change the rotation 
+        B move the normalization in different place
+        C adding noise_level for noise2noise training
+        D different network 
+    b. To see whether the GT_cross correlation using similuate data improves; 
+    c. if b True check the isonet with HIV tutorial dataset improves
+    d. if c true we can keep the change
+
+4. test normalize the entire tomogram not the individual subtomo in the training loop.
+
+5.
+Tutorial
+Check isonet2_environment.yml
+Check minimal CUDA version
+add denoise workflow
+
+
+address overtraining
+
+copy mask boundary from isonet1 tutorial
