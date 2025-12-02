@@ -97,7 +97,7 @@ class Net:
                 self.model.apply(self.model._init_weights)
 
         else:
-            print(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )
+            logging.info(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )
         # elif self.arch == 'HSFormer':
         #     from IsoNet.models.HSFormer import swin_tiny_patch4_window8
         #     self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=128,num_classes =1)
@@ -108,7 +108,7 @@ class Net:
         #     from IsoNet.models.vtunet import VTUnet
         #     self.model = VTUnet()
         num_params = get_num_parameters(self.model)
-        print(f'Total number of parameters: {num_params}')
+        logging.info(f'Total number of parameters: {num_params}')
 
 
         self.world_size = torch.cuda.device_count()
@@ -214,7 +214,7 @@ class Net:
     def predict(self, data, tmp_data_path, F_mask=None):    
         data = data[:,np.newaxis,:,:].astype(np.float32)
         data = torch.from_numpy(data)
-        print('data_shape',data.shape)
+        # logging.info('data_shape',data.shape)
         mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path,\
                                      F_mask), nprocs=self.world_size)
         all_outputs = []
@@ -280,10 +280,10 @@ class DuoNet:
         training_params2['epochs'] = T_max
 
         for i in range(T_steps):
-            print(f"training the top half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
+            logging.info(f"training the top half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
             self.net1.train(training_params1)
             training_params1["starting_epoch"]+=T_max
-            print(f"training the bottom half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
+            logging.info(f"training the bottom half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
             self.net2.train(training_params2)
             training_params2["starting_epoch"]+=T_max
 
