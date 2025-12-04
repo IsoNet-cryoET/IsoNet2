@@ -312,8 +312,7 @@ Once prediction is done, view your CTF-corrected, denoised, and missing-wedge-co
 ![](./IsoNet/tutorial/figures/corrected.png)
 **Fig. 4.** XY slices of HIV tomograms CTF-corrected, denoised, and missing-wedge corrected using *IsoNet2* Refine.
 
-# 3. IsoNet Modules
-
+# 3. IsoNet2 Modules
 
 ## prepare_star
 Generate a tomograms.star file in the same style as the RELION5 tomographic processing pipeline that lists tomogram file paths and acquisition metadata used by all downstream IsoNet commands.
