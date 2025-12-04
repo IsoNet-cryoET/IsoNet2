@@ -218,12 +218,12 @@ class Net:
                                                      -outData[i])
         return outData
 
-    def predict(self, data, tmp_data_path, F_mask=None):    
+    def predict(self, data, tmp_data_path, F_mask=None, idx=None):
         data = data[:,np.newaxis,:,:].astype(np.float32)
         data = torch.from_numpy(data)
         # logging.info('data_shape',data.shape)
         mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path,\
-                                     F_mask), nprocs=self.world_size)
+                                     F_mask,idx), nprocs=self.world_size)
         all_outputs = []
         for r in range(self.world_size):
             rank_output_path = f"{tmp_data_path}_rank_{r}.npy"
@@ -238,12 +238,12 @@ class Net:
         return outData
 
     
-    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, F_mask=None):
+    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, F_mask=None, idx=None):
         # change edge width from 7 to 5 to reduce computing
         reform_ins = reform3D(data,cube_size,crop_size,5)
         data = reform_ins.pad_and_crop()        
         tmp_data_path = f"{output_dir}/tmp.npy"
-        outData = self.predict(data, tmp_data_path=tmp_data_path, F_mask=F_mask)
+        outData = self.predict(data, tmp_data_path=tmp_data_path, F_mask=F_mask,idx=idx)
         outData = outData.squeeze()
         outData=reform_ins.restore(outData)
         return outData

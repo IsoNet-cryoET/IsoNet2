@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import string
 import fire
 import logging
 import os, sys
@@ -210,23 +211,20 @@ class ISONET:
         phaseflipped:bool=False,
         tomo_idx: str=None):
         """
-        CTF deconvolution for tomograms.
-
-        This step is recommended because it enhances low-resolution information for better contrast.
-        This is unnecessary for phase plate data.
+        CTF deconvolution preprocessing that enhances low-resolution contrast and recovers information attenuated by the microscope contrast transfer function. Recommended for non–phase-plate data; skip for phase-plate data or if intending to use network-based CTF deconvolution.
 
         Args:
-            star_file: Star file for tomograms.
-            output_dir: Folder to save deconvolved tomograms.
-            input_column: Column name in star file to use as input tomograms.
-            snrfalloff: SNR falloff rate with frequency. Higher values correspond to less high frequency data. If not set, the program will look for the parameter in the star file or use the default.
-            deconvstrength: Strength of the deconvolution. If not set, the program will look for the parameter in the star file or use the default.
-            highpassnyquist: Highpass filter at very low frequency. The default is usually sufficient.
-            chunk_size: If memory is limited, set chunk_size to crop the tomogram into smaller chunks for processing. May induce artifacts at chunk edges; increase overlap_rate if needed.
-            overlap_rate: Overlap rate for adjacent chunks.
-            ncpus: Number of CPUs to use.
-            phaseflipped: Whether input tomograms are phase flipped.
-            tomo_idx: If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
+            star_file: Input STAR listing tomograms and acquisition metadata. Required parameter.
+            output_dir: Folder to write deconvolved tomograms (rlnDeconvTomoName entries point here). /deconv".
+            input_column: STAR column used for input tomogram paths. 
+            snrfalloff: Controls frequency-dependent SNR attenuation applied during deconvolution; larger values reduce high-frequency contribution more aggressively and can stabilize deconvolution on noisy data; smaller values preserve more high-frequency content but risk amplifying noise. 0.
+            deconvstrength: Scalar multiplier for deconvolution strength; increasing this emphasizes correction and low-frequency recovery but can introduce ringing/artifacts if set too high. 0.
+            highpassnyquist: Fraction of the Nyquist used as a very-low-frequency high-pass cutoff; use to remove large-scale intensity gradients and drift; usually left at default. 02.
+            chunk_size: If set, tomograms are processed in smaller cubic chunks to reduce memory usage. Useful for very large tomograms or limited RAM/VRAM. May create edge artifacts if chunks are too small. 
+            overlap_rate: Fractional overlap between adjacent chunks when chunking; larger overlaps reduce edge artifacts at cost of extra computation. 25.
+            ncpus: Number of CPU workers for CPU-bound parts of deconvolution; increase on multi-core systems. 
+            phaseflipped: If True, input is assumed already phase-flipped; otherwise the function uses defocus and CTF info to apply phase handling. 
+            tomo_idx: If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16"). 
         """
         def deconv_row(i, row, new_star):
             tomo_file = row[input_column]
@@ -254,6 +252,7 @@ class ISONET:
             )
 
             new_star.at[i, "rlnDeconvTomoName"] = deconv_tomo_name
+            logging.info(f"Deconvolved {os.path.relpath(tomo_file)} → {deconv_tomo_name}")
 
         process_tomograms(
             star_file,
@@ -273,19 +272,17 @@ class ISONET:
                 z_crop:float=0.2,
                 tomo_idx=None):
         """
-        Generate masks for subtomogram extraction that exclude "empty" areas of tomograms.
+        Generate masks to prioritize regions of interest. Masks improve sampling efficiency and training stability.
 
-        The masks do not need to be precise. In general, more selective masks reduce the number of subtomograms needed.
-    
         Args:
-            star_file: Path to the star file containing tomogram information.
-            input_column: Column name in star file to use as input tomograms.
-            output_dir: Directory to save generated masks.
-            patch_size: The size of the box from which the max-filter and std-filter are calculated.
-            density_percentage: The approximate percentage of pixels to keep based on their local pixel density. If not set, will look for parameter in star file or use default.
-            std_percentage: The approximate percentage of pixels to keep based on their local standard deviation. If not set, will look for parameter in star file or use default.
-            z_crop: The percentage of tomogram data masked out along the z axis, split between the top and bottom regions. For example, 0.2 will mask out the top 10% and bottom 10% region along z axis.
-            tomo_idx: If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
+            star_file: Input STAR listing tomograms and acquisition metadata. Required parameter.
+            input_column: STAR column to read tomograms from (default **rlnDeconvTomoName**; falls back to **rlnTomoName** or **rlnTomoReconstructedTomogramHalf1** if absent). 
+            output_dir: Folder to save mask MRCs; rlnMaskName is updated in the STAR. 
+            patch_size: Local patch size used for max/std local filters; larger values smooth detection of specimen regions; default works for typical pixel sizes. 
+            density_percentage: Percentage of voxels retained based on local density ranking; lower values create stricter masks (keep fewer voxels). 
+            std_percentage: Percentage retained based on local standard-deviation ranking; lower values emphasize textured regions. 
+            z_crop: Fraction of tomogram Z to crop from both ends; masks out top and bottom 10% each when set to 0.2. Use to avoid sampling low-quality reconstruction edges. 2.
+            tomo_idx: If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16"). 
         """
 
         def mask_row(i, row, new_star):
@@ -314,8 +311,8 @@ class ISONET:
                 surface=z_crop/2
             )
             new_star.at[i, 'rlnMaskName'] = out_path
-
-        logging.info("Generating masks for tomograms")
+            logging.info(f"Masked {os.path.relpath(tomo)} → {out_path}")
+        
         process_tomograms(
             star_file,
             output_dir,
@@ -334,21 +331,21 @@ class ISONET:
                 isCTFflipped: bool=False,
                 padding_factor: float=1.5,
                 tomo_idx=None,
-                output_prefix=""):
+                output_prefix: str  = ""):
         """
-        Predict tomograms using trained model.
+        Apply a trained IsoNet model to tomograms to produce denoised or missing-wedge–corrected volumes. Prediction utilizes the model's saved cube size and CTF handling options, but allows for runtime adjustments.
 
         Args:
-            star_file: Star file for tomograms.
-            model: Path to trained network model (.pt file).
-            output_dir: Directory to save output predicted tomograms.
-            gpuID: GPU IDs to use during prediction (e.g., "0,1,2,3").
-            input_column: Column name in star file to use as input tomograms.
-            apply_mw_x1: Whether to apply missing wedge mask to input tomograms.
-            isCTFflipped: Whether input tomograms are phase flipped.
-            padding_factor: Padding factor for prediction cubes.
-            tomo_idx: If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
-            output_prefix: Prefix to append to predicted MRC files.
+            star_file: Input STAR describing tomograms to predict. Required parameter.
+            model: Path to trained model checkpoint (.pt) for single-model prediction. Required parameter.
+            output_dir: Folder to save predicted tomograms; outputs are recorded in the STAR as rlnCorrectedTomoName or rlnDenoisedTomoName depending on method. /corrected_tomos".
+            gpuID: GPU IDs string (e.g., "0" or "0,1"); use multiple GPUs when available for speed. 
+            input_column: STAR column used for input tomogram paths. This is only relevant if the network model is using method IsoNet2. 
+            apply_mw_x1: If True (default), build and apply the missing-wedge mask to cubic inputs before prediction. 
+            isCTFflipped: Declare if input tomograms are already phase-flipped; affects CTF handling. 
+            padding_factor: Cubic padding factor used during tiling to reduce edge effects; larger padding reduces seams but increases computation. 5.
+            tomo_idx: Process a subset of STAR entries by index. 
+            output_prefix: Prefix to append to predicted MRC files. 
         """
         ngpus, gpuID, gpuID_list = process_gpuID(gpuID)
 
@@ -359,7 +356,7 @@ class ISONET:
         if hasattr(network, 'do_phaseflip_input'):
             do_phaseflip_input = network.do_phaseflip_input
         else:
-            logging.info("network do not have do_phaseflip_input")
+            logging.info("Network does not have to do_phaseflip_input")
             do_phaseflip_input = True
 
         all_tomo_paths = []
@@ -417,7 +414,8 @@ class ISONET:
                     tomo_vol, output_dir,
                     cube_size= int(cube_size / padding_factor+0.1),
                     crop_size=cube_size,
-                    F_mask=F_mask
+                    F_mask=F_mask,
+                    idx=i + 1
                 ))
 
             out_data = sum(out_data) / len(out_data)
@@ -429,16 +427,16 @@ class ISONET:
 
             # 5) Update STAR
             column = "rlnDenoisedTomoName" if network.method == 'n2n' else "rlnCorrectedTomoName"
-            new_star.at[i, column] = out_file   
-            save_slices_and_spectrum(out_file,output_dir,'')
-            logging.info(f" Predicted {[os.path.relpath(p) for p in tomo_paths]} → {out_file}")
-            
+            new_star.at[i, column] = out_file
+            if output_prefix in ["", "None", None]:
+                save_slices_and_spectrum(out_file,output_dir,'')
+            logging.info(f"Predicted {[os.path.relpath(p) for p in tomo_paths]} → {out_file}")
 
         process_tomograms(
             star_path=star_file,
             output_dir=output_dir,
             idx_str=tomo_idx,
-            desc="Predict Tomograms",
+            desc="Predict",
             row_processor=predict_row
         )
         return all_tomo_paths
@@ -476,35 +474,33 @@ class ISONET:
                    prev_tomo_idx:str=1
                    ):
         """
-        Train denoising model using noise2noise approach.
-
-        This method uses noise2noise training approach for denoising tomograms.
+        Entry point for IsoNet2 training. Use denoise for quicker noise-to-noise (n2n) training workflows for preliminary tomogram testing and mask generation.
 
         Args:
-            star_file: Star file for tomograms.
-            output_dir: Directory to save trained model and results.
-            gpuID: GPU IDs to use during training (e.g., "0,1,2,3").
-            ncpus: Number of CPUs to use for data processing.
-            arch: Model architecture (unet-large, unet-small, unet-medium, HSFormer, vtunet).
-            pretrained_model: Path to pretrained model to continue training.
-            cube_size: Size of training subvolumes.
-            epochs: Number of training epochs.
-            batch_size: Batch size for training. If none is provided, it will be calculated based on GPU availability.
-            loss_func: Loss function to use (L2, Huber, L1).
-            save_interval: Interval to save model checkpoints.
-            learning_rate: Initial learning rate.
-            learning_rate_min: Minimum learning rate for scheduler.
-            mixed_precision: Use mixed precision to reduce VRAM and increase speed.
-            CTF_mode: CTF correction mode (None, phase_only, wiener, network).
-            isCTFflipped: Whether input tomograms are phase flipped.
-            do_phaseflip_input: Whether to apply phase flip during training.
-            bfactor: B-factor for filtering.
-            clip_first_peak_mode: Mode for clipping first peak in CTF: 0 - no clipping, 1 - constant, 2 - negative sine function, 3 - cosine function.
-            snrfalloff: SNR falloff parameter. A higher value means less high frequency data.
-            deconvstrength: Deconvolution strength parameter. A higher value means stronger deconvolution.
-            highpassnyquist: High-pass filter parameter. A higher value means more low frequency data is removed.
-            with_preview: Whether to run prediction after training.
-            prev_tomo_idx: If set, process only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
+            star_file: STAR file for tomograms. Required parameter.
+            output_dir: Directory to save trained model and results. 
+            gpuID: GPU IDs to use during training (e.g., "0,1,2,3"). 
+            ncpus: Number of CPUs to use for data processing. 
+            arch: Network architecture string (e.g., unet-small, unet-medium, unet-large). Determines model capacity and VRAM requirements. 
+            pretrained_model: Path to pretrained model to continue training. Previous method, arch, cube_size, CTF_mode, and metrics will be loaded. 
+            cube_size: Size in voxels of training subvolumes. Must be compatible with the network (divisible by the network downsampling factors). 
+            epochs: Number of training epochs. 
+            batch_size: Number of subtomograms per optimization step; if "auto", this is automatically determined by multiplying the number of available GPUs by 2. If the number of GPUs is 1, batch size is 4. Batch size per GPU matters for gradient stability. 
+            loss_func: Loss function to use (L2, Huber, L1). 
+            save_interval: Interval to save model checkpoints. 
+            learning_rate: Initial learning rate. 
+            learning_rate_min: Minimum learning rate for scheduler. 
+            mixed_precision: If True, uses float16/mixed precision to reduce VRAM and speed up training. 
+            CTF_mode: CTF handling mode: "None": No CTF correction, "phase_only": Phase-only correction, "network": Applies CTF-shaped filter to network input, "wiener": Applies Wiener filter to network target
+            isCTFflipped: Whether input tomograms are phase flipped. 
+            do_phaseflip_input: Whether to apply phase flip during training. 
+            bfactor: B-factor applied during training/prediction to boost high-frequency content. For cellular tomograms we recommend a b-factor of 0. For isolated samples, you can use a b-factor from 200–300. 
+            clip_first_peak_mode: Controls attenuation of overrepresented very-low-frequency CTF peak. Options 2 and 3 might increase low-resolution contrast. 0: none, 1: constant clip, 2: negative sine, 3: cosine
+            snrfalloff: Controls frequency-dependent SNR attenuation applied during deconvolution; larger values reduce high-frequency contribution more aggressively. 
+            deconvstrength: Scalar multiplier for deconvolution strength; increasing this emphasizes correction and low-frequency recovery. 0.
+            highpassnyquist: Fraction of the Nyquist used as a very-low-frequency high-pass cutoff; use to remove large-scale intensity gradients and drift. 02.
+            with_preview: If True, run prediction using the final checkpoint(s) after training. 
+            prev_tomo_idx: If set, automatically predict only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16"). 
         """
         acc_batches=1
         create_folder(output_dir,remove=False)
@@ -547,7 +543,6 @@ class ISONET:
 
         training_params['split'] = "full"
         from IsoNet.models.network import Net
-        from IsoNet.utils.plot_metrics import save_slices_and_spectrum
         network = Net(method='n2n', arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
         network.prepare_train_dataset(training_params)
         if with_preview:
@@ -573,7 +568,7 @@ class ISONET:
                    gpuID: str=None,
                    ncpus: int=16, 
 
-                   method: str="None",
+                   method: str="auto",
                    arch: str='unet-medium',
                    pretrained_model: str=None,
 
@@ -581,7 +576,7 @@ class ISONET:
                    epochs: int=50,
                    
                    input_column: str= 'rlnDeconvTomoName',
-                   batch_size: int=None, 
+                   batch_size: int="auto", 
                    loss_func: str = "L2",
                    learning_rate: float=3e-4,
                    save_interval: int=10,
@@ -607,52 +602,44 @@ class ISONET:
 
                    snrfalloff: float=0,
                    deconvstrength: float=1,
-                   highpassnyquist:float=0.02,
-                   with_deconv: bool=False,
-                   with_mask: bool=False,
-                   mask_update_interval: int=0,
+                   highpassnyquist:float=0.02
+
                    ):
         """
-        Train missing wedge correction model for tomogram refinement.
-
-        This is the main training method for missing wedge correction using IsoNet2 approach.
-        Supports both single tomogram training (isonet2) and noise2noise training (isonet2-n2n).
+        Use refine for IsoNet2 missing-wedge correction (isonet2) or isonet2-n2n combined modes.
 
         Args:
-            star_file: Star file for tomograms.
-            output_dir: Directory to save trained model and results.
-            gpuID: GPU IDs to use during training (e.g., "0,1,2,3").
-            ncpus: Number of CPUs to use for data processing.
-            method: Training method (isonet2, isonet2-n2n). If None, will be auto-detected from star file.
-            arch: Model architecture (unet-large, unet-small, unet-medium, HSFormer, vtunet).
-            pretrained_model: Path to pretrained model to continue training. Previous method, arch, cube_size, CTF_mode, and metrics will be loaded.
-            cube_size: Size of training cubes.
-            epochs: Number of training epochs.
-            input_column: Column name in star file to use as input tomograms.
-            batch_size: Batch size for training. If none is provided, it will be calculated based on GPU availability.
-            loss_func: Loss function to use (L2, Huber, L1).
-            learning_rate: Initial learning rate.
-            save_interval: Interval to save model checkpoints. Default is epochs/10.
-            learning_rate_min: Minimum learning rate for scheduler.
-            mw_weight: Weight for missing wedge loss. Higher values correspond to stronger emphasis on missing wedge regions. Disabled by default.
-            apply_mw_x1: Whether to apply missing wedge to subtomograms at the beginning.
-            mixed_precision: Whether to use mixed precision to reduce VRAM and increase speed.
-            CTF_mode: CTF correction mode (None, phase_only, wiener, network).
-            clip_first_peak_mode: Mode for clipping first peak in CTF: 0 - no clipping, 1 - constant, 2 - negative sine function, 3 - cosine function.
-            bfactor: B-factor applied during training/prediction to boost high-frequency content; ideal values around 200 - 500.
-            isCTFflipped: Whether input tomograms are phase flipped.
-            do_phaseflip_input: Whether to apply phase flip during training.
-            noise_level: Noise level to add during training.
-            noise_mode: Noise generation mode (None, ramp, hamming).
-            random_rot_weight: Percentage of rotations applied as random augmentation.
-            with_preview: Whether to run prediction every save interval.
-            prev_tomo_idx: If set, automatically predict only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16").
-            snrfalloff: SNR falloff parameter.
-            deconvstrength: Deconvolution strength parameter.
-            highpassnyquist: High-pass filter parameter.
-            with_deconv: Only applies to method isonet2. Whether to run deconvolution preprocessing automatically.
-            with_mask: Whether to generate masks automatically.
-            num_mask_updates: Number of times to update masks based on corrected tomograms during training.
+            star_file: Input STAR listing tomograms and acquisition metadata. Required parameter.
+            output_dir: Directory to save trained model and results. 
+            gpuID: GPU IDs to use during training (e.g., "0,1,2,3"). 
+            ncpus: Number of CPUs to use for data processing. 
+            method: "isonet2" for single-map missing-wedge correction, "isonet2-n2n" for noise2noise when even/odd halves are present. If omitted, the code auto-detects the method from the STAR columns. 
+            arch: Network architecture string (e.g., unet-small, unet-medium, unet-large, scunet-fast). Determines model capacity and VRAM requirements. 
+            pretrained_model: Path to pretrained model to continue training. Previous method, arch, cube_size, CTF_mode, and metrics will be loaded. 
+            cube_size: Size in voxels of training subvolumes. Must be compatible with the network (divisible by the network downsampling factors). 
+            epochs: Number of training epochs. 
+            input_column: Column name in STAR file to use as input tomograms. 
+            batch_size: Number of subtomograms per optimization step; if None, this is automatically determined by multiplying the number of available GPUs by 2. If the number of GPUs is 1, batch size is 4. Batch size per GPU matters for gradient stability. 
+            loss_func: Loss function to use (L2, Huber, L1). 
+            learning_rate: Initial learning rate. 
+            save_interval: Interval to save model checkpoints. 
+            learning_rate_min: Minimum learning rate for scheduler. 
+            mw_weight: Weight for missing wedge loss. Higher values correspond to stronger emphasis on missing wedge regions. Disabled by default. 
+            apply_mw_x1: Whether to apply missing wedge to subtomograms at the beginning. 
+            mixed_precision: If True, uses float16/mixed precision to reduce VRAM and speed up training. 
+            CTF_mode: CTF handling mode: "None": No CTF correction, "phase_only": Phase-only correction, "network": Applies CTF-shaped filter to network input, "wiener": Applies Wiener filter to network target
+            clip_first_peak_mode: Controls attenuation of overrepresented very-low-frequency CTF peak. Options 2 and 3 might increase low-resolution contrast. 0: none, 1: constant clip, 2: negative sine, 3: cosine
+            bfactor: B-factor applied during training/prediction to boost high-frequency content. For cellular tomograms we recommend a b-factor of 0. For isolated samples, you can use a b-factor from 200–300. 
+            isCTFflipped: Whether input tomograms are phase flipped. 
+            do_phaseflip_input: Whether to apply phase flip during training. 
+            noise_level: Adds artificial noise during training. 
+            noise_mode: Controls filter applied when generating synthetic noise (None, ramp, hamming). 
+            random_rot_weight: Percentage of rotations applied as random augmentation. 2.
+            with_preview: If True, run prediction using the final checkpoint(s) after training. 
+            prev_tomo_idx: If set, automatically predict only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16"). 
+            snrfalloff: Controls frequency-dependent SNR attenuation applied during deconvolution; larger values reduce high-frequency contribution more aggressively and can stabilize deconvolution on noisy data; smaller values preserve more high-frequency content but risk amplifying noise. 
+            deconvstrength: Scalar multiplier for deconvolution strength; increasing this emphasizes correction and low-frequency recovery but can introduce ringing/artifacts if set too high. 0.
+            highpassnyquist: Fraction of the Nyquist used as a very-low-frequency high-pass cutoff; use to remove large-scale intensity gradients and drift; usually left at default. 02.
         """
         compile_model=False
         # there is some questions about this parameter, relate to the placement of the zerograd
@@ -660,12 +647,16 @@ class ISONET:
         correct_between_tilts: bool=False
         start_bt_size: int=128
 
+        with_deconv: bool=False,
+        with_mask: bool=False,
+        mask_update_interval: int=0,
+
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
         steps_per_epoch = 200000000
         
         star = starfile.read(star_file)
-        if method in ["None", None]:
+        if method in ["None", None,"","auto"]:
             has_full = 'rlnTomoName' in star.columns and star.iloc[0]['rlnTomoName'] not in [None, "None"]
             has_split = 'rlnTomoReconstructedTomogramHalf1' in star.columns and star.iloc[0]['rlnTomoReconstructedTomogramHalf1'] not in [None, "None"]
             if has_full and has_split:
@@ -778,106 +769,6 @@ class ISONET:
                 save_slices_and_spectrum(all_tomo_paths[0],output_dir,step)
         else:
             network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
-
-    # def refine_v1(self,
-    #     star_file: str,
-    #     output_dir: str='results',
-
-    #     gpuID: str = None,
-    #     ncpus: int = 16,
-
-    #     arch: str="unet-medium",
-    #     pretrained_model: str = None,
-
-    #     cube_size = 80,
-
-    #     input_column: str= 'rlnDeconvTomoName',
-    #     batch_size: int = None,
-    #     loss_func: str= 'L2',
-    #     learning_rate: float = 3e-4,
-    #     T_max: int =  10,
-    #     learning_rate_min: float = 3e-4,
-    #     compile_model: bool = False,
-    #     mixed_precision: bool = True,
-
-    #     iterations: int = 30,
-    #     continue_from: str=None,
-    #     epochs: int = 10,
-
-    #     noise_level:  tuple = (0.05,0.1,0.15,0.2),
-    #     noise_mode: str = 'noFilter',
-    #     noise_start_iter: tuple = (10,15,20,25),
-
-    #     with_preview: bool = True,
-
-    #     # temporarily fixed parameters
-    #     normalize_percentile: bool = True,
-    #     select_subtomo_number: int = None,
-    #     noise_dir: str = None,
-    #     split_halves: bool=False,
-    #     data_dir: str = None,
-    #     log_level: str = "info",
-    #     remove_intermediate: bool =False,
-    #     steps_per_epoch: int = None,
-    #     tomo_idx = None,
-    #     crop_size = None, 
-    #     random_rotation: bool =  False,
-
-    # ):
-
-    #     """
-    #     \n\n
-    #     IsoNet.py map_refine half.mrc FSC3D.mrc --mask mask.mrc --limit_res 3.5 [--gpuID] [--ncpus] [--output_dir] [--fsc_file]...
-    #     :param i: Input half map 1
-    #     :param aniso_file: 3DFSC file
-    #     :param mask: Filename of a user-provided mask
-    #     :param independent: Independently process half1 and half2, this will disable the noise2noise-based denoising but will provide independent maps for gold-standard FSC
-    #     :param gpuID: The ID of gpu to be used during the training.
-    #     :param alpha: Ranging from 0 to inf. Weighting between the equivariance loss and consistency loss.
-    #     :param beta: Ranging from 0 to inf. Weighting of the denoising. Large number means more denoising. 
-    #     :param limit_res: Important! Resolution limit for IsoNet recovery. Information beyong this limit will not be modified.
-    #     :param ncpus: Number of cpu.
-    #     :param output_dir: The name of directory to save output maps
-    #     :param pretrained_model: The neural network model with ".pt" to continue training or prediction. 
-    #     :param reference: Retain the low resolution information from the reference in the IsoNet refine process.
-    #     :param ref_resolution: The limit resolution to keep from the reference. Ususlly  10-20 A resolution. 
-    #     :param epochs: Number of epochs.
-    #     :param n_subvolume: Number of subvolumes 
-    #     :param predict_crop_size: The size of subvolumes, should be larger then the cube_size
-    #     :param cube_size: Size of cubes for training, should be divisible by 16, e.g. 32, 64, 80.
-    #     :param batch_size: Size of the minibatch. If None, batch_size will be the max(2 * number_of_gpu,4). batch_size should be divisible by the number of gpu.
-    #     :param acc_batches: If this value is set to 2 (or more), accumulate gradiant will be used to save memory consumption.  
-    #     :param learning_rate: learning rate. Default learning rate is 3e-4 while previous IsoNet tomography used 3e-4 as learning rate
-    #     """
-
-
-    #     from IsoNet.utils.utils import parse_params
-    #     from IsoNet.utils.dict2attr import load_args_from_json, filter_dict
-    #     params=filter_dict(locals())
-    #     if params['continue_from'] is not None:
-    #         logging.info('\n######Isonet Continues Refining######\n')
-    #         params = load_args_from_json(params.continue_from)
-
-    #     params["batch_size"], params["ngpus"], params["ncpus"] = parse_params(batch_size, gpuID, ncpus)
-    #     # params["crop_size"] = params.get("crop_size") or params["cube_size"] + 16
-    #     params["crop_size"] = params.get("cube_size")
-
-    #     params["data_dir"] = params.get("data_dir") or f'{params["output_dir"]}/data'
-    #     params["steps_per_epoch"] = params.get("steps_per_epoch") or 200
-    #     params["noise_dir"] = params.get("noise_dir") or f'{params["output_dir"]}/training_noise'
-    #     params["log_level"] = params.get("log_level") or "info"
-
-    #     if type(params["noise_level"]) not in [tuple, list]:
-    #         params["noise_level"] = [params["noise_level"]]
-    #     if type(params["noise_start_iter"]) not in [tuple, list]:
-    #         params["noise_start_iter"] = [params["noise_start_iter"]]
-
-    #     from IsoNet.bin.refine import run
-    #     run(params)
-
-    #     # if with_preview:
-    #         # self.predict(star_file, params['])
-
 
     def simulate_noise_F(self, size=128, tilt_step=3, repeats=1000, ncpus=51):
         """
