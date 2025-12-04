@@ -45,85 +45,97 @@ def wiener1d(angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassn
     return ctf, wiener
 
 def tom_deconv_tomo(vol_file, out_file,angpix, voltage, cs, defocus, snrfalloff, deconvstrength, highpassnyquist, phaseflipped, phaseshift, ncpu=8):
-    with mrcfile.open(vol_file, permissive=True) as f:
-        header_in = f.header
-        vol = f.data
-        voxelsize = f.voxel_size
-    data = np.arange(0,1+1/2047.,1/2047.)
-    highpass = np.minimum(np.ones(data.shape[0]), data/highpassnyquist) * np.pi
-    highpass = 1-np.cos(highpass)
-    eps = 1e-6
-    snr = np.exp(-data * snrfalloff * 100 / angpix) * (10**deconvstrength) * highpass + eps
+    from tqdm import tqdm
+    total_steps = 6  # read, snr/highpass, ctf/wiener, meshgrid/r, ramp interp, fft/ifft, normalize, write
 
-    ctf = tom_ctf1d(angpix*1e-10, voltage * 1e3, cs * 1e-3, -defocus*1e-6, 0.07, phaseshift / 180 * np.pi, 0)
-    if phaseflipped:
-        ctf = abs(ctf)
-    wiener = ctf/(ctf*ctf+1/snr)
-
-
-    s1 = - int(np.shape(vol)[1] / 2)
-    f1 = s1 + np.shape(vol)[1] - 1
-    m1 = np.arange(s1,f1+1)
-
-    s2 = - int(np.shape(vol)[0] / 2)
-    f2 = s2 + np.shape(vol)[0] - 1
-    m2 = np.arange(s2,f2+1)
-
-    s3 = - int(np.shape(vol)[2] / 2)
-    f3 = s3 + np.shape(vol)[2] - 1
-    m3 = np.arange(s3,f3+1)
-
-    x, y, z = np.meshgrid(m1,m2,m3)
-
-    x = x.astype(np.float32)
-    x = x / np.abs(s1)
-    x = x**2
-
-    y = y.astype(np.float32) 
-    y = y / np.abs(s2)
-    y = y**2
-
-    z = z.astype(np.float32) 
-    z = z / np.maximum(1, np.abs(s3))
-    z = z**2
-
-    r = x + y
-    r = r + z
-
-    r = np.sqrt(r)
-    del x,y,z
-    gc.collect()
-    r = np.minimum(1, r)
-    r = np.fft.ifftshift(r)
-
-    ramp = np.interp(r, data,wiener).astype(np.float32)
-    del r
-    gc.collect()
+    # create progress bar covering the main logical steps for a single deconvolution call
+    with tqdm(total=total_steps, desc=f'Deconvolve: {os.path.basename(vol_file)}', unit=' step') as pbar:
+        with mrcfile.open(vol_file, permissive=True) as f:
+            header_in = f.header
+            vol = f.data
+            voxelsize = f.voxel_size
         
-    deconv = scipy.fft.fftn(vol, overwrite_x=True, workers=ncpu)
-    deconv = np.real(scipy.fft.ifftn(deconv * ramp, overwrite_x=True, workers=ncpu))
-    deconv = deconv.astype(np.float32)
-    std_deconv = np.std(deconv)
-    std_vol = np.std(vol)
-    ave_vol = np.average(vol)
-    del vol,ramp
-    gc.collect()
-    deconv /= std_deconv
-    deconv *= std_vol
-    deconv += ave_vol
-    gc.collect()
-    if out_file is not None:
-        out_name = out_file
-    else:
-        out_name = os.path.splitext(vol_file)[0]+'_deconv.mrc'
-    
+        data = np.arange(0,1+1/2047.,1/2047.)
+        highpass = np.minimum(np.ones(data.shape[0]), data/highpassnyquist) * np.pi
+        highpass = 1-np.cos(highpass)
+        eps = 1e-6
+        snr = np.exp(-data * snrfalloff * 100 / angpix) * (10**deconvstrength) * highpass + eps
+        pbar.update(1)  # snr/highpass done
 
-    
-    with mrcfile.new(out_name,overwrite=True) as n:
-        n.set_data(deconv) #.astype(type(vol[0,0,0]))
-        n.voxel_size = voxelsize
-        n.header.origin = header_in.origin
-        n.header.nversion = header_in.nversion
+        ctf = tom_ctf1d(angpix*1e-10, voltage * 1e3, cs * 1e-3, -defocus*1e-6, 0.07, phaseshift / 180 * np.pi, 0)
+        if phaseflipped:
+            ctf = abs(ctf)
+        wiener = ctf/(ctf*ctf+1/snr)
+        pbar.update(1)  # ctf/wiener done
+
+
+        s1 = - int(np.shape(vol)[1] / 2)
+        f1 = s1 + np.shape(vol)[1] - 1
+        m1 = np.arange(s1,f1+1)
+
+        s2 = - int(np.shape(vol)[0] / 2)
+        f2 = s2 + np.shape(vol)[0] - 1
+        m2 = np.arange(s2,f2+1)
+
+        s3 = - int(np.shape(vol)[2] / 2)
+        f3 = s3 + np.shape(vol)[2] - 1
+        m3 = np.arange(s3,f3+1)
+
+        x, y, z = np.meshgrid(m1,m2,m3)
+
+        x = x.astype(np.float32)
+        x = x / np.abs(s1)
+        x = x**2
+
+        y = y.astype(np.float32) 
+        y = y / np.abs(s2)
+        y = y**2
+
+        z = z.astype(np.float32) 
+        z = z / np.maximum(1, np.abs(s3))
+        z = z**2
+
+        r = x + y
+        r = r + z
+
+        r = np.sqrt(r)
+        del x,y,z
+        gc.collect()
+        r = np.minimum(1, r)
+        r = np.fft.ifftshift(r)
+        pbar.update(1)  # meshgrid / r computed
+
+        ramp = np.interp(r, data,wiener).astype(np.float32)
+        del r
+        gc.collect()
+        pbar.update(1)  # ramp interp done
+        
+        deconv = scipy.fft.fftn(vol, overwrite_x=True, workers=ncpu)
+        deconv = np.real(scipy.fft.ifftn(deconv * ramp, overwrite_x=True, workers=ncpu))
+        deconv = deconv.astype(np.float32)
+        std_deconv = np.std(deconv)
+        std_vol = np.std(vol)
+        ave_vol = np.average(vol)
+        del vol,ramp
+        gc.collect()
+        deconv /= std_deconv
+        deconv *= std_vol
+        deconv += ave_vol
+        gc.collect()
+        pbar.update(1)  # fft/ifft + normalize done
+
+        if out_file is not None:
+            out_name = out_file
+        else:
+            out_name = os.path.splitext(vol_file)[0]+'_deconv.mrc'
+        
+        with mrcfile.new(out_name,overwrite=True) as n:
+            n.set_data(deconv) #.astype(type(vol[0,0,0]))
+            n.voxel_size = voxelsize
+            n.header.origin = header_in.origin
+            n.header.nversion = header_in.nversion
+        pbar.update(1)  # write done
+
     #return real(ifftn(fftn(single(vol)).*ramp));
     return os.path.splitext(vol_file)[0]+'_deconv.mrc'
 
@@ -185,14 +197,12 @@ def deconv_one(tomo,  out_tomo, output_dir='.', voltage=300.0, cs=2.7, defocus=1
     from IsoNet.utils.deconvolution import tom_deconv_tomo,Chunks
     import shutil
     import time
-    t1 = time.time()
     if os.path.isdir(f"{output_dir}/deconv_temp"):
         shutil.rmtree(f"{output_dir}/deconv_temp")
     os.mkdir(f"{output_dir}/deconv_temp")
 
 
     # root_name = os.path.splitext(os.path.basename(tomo))[0]
-    logging.info('deconv: {}| pixel: {}| defocus: {}| snrfalloff:{}| deconvstrength:{}'.format(tomo, pixel_size, defocus ,snrfalloff, deconvstrength))
     if chunk_size is None:
         tom_deconv_tomo(tomo,out_tomo,pixel_size, voltage, cs, defocus,snrfalloff,deconvstrength,highpassnyquist,phaseflipped=phaseflipped, phaseshift=0,ncpu=ncpu)
     else:    
@@ -218,8 +228,6 @@ def deconv_one(tomo,  out_tomo, output_dir='.', voltage=300.0, cs=2.7, defocus=1
             mrc.header.origin = header_input.origin
             mrc.header.nversion=header_input.nversion
     shutil.rmtree(f"{output_dir}/deconv_temp")
-    t2 = time.time()
-    logging.info('time consumed: {:10.4f} s'.format(t2-t1))
 
 
 

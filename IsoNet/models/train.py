@@ -393,7 +393,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
         dist.destroy_process_group()
 
 
-def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mask):
+def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mask,idx=None):
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = str(port_number)
@@ -412,7 +412,7 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
     with torch.no_grad():
         for i in tqdm(
             range(rank * steps_per_rank, min((rank + 1) * steps_per_rank, num_data_points)),
-            disable=(rank != 0),desc='Predicting Tomogram: '
+            disable=(rank != 0), desc=f'Predicting Tomogram{f" {idx}" if idx is not None else ""}: '
         ):
             batch_input = data[i:i + 1].to(rank)
             if F_mask is not None:
