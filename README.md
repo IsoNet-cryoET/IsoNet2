@@ -2,7 +2,7 @@
 
 **IsoNet2** is a deep-learning software package for simultaneous missing wedge correction, denoising, and CTF correction in cryo-electron tomography reconstructions using a deep neural network trained on information from the original tomogram(s). Compared to IsoNet1, IsoNet2 produces tomograms with higher resolution and less noise in roughly a tenth of the time. The software requires full tomograms or even/odd split tomograms as input. Paired tomograms for Noise2Noise training can be split by either frame or tilt.
 
-**IsoNet2** contains six modules: **prepare_star**, **deconv**, **make_mask**, **denoise**, **refine**, and **predict**. All commands in IsoNet operate on `.star` text files which record paths of data and relevant parameters. For detailed descriptions of each module please refer to the individual tasks. Users can choose to utilize IsoNet through either GUI or command-lines.
+**IsoNet2** contains six modules: **prepare_star**, **deconv**, **make_mask**, **denoise**, **refine**, and **predict**. All commands in IsoNet operate on `.star` text files which record paths of data and relevant parameters. For detailed descriptions of each module please refer to the individual tasks. Users can choose to utilize IsoNet2 through either GUI or command-lines.
 
 # 1. Installation and System Requirements
 The following tutorial is written assuming absolutely no experience with Anaconda or Linux environments.
@@ -337,7 +337,7 @@ After training, apply the trained model to the original tomograms to recover mis
 isonet.py predict tomograms.star isonet_maps/network_isonet2-n2n_unet-medium_96_full.pt --gpuID <ids>
 ```
 
-# 3. IsoNet Modules
+# 3. IsoNet2 Modules
 
 ## prepare_star
 Generate a tomograms.star file in the same style as the RELION5 tomographic processing pipeline that lists tomogram file paths and acquisition metadata used by all downstream IsoNet commands. The function accepts either a single set of full tomograms or paired even/odd half tomograms for noise2noise workflows.
