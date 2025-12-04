@@ -133,7 +133,7 @@ Select your **even** dataset in the popup directory. Do the same for your **odd*
 Set your **pixel size in Å** to 5.4 and leave the other parameters at their default values. Then select **Run**.
  
 You may optionally enable **create_average** to average the half tomograms and reduce noise for the ***Deconvolve*** and ***Create Mask*** modules (more information in **Section 2.1.2: Pre-Mask Processing**). 
-For each module, **Show command** provides the `isonet.py` command if you prefer to run it directly in your terminal.
+>For each module, **Show command** provides the `isonet.py` command if you prefer to run it directly in your terminal.
 
 ![](./IsoNet/tutorial/figures/GUI/04ModifyDefocus.png)
 The starfile should automatically display. If you ran the command in your terminal, or if you have a pre-existing RELION5 starfile, select **Load from Star** and choose the starfile from your working directory. Fill in the **rlnDefocus** column with the approximate defocus in Å at 0° tilt for each tomogram.
@@ -312,8 +312,7 @@ Once prediction is done, view your CTF-corrected, denoised, and missing-wedge-co
 ![](./IsoNet/tutorial/figures/corrected.png)
 **Fig. 4.** XY slices of HIV tomograms CTF-corrected, denoised, and missing-wedge corrected using *IsoNet2* Refine.
 
-# 3. IsoNet Modules
-
+# 3. IsoNet2 Modules
 
 ## prepare_star
 Generate a tomograms.star file in the same style as the RELION5 tomographic processing pipeline that lists tomogram file paths and acquisition metadata used by all downstream IsoNet commands.
