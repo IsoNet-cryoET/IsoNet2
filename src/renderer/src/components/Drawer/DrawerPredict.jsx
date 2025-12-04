@@ -77,16 +77,6 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                     onClick={() => handleFileSelect('star_file', 'openFile')}
                 ></Button>
             </Box>
-            <Box display="flex" alignItems="center" gap={2} marginY={2}>
-                <TextField
-                    label="job name"
-                    type="string"
-                    value={formData.name}
-                    onChange={(e) => handleChange('name', e.target.value)}
-                    fullWidth
-                    margin="normal"
-                />
-            </Box>
             {!formData.even_odd_input && (
                 <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
                     <InputLabel>input column</InputLabel>
@@ -104,6 +94,16 @@ const DrawerPredict = ({ open, onClose, onSubmit }) => {
                     </Select>
                 </FormControl>
             )}
+            <Box display="flex" alignItems="center" gap={2} marginY={2}>
+                <TextField
+                    label="job name"
+                    type="string"
+                    value={formData.name}
+                    onChange={(e) => handleChange('name', e.target.value)}
+                    fullWidth
+                    margin="normal"
+                />
+            </Box>
             <Box display="flex" alignItems="center" gap={2} marginY={2}>
                 <TextField label="network model" value={formData.model} fullWidth />
                 <Button

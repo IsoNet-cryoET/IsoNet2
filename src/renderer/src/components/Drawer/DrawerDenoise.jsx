@@ -35,7 +35,7 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
         pretrained_model: 'None',
         cube_size: 96,
         epochs: 50,
-        batch_size: 'None',
+        batch_size: 'auto',
         loss_func: 'L2',
         save_interval: 10,
         learning_rate: 3e-4,

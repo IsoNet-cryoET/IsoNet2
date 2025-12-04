@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { createStore } from './store.js'
+import { createStore, createEnvironmentStore } from './store.js'
 import { registerRpc } from './rpc.js'
 import { createMainWindow } from './window.js'
 import counter from './handlers/counter.js'
@@ -11,6 +11,7 @@ import other from './handlers/other.js'
 
 let mainWindow = null
 const store = createStore(process.cwd())
+const environmentStore = createEnvironmentStore()
 
 app.whenReady().then(async () => {
     electronApp.setAppUserModelId('com.electron')
@@ -26,12 +27,13 @@ app.whenReady().then(async () => {
     }
 
     const ctx = { store, getMainWindow: () => mainWindow }
+    const environment_ctx = { environmentStore, getMainWindow: () => mainWindow }
     const handlers = {
         ...counter(ctx),
-        ...environment(ctx),
+        ...environment(environment_ctx),
         ...files(ctx),
         ...jobs(ctx),
-        ...other(ctx),
+        ...other(ctx)
     }
     registerRpc(handlers)
 })

@@ -6,12 +6,12 @@ import ElectronStore from 'electron-store';
 const Store = (ElectronStore && ElectronStore.default) ? ElectronStore.default : ElectronStore;
 
 // same store file as main.js
-const store = new Store({ name: 'settings', cwd: process.cwd() });
+const environmentStore = new Store({ name: 'environment', cwd: process.cwd() });
 
 /** read + validate settings */
 function readRuntimeSettings() {
-    const condaEnv = String(store.get('condaEnv', '') || '');
-    const isoNetPath = String(store.get('IsoNetPath', '') || '');
+    const condaEnv = String(environmentStore.get('condaEnv', '') || '');
+    const isoNetPath = String(environmentStore.get('IsoNetPath', '') || '');
 
     const isoBin = isoNetPath ? path.join(isoNetPath, 'IsoNet', 'bin') : '';
     const isoOk = isoNetPath && fs.existsSync(isoNetPath);

@@ -4,21 +4,21 @@ import { STORE_KEYS } from '../constants.js'
 
 const execPromise = util.promisify(exec)
 
-export default function environment({ store }) {
+export default function environment({ environmentStore }) {
     return {
         async setCondaEnv(_, name) {
-            store.set(STORE_KEYS.CONDA_ENV, String(name || ''))
+            environmentStore.set(STORE_KEYS.CONDA_ENV, String(name || ''))
             return { success: true }
         },
         async getCondaEnv() {
-            return String(store.get(STORE_KEYS.CONDA_ENV, ''))
+            return String(environmentStore.get(STORE_KEYS.CONDA_ENV, ''))
         },
         async setIsoNetPath(_, absPath) {
-            store.set(STORE_KEYS.ISONET_PATH, String(absPath || ''))
+            environmentStore.set(STORE_KEYS.ISONET_PATH, String(absPath || ''))
             return { success: true }
         },
         async getIsoNetPath() {
-            return String(store.get(STORE_KEYS.ISONET_PATH, ''))
+            return String(environmentStore.get(STORE_KEYS.ISONET_PATH, ''))
         },
         async getAvailableCondaEnv() {
             try {

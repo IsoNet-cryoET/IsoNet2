@@ -36,7 +36,15 @@ export const mergeMsg = (prevMessages, newMsg) => {
     if (!prevMessages || prevMessages.length == 0) {
         prevMessages = [newMsg]
         return prevMessages
-    } else if (newMsg.type === 'bar' && prevMessages[prevMessages.length - 1]?.type === 'bar') {
+    }
+
+    const lastMsg = prevMessages[prevMessages.length - 1]
+
+    if (
+        newMsg.type === 'bar' &&
+        lastMsg.type === 'bar' &&
+        newMsg.description === lastMsg.description
+    ) {
         return [...prevMessages.slice(0, -1), newMsg]
     } else {
         return [...prevMessages, newMsg]

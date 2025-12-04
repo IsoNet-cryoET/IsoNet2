@@ -20,12 +20,7 @@ import DrawerBase from './DrawerBase.jsx'
 
 const DrawerPrepare = ({ open, onClose, onSubmit }) => {
     const [tabIndex, setTabIndex] = useState(0)
-    const {
-        formData,
-        handleChange,
-        handleFileSelect,
-        handleSubmit,
-    } = useDrawerForm({
+    const { formData, handleChange, handleFileSelect, handleSubmit } = useDrawerForm({
         type: 'prepare_star',
         even: 'None',
         odd: 'None',
@@ -48,11 +43,7 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
     }
 
     return (
-        <DrawerBase
-            formData={formData}
-            open={open}
-            onClose={onClose}
-        >
+        <DrawerBase formData={formData} open={open} onClose={onClose}>
             <Typography variant="h6" gutterBottom>
                 Prepare Star
             </Typography>
@@ -121,13 +112,22 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                             onClick={() => handleFileSelect('odd', 'openDirectory')}
                         />
                     </Box>
-                    <FormControlLabel
-                        control={<Switch />}
+                    {/* <FormControlLabel
+                        control={<Switch defaultChecked />}
                         label="create average"
                         value={formData.create_average}
                         onChange={(e) => handleChange('create_average', e.target.checked)}
                         fullWidth
                         margin="normal"
+                    /> */}
+                    <FormControlLabel
+                        label="Create average"
+                        control={
+                            <Switch
+                                checked={formData.create_average}
+                                onChange={(e) => handleChange('create_average', e.target.checked)}
+                            />
+                        }
                     />
                 </Box>
             )}
@@ -264,9 +264,7 @@ const DrawerPrepare = ({ open, onClose, onSubmit }) => {
                             variant="contained"
                             color="primary"
                             startIcon={<FolderOpenIcon />}
-                            onClick={() =>
-                                handleFileSelect('coordinate_folder', 'openDirectory')
-                            }
+                            onClick={() => handleFileSelect('coordinate_folder', 'openDirectory')}
                         />
                     </Box>
                 </AccordionDetails>

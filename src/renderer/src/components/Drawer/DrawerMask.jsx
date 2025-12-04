@@ -58,14 +58,6 @@ const DrawerMask = ({ open, onClose, onSubmit }) => {
                     onClick={() => handleFileSelect('star_file', 'openFile')}
                 ></Button>
             </Box>
-            <TextField
-                label="job name"
-                type="string"
-                value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-                fullWidth
-                margin="normal"
-            />
             <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
                 <InputLabel>input column</InputLabel>
                 <Select
@@ -87,6 +79,14 @@ const DrawerMask = ({ open, onClose, onSubmit }) => {
                     <MenuItem value={'rlnCorrectedTomoName'}>rlnCorrectedTomoName</MenuItem>
                 </Select>
             </FormControl>
+            <TextField
+                label="job name"
+                type="string"
+                value={formData.name}
+                onChange={(e) => handleChange('name', e.target.value)}
+                fullWidth
+                margin="normal"
+            />
             <Box display="flex" alignItems="center" gap={2} marginY={2}>
                 <TextField
                     label="density_percentage"

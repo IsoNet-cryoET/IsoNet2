@@ -14,7 +14,21 @@ const PageCommon = (props) => {
     const [snack, setSnack] = useState({ open: false, message: '' })
     const dispatch = useDispatch()
 
-    // Local name state, so typing is responsive even before Redux updates
+    // --- NEW CODE START: Setup Ref for auto-scrolling ---
+    const messagesEndRef = useRef(null)
+
+    const scrollToBottom = () => {
+        // You can change behavior to 'auto' for instant scrolling if logs come in very fast
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+
+    // This effect runs every time props.messages changes
+    useEffect(() => {
+        scrollToBottom()
+    }, [props.messages])
+    // --- NEW CODE END ---
+
+    // Local name states, so typing is responsive even before Redux updates
     const [name, setName] = useState(job?.name || '')
     useEffect(() => {
         // When a different job is selected, reset input to that job's name
@@ -86,26 +100,24 @@ const PageCommon = (props) => {
                     onBlur={() => {
                         if (!job?.id) return
                         if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-                            ; (async () => {
-                                try {
-                                    setIsSaving(true)
-                                    await dispatch(
-                                        updateJobNameAsync({ id: job.id, name })
-                                    )
-                                    setSnack({
-                                        open: true,
-                                        message: 'Saved job name',
-                                    })
-                                } catch (e) {
-                                    console.error('Failed to save job name:', e)
-                                    setSnack({
-                                        open: true,
-                                        message: 'Failed to save name',
-                                    })
-                                } finally {
-                                    setIsSaving(false)
-                                }
-                            })()
+                        ;(async () => {
+                            try {
+                                setIsSaving(true)
+                                await dispatch(updateJobNameAsync({ id: job.id, name }))
+                                setSnack({
+                                    open: true,
+                                    message: 'Saved job name'
+                                })
+                            } catch (e) {
+                                console.error('Failed to save job name:', e)
+                                setSnack({
+                                    open: true,
+                                    message: 'Failed to save name'
+                                })
+                            } finally {
+                                setIsSaving(false)
+                            }
+                        })()
                     }}
                     fullWidth
                     sx={{ height: '56px' }}
@@ -114,12 +126,10 @@ const PageCommon = (props) => {
             </Box>
 
             {renderContent(props.messages, job?.id)}
+            <div ref={messagesEndRef} />
 
             {job?.status === 'inqueue' && (
-                <Placeholder
-                    src="figures/queue.svg"
-                    title=""
-                    subtitle="job is in waiting list" />
+                <Placeholder src="figures/queue.svg" title="" subtitle="job is in waiting list" />
             )}
 
             <Snackbar

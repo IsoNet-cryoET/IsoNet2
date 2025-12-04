@@ -134,7 +134,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
             <Box display="flex" alignItems="center" gap={2} marginY={2}>
                 {!formData.even_odd_input && (
                     <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
-                        <InputLabel>algorithum</InputLabel>
+                        <InputLabel>algorithm</InputLabel>
                         <Select
                             // labelId="demo-simple-select-standard-label"
                             // id="demo-simple-select-standard"
@@ -148,7 +148,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                 )}
                 {formData.even_odd_input && (
                     <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
-                        <InputLabel>algorithum</InputLabel>
+                        <InputLabel>algorithm</InputLabel>
                         <Select
                             // labelId="demo-simple-select-standard-label"
                             // id="demo-simple-select-standard"
