@@ -372,11 +372,11 @@ const App = () => {
                                                                 animation: `${innerGlowPulse} 1.8s ease-in-out infinite`
                                                             },
                                                             '@media (prefers-reduced-motion: reduce)':
-                                                                {
-                                                                    '&::after': {
-                                                                        animation: 'none'
-                                                                    }
+                                                            {
+                                                                '&::after': {
+                                                                    animation: 'none'
                                                                 }
+                                                            }
                                                         })
                                                     }}
                                                 >
