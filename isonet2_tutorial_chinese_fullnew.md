@@ -1,10 +1,9 @@
 
-#  IsoNet2 使用教程
+#  IsoNet2 安装和使用教程
 
-**IsoNet2** 是一款用于冷冻电子断层扫描（cryo-ET）数据处理的深度学习软件包，可以在同一个神经网络中同时完成缺失楔校正（missing wedge correction)、去噪(denoising)以及衬度传递函数（CTF）校正。  
-该神经网络直接从原始的断层扫描图（tomogram）中学习有效信息。与之前IsoNet1版本相比（DOI: 10.1038/s41467-022-33957-8), IsoNet2能够在约十分之一的运行时间内完成训练，输出缺失楔校正的，整体分辨率更高（即呈现的细节更多）、噪声更低的断层扫描图。IsoNet2 的输入可以是：完整的(full)断层扫描图，或者是基于电影帧（movie frame)/倾转角（tilt)拆分得到的奇数（EVN)/偶数(ODD)断层扫描图对（paired tomograms）。只有奇数/偶数断层扫描图对,才可以在IsoNet2里进行基于Noise2Noise的降噪训练。  
+**IsoNet2** 是一款用于冷冻电子断层扫描（cryo-ET）数据处理的深度学习软件，可以在同一个神经网络中同时完成缺失楔校正（missing wedge correction)、去噪(denoising)以及衬度传递函数（CTF）校正。该神经网络直接从原始的断层扫描图（tomogram）中学习有效信息。与之前的IsoNet1版本相比（DOI: 10.1038/s41467-022-33957-8), IsoNet2能够在约十分之一的运行时间内完成训练，输出缺失楔校正的，整体分辨率更高（即呈现的细节更多）、噪声更低的断层扫描图。IsoNet2 的输入可以是：完整的(full)断层扫描图，或者是基于电影帧（movie frame)/倾转角（tilt)拆分得到的奇数（EVN)/偶数(ODD)断层扫描图对（paired tomograms）。只有输入是奇数/偶数断层扫描图对，才可以在IsoNet2里进行基于Noise2Noise的降噪训练。  
 
-**IsoNet2**包含六个模块： **数据准备（prepare_star）**, **去卷积（deconv）**, **掩膜制备（make_mask）**, **降噪（denoise）**, **精修（refine）**, 和 **预测（predict）**。所有的IsoNet2命令都基于`.star`文本文件工作，该文件记录了用户指定的断层扫描图的路径和相关参数。对于每个模块的详细解释，请参考后续的单独任务指南（individual tasks)。你既可以使用图形界面（GUI），也可以通过命令行来使用IsoNet2。
+**IsoNet2**包含六个模块： **数据准备（prepare_star）**, **去卷积（deconv）**, **掩膜制备（make_mask）**, **降噪（denoise）**, **主训练（refine)：缺楔校正 + 降噪**, 和 **预测（predict）**。所有的IsoNet2命令均是基于`.star`文本文件来进行工作。该文件记录了用户指定的断层扫描图的路径和相关参数。对于每个模块的详细解释，请参考后续的单独任务指南（individual tasks)。你既可以使用图形界面（GUI），也可以通过命令行来使用IsoNet2。
 
 # 1. 安装与系统需求
 以下内容假定你完全没有使用过Anaconda或Linux 环境，所以步骤会写得比较细。
@@ -15,8 +14,8 @@ Linux 版 IsoNet2 需要：
 - Conda（任意一种：Anaconda/Miniconda/Minifroge）
 
 # 1.2 硬件需求
-- Nvidia GTX 1080Ti 或更新型号（更高端显卡同样适用）  
-- 显存至少 10 GB（越大越好）。一般情况下，24 GB 显存可以比较轻松地使用中等或偏大的网络结构；10 GB 也可以使用，但需要适当减小训练时的cube size 和 batch size参数。
+- Nvidia GTX 1080Ti 或更新型号显卡  
+- 显存至少 10 GB（越大越好）。一般情况下，24 GB 显存可以比较轻松地使用中等或偏大的网络结构；10 GB 也可以使用，但需要适当减小训练时的cube size 和 batch size等参数。
 
 # 1.3 安装 Conda
 + 下载安装包，在Linux环境下进行安装:
@@ -25,7 +24,7 @@ Linux 版 IsoNet2 需要：
 
   + [Anaconda Distribution](https://www.anaconda.com/download).
 
-  + [Miniforge](https://conda-forge.org/download/) （conda-forge 社区版）
+  + [Miniforge](https://conda-forge.org/download/)
 
 + 校验安装包的哈希值（hashes),以确保文件未损坏或被篡改。(https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html#hash-verification).
 
@@ -54,7 +53,7 @@ Linux 版 IsoNet2 需要：
 
 + 在 NVIDIA 官网的 “CUDA GPU Compute Capability” 页面(https://developer.nvidia.com/cuda-gpus)中确认你的 GPU **Compute Capability ≥ 3.5**。若低于 3.5，则无法运行 IsoNet2。  
 
-+ 打开 NVIDIA 文档中关于驱动与 CUDA 的对照表(https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html#cuda-major-component-versions__table-cuda-toolkit-driver-versions)，确认当前驱动版本是否支持 `CUDA ≥ 11.8`（一般要求驱动版本 ≥ 520.61.05）。  
++ 打开 NVIDIA 文档中关于驱动与 CUDA 的对照表(https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html#cuda-major-component-versions__table-cuda-toolkit-driver-versions)，确认当前CUDA驱动版本是否支持 `CUDA ≥ 11.8`（一般要求驱动版本 ≥ 520.61.05）。  
 
 + 从 NVIDIA 驱动下载页面获取与你 GPU 匹配的驱动并安装(https://www.nvidia.com/en-us/drivers/)。  
 
@@ -110,13 +109,13 @@ nvidia-smi
 
 ### 1.5.1 GUI 安装方式
 
-1. 打开 IsoNet2 的 Github 仓库(https://github.com/procyontao/IsoNet2)，在右侧 **Releases** 区下载最新发行版压缩包。  
+1. 打开 IsoNet2 的 Github 仓库(https://github.com/procyontao/IsoNet2)，在右侧 **Releases** 下载最新发行版压缩包。  
 2. 解压到你希望安装 IsoNet2 的目录。  
 3. 发行版中通常已经包含 **GUI 可执行文件**，无需额外编译。  
 
 #### 1.5.2 仅命令行（非 GUI）安装方式
 
-如果只想使用命令行接口（CLI），可以在目标目录下执行：  
+如果只想使用命令行接口（command-line interface, CLI），可以在目标目录下执行：  
 
 ```bash
 git clone https://github.com/procyontao/IsoNet2.git
@@ -161,7 +160,7 @@ NAME
 
 # 2. 使用教程
 
-本教程使用 EMPIAR-10164中的 5 个不成熟 HIV‑1 dMACANC VLP tomogram 作为示例(https://drive.google.com/drive/folders/1JQb5YBr83JM9FWFrxfe0mP8fTgXKJU00?usp=sharing)，这些 tomogram 采用基于帧（frame）拆分的EVN/ODD断层成像对。
+本教程使用 EMPIAR-10164中的 5 个不成熟 HIV‑1 dMACANC VLP 断层扫描数据作为示例(https://drive.google.com/drive/folders/1JQb5YBr83JM9FWFrxfe0mP8fTgXKJU00?usp=sharing)，这些 tomogram 采用基于电影帧（movie frame）拆分的EVN/ODD断层成像对。
 
 我们将依次演示：
 
@@ -171,10 +170,10 @@ NAME
 
 > 对每个模块所有参数的更详细解释，请参考第 3 节 **“IsoNet2 模块说明”**。视频教程可以通过这个链接下载[Google Drive.](https://drive.google.com/drive/u/1/folders/1P9sxSSJIWPs7hIGey3I38u3B2OvmiCAC)
 
->**Fig. 1.** XZ 截面和对应的傅里叶功率图谱展示 1) 基于加权背投影的原始断层重构结果 2) 对原始断层重构进行去卷积后处理  3)  对原始断层重构进行衬度传递函数校正，去噪处理 4) 对原始断层重构进行衬度传递函数校正，去噪处理和缺失楔校正.
+>**图. 1.** XZ截面和对应的傅里叶功率图谱展示 1) 基于加权背投影的原始断层扫描重构结果 2) 对原始断层扫描图进行去卷积后处理  3)  对原始断层扫描图进行衬度传递函数校正，去噪处理 4) 对原始断层重构进行衬度传递函数校正，去噪处理和缺失楔校正.
 ![](./IsoNet/tutorial/figures/fft.png)
 
-## 2.0 下载测试数据
+## 2.0 下载教程数据
 
 在一个新的工作目录中新建文件夹，例如：  
 
@@ -215,11 +214,11 @@ ls -1 tomograms_split/ODD
 >**图. 2.** HIV断层成像图 XY 截面展示.
 ![](./IsoNet/tutorial/figures/raw_tomograms.png)
 
-## 2.1 GUI 工作流
+## 2.1 图形界面操作
 
 IsoNet2 的 GUI 提供：
 
-- 数据集与 star 文件管理  
+- 数据集与 star文件管理  
 - 参数设置与保存  
 - 任务队列与实时日志输出  
 - 网络训练过程中的在线预览  
@@ -227,14 +226,14 @@ IsoNet2 的 GUI 提供：
 整体流程为：
 
 1. `Prepare`：生成 `tomograms.star`；  
-2. （可选）`Denoise` 或 `Deconvolve`：提升对比度，为掩膜准备更干净的数据；  
+2. （可选）`Denoise` 或 `Deconvolve`：提升断层扫描图的对比度，用于掩膜制备；  
 3. `Create Mask`：生成掩膜；  
 4. `Refine`：主训练；  
 5. `Predict`：用训练好的模型对 tomogram 生成最终结果。  
 
 ---
 
-### 2.1.0 启动 GUI
+### 2.1.0 启动图形界面
 
 在终端中输入：  
 
@@ -285,8 +284,8 @@ IsoNet2 -no-sandbox
 勾选 **create_average** 会令 IsoNet2：  
 
 - 先将每对 even / odd tomogram 进行平均；  
-- 生成一个噪声更低的“平均 tomogram”；  
-- 该平均 tomogram 非常适合作为后续 **Deconvolve** 或 **Create Mask** 的输入。  
+- 生成一个信号更强，噪声更低的“平均 tomogram”；  
+- 该平均 tomogram 适合作为后续 **Deconvolve** 或 **Create Mask** 的输入。  
 
 #### Show command
 
@@ -303,14 +302,14 @@ IsoNet2 -no-sandbox
 
 ### 2.1.2 掩膜前的预处理
 
-为了得到更精确的掩膜，我们通常希望 tomogram 有更好的对比度。  
+为了得到更精确的掩膜，我们通常希望 断层扫描图有更好的对比度。  
 
 在 IsoNet2 中，主要有两条路线：
 
 1. **Denoise 模块**：基于网络的 Noise2Noise 去噪 + CTF 校正（推荐）；  
 2. **Deconvolve 模块**：经典的 CTF 反卷积（速度快，掩膜质量通常略逊）。  
 
->**图. 3.** HIV断层成像图 XY 截面和相应的掩膜展示 1) 基于加权背投影的原始断层重构结果 2) 对原始断层重构进行去卷积后处理  3)  对原始断层重构进行衬度传递函数校正，去噪处理 
+>**图. 3.** HIV断层成像扫描图 XY 截面和相应的掩膜展示 1) 基于加权背投影的原始断层重构结果 2) 对原始断层扫描图进行去卷积后处理  3)  对原始断层扫描图进行衬度传递函数校正，去噪处理 
 ![](./IsoNet/tutorial/figures/masks.png)
 
 
@@ -335,7 +334,7 @@ IsoNet2 -no-sandbox
 - 日志：`./denoise/jobID/log.txt`  
 - 完整损失曲线图：`./denoise/jobID_denoise/loss_full.png`  
 
-训练结束后，你可以进入 **Predict** 标签页，用训练好的模型对断层成像图进行去噪 + 衬度传递函数校正（见下小节）。
+训练结束后，你可以进入 **Predict** 标签页，用训练好的模型对断层成像扫描图进行去噪 + 衬度传递函数校正（见下小节）。
 ![](./IsoNet/tutorial/figures/GUI/07OpenRefine.png)
 
 #### 2.1.2.1b Predict for Denoise（对去噪网络进行预测）
@@ -366,7 +365,7 @@ IsoNet2 -no-sandbox
 
 #### 2.1.2.2 使用去卷积（可选）
 
-若你暂时**不能使用 Denoise 模块的网络 CTF 校正功能**（例如 GPU 资源有限或不方便长时间训练），可以改用 **Deconvolve** 模块来做：
+若你暂时**不选择使用 Denoise 模块的网络 CTF 校正功能**，可以改用 **Deconvolve** 模块来做：
 
 - CTF 反卷积；  
 - 提升对比度；  
@@ -817,7 +816,7 @@ isonet.py predict tomograms.star \
 ### Q1：什么时候使用 even/odd 半 tomogram？什么时候用完整 tomogram？
 
 - 若你的数据可以从 movie / tilt-series 拆分为 **even/odd**，强烈建议用 **Noise2Noise（isonet2-n2n）** 工作流，效果更佳；  
-- 若你只有最终重建 tomogram，无法拆分，则使用 **isonet2**（单断层成像图模式）。
+- 若你只有最终重构的tomogram，无法拆分，则使用 **isonet2**（单断层成像扫描图模式）。
 
 ---
 
