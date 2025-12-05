@@ -5,8 +5,6 @@
 *IsoNet2* contains six modules: ***prepare_star***, ***deconv***, ***make_mask***, ***denoise***, ***refine***, and ***predict***. All commands in IsoNet operate on `.star` text files which record paths of data and relevant parameters. For detailed descriptions of each module please refer to the individual tasks. Users can choose to utilize IsoNet through either GUI or command-lines.
 
 # 1. Installation and System Requirements
-The following tutorial is written assuming absolutely no experience with Anaconda or Linux environments.
-
 ## Installing [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html)
 + Download your `conda-installer`:
 
@@ -34,7 +32,6 @@ The following tutorial is written assuming absolutely no experience with Anacond
 + Reference your Toolkit Driver Version in *Table 3* on the [CUDA Toolkit Docs.](https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html#cuda-major-component-versions__table-cuda-toolkit-driver-versions) to see that it has a corresponding CUDA Version >= 11.8 *(Toolkit Driver Version >=520.61.05)*.
 
 + Make sure you have installed the sufficient graphics card driver version for your GPU from the [NVIDIA driver page](https://www.nvidia.com/en-us/drivers/).
-
 + Select the [CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit-archive) version that matches what you read in *Table 3* and follow the install instructions.
 
 After successfully installing, you can check your CUDA version using `nvidia-smi`, which should produce something similar to below:
@@ -78,13 +75,12 @@ After successfully installing, you can check your CUDA version using `nvidia-smi
 ## Installing IsoNet2
 
 ### GUI Installation
-Download the *IsoNet2* release from the release tab on the right column of our [Github](https://github.com/procyontao/IsoNet2) repository. This release contains the binary file for the GUI. Extract the compressed file into your desired installation folder. 
+Download the *IsoNet2* release from the release tab on the right column of our [Github](https://github.com/procyontao/IsoNet2) repository. This release contains the source code and the binary file for the GUI. Extract the compressed files into your desired installation folder. 
 
 ### non-GUI Installation
 Alternatively, if you only plan to use our command-line interface (CLI), you can clone this repository by running `git clone https://github.com/procyontao/IsoNet2.git` in your desired installation folder. This will not contain the compiled GUI file. 
 
 Once you have installed IsoNet2, navigate to your installation folder and run `cd IsoNet2` and `bash install.sh`. This creates an Conda environment (installing requirements) using the included `isonet2_environment.yml` file and updates your environment variables (allowing you to call isonet.py) by running `source isonet2.bashrc`. You may append this command to your .bashrc file so you don't have to re-source it every time you wish to use IsoNet.
-
 
 Installation should take 5-10 minutes. Upon successful installation, running the command `isonet.py --help` should display the following help message.
 ```
@@ -99,16 +95,16 @@ NAME
 
 The following tutorial outlines the basic *IsoNet2* workflow on 5 immature HIV-1 dMACANC VLP even/odd paired tomograms using the GUI and CLI.
 
-In-depth explanations for every parameter can be found under **3. IsoNet Modules.** The tutorial dataset, along with a video tutorial, can be found in the following [Box](https://ucla.box.com/v/isonet2tutorial) drive.
+In-depth explanations for every parameter can be found under Section [**3. ***IsoNet2*** Modules.**](#3-isonet2-modules) The tutorial dataset, along with a video tutorial, can be found in the following [Box](https://ucla.box.com/v/isonet2tutorial) drive.
 
-![](./IsoNet/tutorial/figures/fft.png)
+![](./IsoNet/tutorial_figures/fft.png)
 **Fig. 1.** XZ slices and corresponding Fourier space of HIV tomograms 1) reconstructed with weighted back projection 2) CTF-deconvolved 3) CTF-corrected and denoised 4) CTF-corrected, denoised, and missing-wedge corrected.
 
 ## 2.0 Download Tomograms
 
 In a new working directory, download and extract the `tomograms_split` folder from the link above.
 
-![](./IsoNet/tutorial/figures/raw_tomograms.png)
+![](./IsoNet/tutorial_figures/raw_tomograms.png)
 **Fig. 2.** XY slices of even HIV tomograms reconstructed with weighted back projection.
 
 ## 2.1 GUI
@@ -118,24 +114,24 @@ The *IsoNet2* GUI provides intuitive, detailed, and organized process management
 ### 2.1.0 Launch GUI
 Launch the GUI by typing `IsoNet2` in your terminal. Some machines may have issues with the SUID sandbox. If you encounter this, run `IsoNet2 -no-sandbox` instead.
 
-![](./IsoNet/tutorial/figures/GUI/00OpenSettings.png "Open Settings")
+![](./IsoNet/tutorial_figures/GUI/00OpenSettings.png "Open Settings")
 Once the GUI opens, select the ***Settings*** Tab to select your **conda environment** and **IsoNet Install Path**. These are saved to your `~/.config/isoapp/environment.json` and will be remembered every time you open the GUI.
 
 ### 2.1.1 Prepare Star
 
-![](./IsoNet/tutorial/figures/GUI/01OpenPrepare.png)
+![](./IsoNet/tutorial_figures/GUI/01OpenPrepare.png)
 Open the ***Prepare*** tab and select **Even/Odd Input**.
 
-![](./IsoNet/tutorial/figures/GUI/02SelectEvenOdd.png)
+![](./IsoNet/tutorial_figures/GUI/02SelectEvenOdd.png)
 Select your **even** dataset in the popup directory. Do the same for your **odd** dataset.
 
-![](./IsoNet/tutorial/figures/GUI/03ModifyPrepare.png)
+![](./IsoNet/tutorial_figures/GUI/03ModifyPrepare.png)
 Set your **pixel size in Å** to 5.4 and leave the other parameters at their default values. Then select **Run**.
  
-You may optionally enable **create_average** to average the half tomograms and reduce noise for the ***Deconvolve*** and ***Create Mask*** modules (more information in **Section 2.1.2: Pre-Mask Processing**). 
+You may optionally enable **create_average** to average the half tomograms and reduce noise for the ***Deconvolve*** and ***Create Mask*** modules (more information in Section [**2.1.2: Pre-Mask Processing**](#212-pre-mask-processing)). 
 For each module, **Show command** provides the `isonet.py` command if you prefer to run it directly in your terminal.
 
-![](./IsoNet/tutorial/figures/GUI/04ModifyDefocus.png)
+![](./IsoNet/tutorial_figures/GUI/04ModifyDefocus.png)
 The starfile should automatically display. If you ran the command in your terminal, or if you have a pre-existing RELION5 starfile, select **Load from Star** and choose the starfile from your working directory. Fill in the **rlnDefocus** column with the approximate defocus in Å at 0° tilt for each tomogram.
 
 ### 2.1.2 Pre-Mask Processing
@@ -143,14 +139,14 @@ The starfile should automatically display. If you ran the command in your termin
 *The following options apply CTF correction to improve the signal-to-noise ratio before generating a mask for refinement.*
 
 ### 2.1.2a Denoise
-If you have access to even/odd paired tomograms, as we do in this tutorial, we recommend using the **Denoise** module. This provides comparable results to running a full **Refine** job and using the corrected tomograms to generate the mask, as in the *IsoNet2* paper.
+If you have access to even/odd paired tomograms, as we do in this tutorial, we recommend using the ***Denoise*** module. This provides comparable results to running a full ***Refine*** job and using the corrected tomograms to generate the mask, as in the *IsoNet2* paper.
 
-![](./IsoNet/tutorial/figures/GUI/06ModifyDenoise.png)
+![](./IsoNet/tutorial_figures/GUI/06ModifyDenoise.png)
 Open the ***Denoise*** tab. Set **No. epochs** to 20, define the appropriate **gpuIDs** and select **CTF_mode** network from the popup menu. Click **Submit (In Queue)**.
 
 >**with preview** enables us to view live predictions from the network.
 
-![](./IsoNet/tutorial/figures/GUI/08DenoisePreview.png)
+![](./IsoNet/tutorial_figures/GUI/08DenoisePreview.png)
 The page should automatically load your progress as the network begins training. The log output `log.txt` and a graph of the loss `loss_full.png` will be saved to `./denoise/<jobID>/`, along with all model files. With **with preview** enabled, the network also saves and displays a prediction for the selected tomograms (via **preview tomo index**) after every **saving interval** (default 10 epochs). 
 
 >Clicking on the eye icon next to our preview will open the denoised tomogram file in IMOD.
@@ -159,37 +155,37 @@ Before this job finishes, let's practice queuing jobs. Open the ***Predict*** ta
 
 ### 2.1.2b Predict
 
-![](./IsoNet/tutorial/figures/GUI/09OpenPredict.png)
+![](./IsoNet/tutorial_figures/GUI/09OpenPredict.png)
 Select the completed model file `network_<method>_<arch>_<cube_size>_full.pt` from the current running job's directory. This handle will always point to the newest version, meaning we can select it now and ***Predict*** will run using the fully trained model once training is completed.
 
-![](./IsoNet/tutorial/figures/GUI/10ModifyPredict.png)
+![](./IsoNet/tutorial_figures/GUI/10ModifyPredict.png)
 Define the appropriate **gpuIDs** and click **Submit (In Queue)**.
 
-![](./IsoNet/tutorial/figures/GUI/11PredictQueued.png)
+![](./IsoNet/tutorial_figures/GUI/11PredictQueued.png)
 A waiting screen should automatically display. This will be displayed any time you are viewing a job in queue.
 
-![](./IsoNet/tutorial/figures/GUI/12JobsViewer.png)
+![](./IsoNet/tutorial_figures/GUI/12JobsViewer.png)
 Open the ***Jobs Viewer*** tab. Here, you can manage all your submitted jobs. Jobs that are submitted to run immediately on any of the other pages will bypass the queue and run simultaneously with any current jobs.
 
-![](./IsoNet/tutorial/figures/GUI/13PredictLog.png)
+![](./IsoNet/tutorial_figures/GUI/13PredictLog.png)
 Once our previous job finishes, we can open the ***Predict*** tab again and view the live network outputs for all our tomograms.
 
-![](./IsoNet/tutorial/figures/GUI/14PredictFinished.png)
+![](./IsoNet/tutorial_figures/GUI/14PredictFinished.png)
 Wait for prediction to finish. Once done, you can view your corrected tomograms at the provided paths.
 
 ### 2.1.2c Deconvolve
 If you are unable to use the network-based CTF correction in the ***Denoise*** module, you can instead use the ***Deconvolve*** module, inherited from *IsoNet1*, to improve mask quality. While this is relatively quick, it may produce lower quality masks than using ***Denoise***.
 
-![](./IsoNet/tutorial/figures/GUI/21OpenDeconv.png)
+![](./IsoNet/tutorial_figures/GUI/21OpenDeconv.png)
 Open the ***Deconvolve*** tab and set **snrfalloff** to 0.7. Click **Submit (In Queue)**.
 
-![](./IsoNet/tutorial/figures/GUI/22DeconvLog.png)
+![](./IsoNet/tutorial_figures/GUI/22DeconvLog.png)
 The page should automatically load your progress as the network begins training. The log output `log.txt` will be saved to `./deconv/<jobID>/`, along with all deconvolved tomograms.
 
 ### 2.1.3 Create Mask
 This step creates masks based on standard deviation and mean density to exclude empty/unwanted areas of each tomogram. During extraction, each subtomogram for training is centered on a valid region of the mask to ensure that it captures a region of interest.
 
-![](./IsoNet/tutorial/figures/GUI/15OpenMask.png)
+![](./IsoNet/tutorial_figures/GUI/15OpenMask.png)
 Open the ***Create Mask*** tab and select your **Input Column**:
 1) **rlnDenoisedTomoName** if you used the ***Denoise*** module.
 2) **rlnDeconvTomoName** if you used the ***Deconvolve*** module.
@@ -198,28 +194,28 @@ Open the ***Create Mask*** tab and select your **Input Column**:
 
 **Submit** your job.
 
-![](./IsoNet/tutorial/figures/GUI/16MaskLog.png)
+![](./IsoNet/tutorial_figures/GUI/16MaskLog.png)
 The page should automatically load your progress as the network begins training. The log output `log.txt` will be saved to `./mask/<jobID>/`, along with all masked tomograms.
 
-![](./IsoNet/tutorial/figures/masks.png)
+![](./IsoNet/tutorial_figures/masks.png)
 **Fig. 3.** XY slices and corresponding masks of HIV tomograms that have been 1) reconstructed with weighted back projection, 2) CTF-deconvolved, 3) CTF-corrected and denoised
 
 ### 2.1.4 Refine
 
-![](./IsoNet/tutorial/figures/GUI/17OpenRefine.png)
+![](./IsoNet/tutorial_figures/GUI/17OpenRefine.png)
 Open the ***Refine*** tab. Keep **Even/Odd Input** enabled.
 
 
-![](./IsoNet/tutorial/figures/GUI/18ModifyRefine.png)
+![](./IsoNet/tutorial_figures/GUI/18ModifyRefine.png)
  Set **mw weight** to 200, define the appropriate **gpuIDs**, select **CTF_mode** network from the popup menu, and set **bfactor** to 200. Click **Submit (In Queue)**.
  
 
-![](./IsoNet/tutorial/figures/GUI/20RefinePreview.png)
+![](./IsoNet/tutorial_figures/GUI/20RefinePreview.png)
 The page should automatically load your progress as the network begins training. The log output, `log.txt`, a graph of the loss, `loss_full.png`, and all model files will be saved to `./refine/<jobID>/`. With **with preview** enabled, the network also saves and displays a prediction for the first tomogram after every **saving interval** (default: 10 epochs). 
 
-Refer to the Predict instructions under **Section 2.1.2b Predict** to queue a predict job once your refinement finishes. Once prediction is done, view your CTF-corrected, denoised, and missing-wedge-corrected tomograms!
+Refer to the Predict instructions under Section [**2.1.2b Predict**](#212b-predict) to queue a predict job once your refinement finishes. Once prediction is done, view your CTF-corrected, denoised, and missing-wedge-corrected tomograms!
 
-![](./IsoNet/tutorial/figures/corrected.png)
+![](./IsoNet/tutorial_figures/corrected.png)
 **Fig. 4.** XY slices of HIV tomograms CTF-corrected, denoised, and missing-wedge corrected using *IsoNet2* Refine.
 
 ## 2.2 Command Line
@@ -293,7 +289,7 @@ For `--input_column`, use:
 3) `rlnCorrectedTomoName` if you are refining a previously refined dataset.
 > Using the other unprocessed input columns will likely generate poor masks, and is not recommended.
 
-![](./IsoNet/tutorial/figures/masks.png)
+![](./IsoNet/tutorial_figures/masks.png)
 **Fig. 3.** XY slices and corresponding masks of HIV tomograms that have been 1) reconstructed with weighted back projection, 2) CTF-deconvolved, 3) CTF-corrected and denoised
 
 ### 2.2.4 refine
@@ -309,7 +305,7 @@ isonet.py predict tomograms.star isonet_maps/network_isonet2-n2n_unet-medium_96_
 ```
 Once prediction is done, view your CTF-corrected, denoised, and missing-wedge-corrected tomograms!
 
-![](./IsoNet/tutorial/figures/corrected.png)
+![](./IsoNet/tutorial_figures/corrected.png)
 **Fig. 4.** XY slices of HIV tomograms CTF-corrected, denoised, and missing-wedge corrected using *IsoNet2* Refine.
 
 # 3. *IsoNet2* Modules
@@ -375,9 +371,9 @@ Entry point for *IsoNet2* training. Use denoise for quicker noise-to-noise (n2n)
 + `pretrained_model` — Path to pretrained model to continue training. Previous method, arch, cube_size, CTF_mode, and metrics will be loaded. Default: `None`.
 + `save_interval` — Interval to save model checkpoints. Default: **10**.
 + `snrfalloff` — Controls frequency-dependent SNR attenuation applied during deconvolution; larger values reduce high-frequency contribution more aggressively. Default: **0**.
-+ `with_preview` — If True, run prediction using the final checkpoint(s) after training. Default: `True`.
++ `with_preview` — If True, run prediction every save interval. Default: `True`.
 
-![](./IsoNet/tutorial/figures/CTF_b_factor.png)
+![](./IsoNet/tutorial_figures/CTF_b_factor.png)
 Fig. 5. Effects of clip_first_peak_mode and bfactor on CTF.
 
 ### Practical notes
@@ -470,7 +466,7 @@ Use refine for *IsoNet2* missing-wedge correction (isonet2) or isonet2-n2n combi
 + `snrfalloff` — Controls frequency-dependent SNR attenuation applied during deconvolution; larger values reduce high-frequency contribution more aggressively and can stabilize deconvolution on noisy data; smaller values preserve more high-frequency content but risk amplifying noise. Default: **0**.
 + `with_preview` — If True, run prediction every save interval. Default: `True`.
 
-![](./IsoNet/tutorial/figures/CTF_b_factor.png)
+![](./IsoNet/tutorial_figures/CTF_b_factor.png)
 Fig. 5. Effects of clip_first_peak_mode and bfactor on CTF.
 
 ### Practical notes
@@ -524,4 +520,4 @@ You can regenerate the mask using less strict (higher values) `density_percentag
 `CTF_mode network` with `clip_first_peak_mode 1` generally provides higher resolution detail. Modes 2, 3, and 0 may yield higher contrast in the low-resolution regime for specific datasets—try them out for your specific needs. `CTF_mode wiener` also works well; we recommend `snrfalloff` between 0 and 1, and `deconvstrength` between 1 and 5. However, Wiener mode requires more hyperparameter tuning than network-based CTF correction. Both approaches should outperform the ***deconv*** module.
 
 ## Q: What value should I use for mw_weight?
-We recommend using higher weights for missing wedge correction (20–200) to prioritize missing wedge reconstruction over general denoising. Keeping mw_weight at the default value of 0 disables masked loss, meaning a single loss is used to describe both missing wedge correction and denoising.
+We recommend using higher weights for missing wedge correction (20–200) to prioritize missing wedge reconstruction over general denoising. Keeping `mw_weight` at the default value of 0 disables masked loss, meaning a single loss is used to describe both missing wedge correction and denoising.
