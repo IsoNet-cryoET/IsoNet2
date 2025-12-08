@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import string
 import fire
 import logging
 import os, sys
@@ -148,6 +147,7 @@ class ISONET:
         add_param("None", "rlnVoltage", voltage)
         add_param("None", "rlnSphericalAberration", cs)
         add_param("None", "rlnAmplitudeContrast", ac)
+        add_param(None, 'rlnDeconvTomoName', "None")
 
         # mask parameters
         add_param("None", "rlnMaskBoundary","None")
@@ -251,7 +251,7 @@ class ISONET:
                 **common_kwargs
             )
 
-            new_star.at[i, "rlnDeconvTomoName"] = deconv_tomo_name
+            new_star.at[i, "rlnDeconvTomoName"] = deconv_tomo_name 
             logging.info(f"Deconvolved {os.path.relpath(tomo_file)} → {deconv_tomo_name}")
 
         process_tomograms(
@@ -263,9 +263,9 @@ class ISONET:
         )
 
 
-    def make_mask(self,star_file,
-                input_column: str = "rlnDeconvTomoName",
+    def make_mask(self,star_file: str,
                 output_dir: str = 'mask',
+                input_column: str = "rlnDeconvTomoName",
                 patch_size: int=4,
                 density_percentage: int=50,
                 std_percentage: int=50,
@@ -288,10 +288,12 @@ class ISONET:
         def mask_row(i, row, new_star):
             if input_column in row and row[input_column] not in [None, "None"]:
                 tomo = row[input_column]
-            elif 'rlnTomoName' in row and row.rlnTomoName not in [None, "None"]:
+            elif 'rlnTomoName' in row and row['rlnTomoName'] not in [None, "None"]:
                 tomo = row["rlnTomoName"]
+                logging.info(f"{input_column} not found for tomogram {i + 1}, using rlnTomoName instead.")
             else:
                 tomo = row["rlnTomoReconstructedTomogramHalf1"]
+                logging.info(f"{input_column} not found for tomogram {i + 1}, using rlnTomoReconstructedTomogramHalf1 instead.")
 
             if 'rlnMaskBoundary' in row and row.rlnMaskBoundary not in [None, "None"]:
                 boundary = row.rlnMaskBoundary
@@ -299,20 +301,22 @@ class ISONET:
                 boundary = None
 
             base = os.path.splitext(os.path.basename(tomo))[0]
-            out_path = os.path.join(output_dir, f"{base}_mask.mrc")
+            mask_name = os.path.join(output_dir, f"{base}_mask.mrc")
 
             make_mask(
                 tomo,
-                out_path,
+                mask_name,
                 mask_boundary=boundary,
                 side=patch_size,
                 density_percentage=density_percentage,
                 std_percentage=std_percentage,
                 surface=z_crop/2
             )
-            new_star.at[i, 'rlnMaskName'] = out_path
-            logging.info(f"Masked {os.path.relpath(tomo)} → {out_path}")
+            new_star.at[i, 'rlnMaskName'] = mask_name
+            logging.info(f"Masked {os.path.relpath(tomo)} → {mask_name}")
         
+        logging.info(f"Using {input_column} for masks")
+
         process_tomograms(
             star_file,
             output_dir,
@@ -331,7 +335,8 @@ class ISONET:
                 isCTFflipped: bool=False,
                 padding_factor: float=1.5,
                 tomo_idx=None,
-                output_prefix: str  = ""):
+                output_prefix: str  = "",
+                save_slices: bool = True):
         """
         Apply a trained IsoNet model to tomograms to produce denoised or missing-wedge–corrected volumes. Prediction utilizes the model's saved cube size and CTF handling options, but allows for runtime adjustments.
 
@@ -428,7 +433,7 @@ class ISONET:
             # 5) Update STAR
             column = "rlnDenoisedTomoName" if network.method == 'n2n' else "rlnCorrectedTomoName"
             new_star.at[i, column] = out_file
-            if output_prefix in ["", "None", None]:
+            if save_slices:
                 save_slices_and_spectrum(out_file,output_dir,'')
             logging.info(f"Predicted {[os.path.relpath(p) for p in tomo_paths]} → {out_file}")
 
@@ -602,8 +607,11 @@ class ISONET:
 
                    snrfalloff: float=0,
                    deconvstrength: float=1,
-                   highpassnyquist:float=0.02
-
+                   highpassnyquist:float=0.02,
+                   
+                   with_deconv: bool=False,
+                   with_mask: bool=False,
+                   mask_update_interval: int=0
                    ):
         """
         Use refine for IsoNet2 missing-wedge correction (isonet2) or isonet2-n2n combined modes.
@@ -647,9 +655,6 @@ class ISONET:
         correct_between_tilts: bool=False
         start_bt_size: int=128
 
-        with_deconv: bool=False,
-        with_mask: bool=False,
-        mask_update_interval: int=0,
 
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
@@ -669,17 +674,6 @@ class ISONET:
                 method = 'isonet2'
         
         if method == "isonet2":
-            star = starfile.read(star_file)
-            if with_deconv:
-                logging.info("Running deconvolution preprocessing")
-                self.deconv(star_file=star_file,
-                            output_dir=f"{output_dir}/deconv_tomos",
-                            input_column="rlnTomoName",
-                            snrfalloff=snrfalloff,
-                            deconvstrength=deconvstrength,
-                            highpassnyquist=highpassnyquist,
-                            ncpus=ncpus)
-                input_column = "rlnDeconvTomoName"
             if noise_level <= 0:
                 logging.info("Your noise_level is 0, we recommend to increase noise_level for denoising during isonet2 training")
             else:
@@ -689,14 +683,16 @@ class ISONET:
                 noise_dir = f"{output_dir}/noise_volumes"
                 # Note: the angle for this noise generation is range(-90,90,3)
                 make_noise_folder(noise_dir,noise_mode,cube_size,num_noise_volume,ncpus=ncpus)
-        
-        if not input_column in star.columns or star.iloc[0][input_column] in [None, "None"]:
-            if method == "isonet2":
-                logging.info("using rlnTomoName instead of rlnDeconvTomoName")
-                input_column = "rlnTomoName"
-            elif method == "isonet2-n2n":
-                logging.info("using rlnTomoReconstructedTomogramHalf1 instead of rlnDeconvTomoName")
-                input_column = "rlnTomoReconstructedTomogramHalf1"
+ 
+        if with_deconv:
+            self.deconv(star_file=star_file,
+                        output_dir=f"{output_dir}/deconv_tomos",
+                        input_column="rlnTomoName",
+                        snrfalloff=snrfalloff,
+                        deconvstrength=deconvstrength,
+                        highpassnyquist=highpassnyquist,
+                        ncpus=ncpus)
+            input_column = "rlnDeconvTomoName"
 
         if with_mask:
             self.make_mask(star_file=star_file,
@@ -757,15 +753,15 @@ class ISONET:
                 shutil.copy(model_file, f"{output_dir}/network_{method}_{arch}_{cube_size}_epoch{step}_full.pt")
                 if mask_update_interval == step // save_interval:
                     all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                                isCTFflipped=isCTFflipped, tomo_idx=None,output_prefix=f"corrected_epochs{step}")
+                                isCTFflipped=isCTFflipped, tomo_idx=None,output_prefix=f"corrected_epochs{step}",save_slices=False)
                     logging.info(f"Updating masks based on the corrected tomograms at epoch {step}")
                     self.make_mask(star_file=star_file,
                            input_column="rlnCorrectedTomoName",
-                           output_dir=f"{output_dir}/masks",
+                           output_dir=f"{output_dir}/masks_updated_epoch{step}",
                            tomo_idx=None)
                 else:
                     all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                                isCTFflipped=isCTFflipped, tomo_idx=prev_tomo_idx,output_prefix=f"corrected_epochs{step}")
+                                isCTFflipped=isCTFflipped, tomo_idx=prev_tomo_idx,output_prefix=f"corrected_epochs{step}",save_slices=False)
                 save_slices_and_spectrum(all_tomo_paths[0],output_dir,step)
         else:
             network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5

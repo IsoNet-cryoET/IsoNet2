@@ -49,7 +49,7 @@ def tom_deconv_tomo(vol_file, out_file,angpix, voltage, cs, defocus, snrfalloff,
     total_steps = 6  # read, snr/highpass, ctf/wiener, meshgrid/r, ramp interp, fft/ifft, normalize, write
 
     # create progress bar covering the main logical steps for a single deconvolution call
-    with tqdm(total=total_steps, desc=f'Deconvolve: {os.path.basename(vol_file)}', unit=' step') as pbar:
+    with tqdm(total=total_steps, desc='Deconvolving Tomogram', unit=' step') as pbar:
         with mrcfile.open(vol_file, permissive=True) as f:
             header_in = f.header
             vol = f.data

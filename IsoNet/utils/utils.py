@@ -1,15 +1,20 @@
 import mrcfile
 import logging
 import starfile
-import tqdm
+from tqdm import tqdm
 import os
+import linecache
+import pathlib
+    
 def process_tomograms(star_path, output_dir, idx_str, desc, row_processor):
+    linecache.clearcache()
+    star_path = str(pathlib.Path(star_path).resolve())
     star = starfile.read(star_path)
     new_star = star.copy()
     idx_list = idx2list(idx_str, star.rlnIndex)
     os.makedirs(output_dir, exist_ok=True)
 
-    with tqdm.tqdm(total=len(idx_list), desc=desc, unit=' tomogram') as pbar:
+    with tqdm(total=len(idx_list), desc=desc, unit='tomogram') as pbar:
         for i, row in star.iterrows():
             if str(row.rlnIndex) in idx_list:
                 print()
