@@ -11,7 +11,7 @@ from IsoNet.utils.fileio import read_mrc, write_mrc, create_folder
 from IsoNet.utils.utils import parse_params, process_gpuID
 import tqdm
 import pandas as pd
-from IsoNet.utils.utils import idx2list, process_tomograms
+from IsoNet.utils.utils import process_tomograms
 from IsoNet.utils.deconvolution import deconv_one
 from IsoNet.bin.make_mask import make_mask
 import os
@@ -19,7 +19,7 @@ import sys
 import logging
 import numpy as np
 import starfile
-from IsoNet.models.network import Net, DuoNet
+from IsoNet.models.network import Net
 from IsoNet.utils.processing import normalize
 from IsoNet.utils.missing_wedge import mw3D
 from IsoNet.utils.CTF import get_ctf_3d
@@ -607,11 +607,7 @@ class ISONET:
 
                    snrfalloff: float=0,
                    deconvstrength: float=1,
-                   highpassnyquist:float=0.02,
-                   
-                   with_deconv: bool=False,
-                   with_mask: bool=False,
-                   mask_update_interval: int=0
+                   highpassnyquist:float=0.02
                    ):
         """
         Use refine for IsoNet2 missing-wedge correction (isonet2) or isonet2-n2n combined modes.
@@ -654,7 +650,9 @@ class ISONET:
         acc_batches=1
         correct_between_tilts: bool=False
         start_bt_size: int=128
-
+        with_deconv: bool=False
+        with_mask: bool=False
+        mask_update_interval: int=0
 
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)

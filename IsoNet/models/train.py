@@ -14,7 +14,7 @@ from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rot
 import torch.optim.lr_scheduler as lr_scheduler
 import shutil
 from packaging import version
-from IsoNet.utils.fileio import write_mrc
+from scipy.stats import linregress
 if version.parse(torch.__version__) >= version.parse("2.3.0"):
     from torch.amp import GradScaler
 else:
@@ -369,6 +369,20 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             print(loss_str)
 
             plot_metrics(training_params["metrics"],f"{training_params['output_dir']}/loss_{training_params['split']}.png")
+            
+            # window = 10
+            # pvalue_thresh = 0.05
+            # if len(training_params["metrics"]["average_loss"]) < window:
+            #     print("insufficient epochs")
+            
+            # recent_losses = training_params["metrics"]["average_loss"][-window:]
+            # epochs = np.arange(window)
+            
+            # result = linregress(epochs, recent_losses, alternative='less')
+            
+            # converged = result.pvalue > pvalue_thresh or result.rvalue**2 < 0.1
+            # print(converged)
+
             if world_size > 1:
                 model_params = model.module.state_dict()
             else:

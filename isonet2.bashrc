@@ -17,4 +17,3 @@ else
     alias IsoNet2='echo "IsoApp AppImage not found: expected isoapp-1.0.0.AppImage or ../isoapp-1.0.0.AppImage"'
 fi
 
-conda activate isonet2_environment
