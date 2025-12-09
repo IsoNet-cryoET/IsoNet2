@@ -1,3 +1,6 @@
+from glob import glob
+import string
+import logging
 import numpy as np
 import torch
 import os
@@ -41,23 +44,25 @@ def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=N
     return normalized_flattened, lower_bound_subtomo, upper_bound_subtomo
 
 
-def normalize_mean_std(tensor, mean_val = None, std_val=None, matching = False):
+def normalize_mean_std(tensor, mean_val = None, std_val=None, matching = False, stats_only = False):
     # merge_factor = 0.99
-    mean_subtomo = tensor.mean()
-    std_subtomo = tensor.std(correction=0)
-    if mean_val is None: 
-        return (tensor - mean_subtomo) / std_subtomo, mean_subtomo, std_subtomo
-    else:
-        if matching:
-            return (tensor - mean_subtomo) / std_subtomo * std_val + mean_val, mean_subtomo, std_subtomo 
+    normalized_tensor = None
+    mean_subtomo = tensor.mean(dim=(-3,-2,-1), keepdim=True)
+    std_subtomo = tensor.std(correction=0,dim=(-3,-2,-1), keepdim=True)
+    
+    if not stats_only:
+        if mean_val is None: 
+            normalized_tensor = (tensor - mean_subtomo) / std_subtomo
         else:
-            # mean_val = mean_val*merge_factor + mean_subtomo*(1-merge_factor)
-            # std_val = std_val*merge_factor + std_subtomo*(1-merge_factor)
-            return (tensor - mean_val) / std_val, mean_subtomo, std_subtomo 
-    
-    # not (tensor - mean_val) / std_val
-    
-    # return normalized_flattened, lower_bound_subtomo, upper_bound_subtomo
+            if matching:
+                normalized_tensor = (tensor - mean_subtomo) / std_subtomo * std_val + mean_val
+            else:
+                # mean_val = mean_val*merge_factor + mean_subtomo*(1-merge_factor)
+                # std_val = std_val*merge_factor + std_subtomo*(1-merge_factor)
+                normalized_tensor = (tensor - mean_val) / std_val
+        
+    return {"normalized_tensor":normalized_tensor, "mean":mean_subtomo, "std":std_subtomo}
+
 def cross_correlate(M1, M2):
     M1_norm = (M1-M1.mean()) / M1.std(correction = False)
     M2_norm = (M2-M2.mean()) / M2.std(correction = False)
@@ -70,18 +75,20 @@ def rotate_vol(volume, rotation):
     new_vol = torch.rot90(new_vol, rotation[1][1], [rotation[1][0][0]-3,rotation[1][0][1]-3])
     return new_vol
 
-def apply_F_filter_torch(input_map,F_map):
-    fft_input = torch.fft.fftshift(torch.fft.fftn(input_map, dim=(-1, -2, -3)),dim=(-1, -2, -3))
+def apply_F_filter_torch(tensornput_map,F_map):
+    fft_input = torch.fft.fftshift(torch.fft.fftn(tensornput_map, dim=(-1, -2, -3)),dim=(-1, -2, -3))
     # mw_shift = torch.fft.fftshift(F_map, dim=(-1, -2, -3))
     out = torch.fft.ifftn(torch.fft.fftshift(fft_input*F_map, dim=(-1, -2, -3)),dim=(-1, -2, -3))
     out =  torch.real(out)
     return out
+
 def process_batch(batch):
     if len(batch) == 7:
         return [b.cuda() for b in batch]
     return batch[0].cuda(), batch[1].cuda(), None, None, None, None, None
 
 def ddp_train(rank, world_size, port_number, model, train_dataset, training_params):
+    converged = False
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = port_number
     batch_size_gpu = training_params['batch_size'] // (training_params['acc_batches'] * world_size)
@@ -137,183 +144,103 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
             for i_batch, batch in enumerate(train_loader):  
                 x1, x2, gt, mw, ctf, wiener, noise_vol = process_batch(batch)
-
+                
                 if training_params['CTF_mode'] in  ["phase_only", 'wiener','network']:
                     if training_params["phaseflipped"]:
                         ctf = torch.abs(ctf)
                         wiener = torch.abs(wiener) 
                     elif training_params['do_phaseflip_input']:
                         x1 = apply_F_filter_torch(x1, torch.sign(ctf))
-                        x2 = apply_F_filter_torch(x2, torch.sign(ctf))
+                        x2 = apply_F_filter_torch(x2, torch.sign(ctf)) if x2 is not None else None
                         ctf = torch.abs(ctf)
                         wiener = torch.abs(wiener) 
 
-                if training_params['method'] in ["n2n", "regular"]:                                     
-                    with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                        preds = model(x1)
-                        preds = preds.to(torch.float32)
-
-                    if training_params['CTF_mode']  == 'network':
-                        preds = apply_F_filter_torch(preds, ctf)
-                    elif training_params['CTF_mode']  == 'wiener':
-                        x2 = apply_F_filter_torch(x2, wiener)
-
-                    loss = loss_func(x2, preds)
-
-                    # if rank == 0 and i_batch%100 == 0 :
-                    #     debug_matrix(ctf, filename=f"{training_params['output_dir']}/debug_ctf_{i_batch}.mrc")
-                    #     debug_matrix(preds, filename=f"{training_params['output_dir']}/debug_preds_{i_batch}.mrc")
-                    #     debug_matrix(x1, filename=f"{training_params['output_dir']}/debug_x1_{i_batch}.mrc")
-                    #     debug_matrix(x2, filename=f"{training_params['output_dir']}/debug_x2_{i_batch}.mrc")
-                    
-                    outside_loss = loss
-                    inside_loss = loss
-
-                else:
+                if training_params['method'] in ["isonet2", "isonet2-n2n"]:
                     if random.random()<training_params['random_rot_weight']:
                         rotate_func = rotate_vol_around_axis_torch
                         rot = sample_rot_axis_and_angle()
                     else:
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
+                    
+                    x = [apply_F_filter_torch(vol, mw) for vol in x]
+                    x_orig_stats = [normalize_mean_std(vol, stats_only=True) for vol in x]
 
-                    if training_params['method'] in ["isonet2"]:
-                        # assert x1 == x2
-                        # x1 = apply_F_filter_torch(x1, mw)
-                        x1,_,_ = normalize_percentage(x1)
-                        # def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None):
-                        # x1 , lowerbound, upperbound= normalize_percentage(x1)
+                    with torch.no_grad(), torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
+                        pred_x = [model(vol).to(torch.float32) for vol in x]
 
-                        with torch.no_grad():
-                            with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                                preds = model(x1)
+                    orig_noise_std = torch.std(x[0]-x[1])/1.414
+                    new_noise_std = torch.std(pred_x[0]-pred_x[1])/1.414
+                    delta_noise_std = torch.sqrt(torch.abs(orig_noise_std**2 - new_noise_std**2))
+                    pred_x = [vol + torch.randn_like(vol) * delta_noise_std for vol in pred_x]
 
-                        if training_params['CTF_mode'] in ['network', 'wiener']:
-                            preds = apply_F_filter_torch(preds, ctf)
+                    if training_params['CTF_mode'] in ['network', 'wiener']:
+                        pred_x = [apply_F_filter_torch(vol, ctf) for vol in pred_x]
 
-                        preds = preds.to(torch.float32)
+                    x_filled = [apply_F_filter_torch(pred, 1-mw) + orig for pred, orig in zip(pred_x, x)]
+                    
+                    x_filled_rot = [rotate_func(vol, rot) for vol in x_filled]
+    
+                    x_filled_rot_mw = [apply_F_filter_torch(vol, mw) for vol in x_filled_rot]
 
-                        x1_filled = apply_F_filter_torch(preds, 1-mw) + apply_F_filter_torch(x1, mw)
+                    x_filled_rot_mw_normalized= [normalize_mean_std(tensor=vol,
+                                                         mean_val=x_orig_stats[i]["mean"],
+                                                         std_val=x_orig_stats[i]["std"],
+                                                         matching=True) 
+                                                         for i,vol in enumerate(x_filled_rot_mw)]    
 
-                        x1_filled,_,_ = normalize_percentage(x1_filled)
+                    rotated_mw = rotate_func(mw, rot)
+                    
+                    net_input = x_filled_rot_mw_normalized
+                    
+                    net_target = x_filled_rot
+                
+                else:
+                    net_input = x
+                    
+                    net_target = x
+                
+                with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
+                    # pred_y = [model(vol).to(torch.float32) for vol in net_input] 
+                    pred_y = model(net_input[0]).to(torch.float32)
 
-                        x1_filled_rot = rotate_func(x1_filled, rot)
+                if training_params['CTF_mode']  == 'network':
+                    pred_y = [apply_F_filter_torch(vol, ctf) for vol in pred_y]
+                    
+                elif training_params['CTF_mode']  == 'wiener':
+                    # net_target = [apply_F_filter_torch(vol, wiener) for vol in net_target] 
+                    net_target = [apply_F_filter_torch(net_target[1], wiener) ]
+                
+                # Loss Calculation
+                if training_params['method'] == "isonet2":
+                    outside_loss, inside_loss = masked_loss(pred_y[0], net_target[0], rotated_mw, mw, loss_func = loss_func)
+                    if training_params['mw_weight'] > 0:
+                        loss = inside_loss + training_params['mw_weight'] * outside_loss
+                    else:
+                        loss = loss_func(pred_y[0], net_target[0]) 
 
-                        x1_filled_rot_mw = apply_F_filter_torch(x1_filled_rot, mw)
+                elif training_params['method'] == "isonet2_n2n":
+                    outside_loss1, inside_loss1 = masked_loss(pred_y[0], net_target[1], rotated_mw, mw, loss_func = loss_func)
+                    outside_loss2, inside_loss2 = masked_loss(pred_y[1], net_target[0], rotated_mw, mw, loss_func = loss_func)
+                    outside_loss = (outside_loss1 + outside_loss2)/2.
+                    inside_loss = (inside_loss1+ inside_loss2)/2.
+                    
+                    if training_params['mw_weight'] > 0:
+                        loss = inside_loss + training_params['mw_weight'] * outside_loss
+                    else:
+                        loss1 = loss_func(pred_y[0], net_target[1])
+                        loss2 = loss_func(pred_y[1], net_target[0])
+                        loss = (loss1 + loss2)/2.
+                
+                elif training_params['method'] == "n2n":
+                    # loss1 = loss_func(pred_y[0], net_target[1])
+                    # loss2 = loss_func(pred_y[1], net_target[0])
 
-                        rotated_mw = rotate_func(mw, rot)
-                        
-                        net_input = x1_filled_rot_mw
-                        net_target = x1_filled_rot
-
-                        if training_params["noise_level"] > 0:
-                            perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
-                            noise_vol = noise_vol[:, :, :, perm, :]
-                            net_input = net_input + training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
-
-                        with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
-                            pred_y = model(net_input).to(torch.float32)
-
-                            if training_params['CTF_mode']  == 'network':
-                                pred_y = apply_F_filter_torch(pred_y, ctf)
-                            elif training_params['CTF_mode']  == 'wiener':
-                                net_target = apply_F_filter_torch(net_target, wiener)
-
-                            outside_loss, inside_loss = masked_loss(pred_y, net_target, rotated_mw, mw, loss_func = loss_func)
-                            loss = loss_func(pred_y, net_target) 
-                                
-                    elif training_params['method'] in ['isonet2-n2n']:
-
-                        # x1_std_orig, x1_mean_orig = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-                        # x1,_,_ = normalize_mean_std(x1)
-                        # x2,_,_ = normalize_mean_std(x2)
-
-                        noise_std = torch.std(x1-x2)/1.414
-                        x1 = apply_F_filter_torch(x1, mw)
-                        x2 = apply_F_filter_torch(x2, mw)
-
-                        x1_std_orig, x1_mean_orig = x1.std(correction=0,dim=(-3,-2,-1), keepdim=True), x1.mean(dim=(-3,-2,-1), keepdim=True)
-                        x2_std_orig, x2_mean_orig = x2.std(correction=0,dim=(-3,-2,-1), keepdim=True), x2.mean(dim=(-3,-2,-1), keepdim=True)
-
-                        with torch.no_grad():
-                            with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                                preds_x1 = model(x1)
-                                preds_x2 = model(x2)
-
-                        preds_x1 = preds_x1.to(torch.float32)
-                        preds_x2 = preds_x2.to(torch.float32)
-
-                        new_noise_std = torch.std(preds_x1-preds_x2)/1.414
-                        delta_noise_std = torch.sqrt(torch.abs(noise_std**2 - new_noise_std**2))
-
-                        preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
-                        preds_x2 = preds_x2 + torch.randn_like(preds_x2) * delta_noise_std
-
-                        if training_params['CTF_mode'] in ['network', 'wiener']:
-                            preds_x1 = apply_F_filter_torch(preds_x1, ctf)
-                            preds_x2 = apply_F_filter_torch(preds_x2, ctf)
-
-                        x1_filled = apply_F_filter_torch(preds_x1, 1-mw) + x1
-                        x2_filled = apply_F_filter_torch(preds_x2, 1-mw) + x2
-                        
-                        x1_filled_rot = rotate_func(x1_filled, rot)
-                        x2_filled_rot = rotate_func(x2_filled, rot)
-
-                        x1_filled_rot_mw = apply_F_filter_torch(x1_filled_rot, mw)
-                        x2_filled_rot_mw = apply_F_filter_torch(x2_filled_rot, mw)
-
-                        x1_filled_rot_mw_mean, x1_filled_rot_mw_std = x1_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x1_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-                        x2_filled_rot_mw_mean, x2_filled_rot_mw_std = x2_filled_rot_mw.mean(dim=(-3,-2,-1), keepdim=True), x2_filled_rot_mw.std(correction=0,dim=(-3,-2,-1), keepdim=True)
-
-                        x1_filled_rot_mw = (x1_filled_rot_mw-x1_filled_rot_mw_mean)/x1_filled_rot_mw_std * x1_std_orig + x1_mean_orig
-                        x2_filled_rot_mw = (x2_filled_rot_mw-x2_filled_rot_mw_mean)/x2_filled_rot_mw_std * x2_std_orig + x2_mean_orig
-
-
-                        rotated_mw = rotate_func(mw, rot)
-                        
-                        net_input1 = x1_filled_rot_mw
-                        net_input2 = x2_filled_rot_mw
-
-                        net_target1 = x1_filled_rot
-                        net_target2 = x2_filled_rot
-
-                        # if training_params["noise_level"] > 0:
-                        #     perm = torch.randperm(noise_vol.size(3), device=noise_vol.device)
-                        #     noise_vol = noise_vol[:, :, :, perm, :]
-                        #     N = training_params["noise_level"] * (noise_vol - noise_vol.mean()) / torch.std(noise_vol, correction=0) #* random.random()
-                        #     net_input1 = net_input1 + N
-                        #     net_input2 = net_input2 + N
-
-                        with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
-                            pred_y1 = model(net_input1).to(torch.float32)
-                            pred_y2 = model(net_input2).to(torch.float32)
-
-                            if training_params['CTF_mode']  == 'network':
-                                pred_y1 = apply_F_filter_torch(pred_y1, ctf)
-                                pred_y2 = apply_F_filter_torch(pred_y2, ctf)
-                            elif training_params['CTF_mode']  == 'wiener':
-                                net_target1 = apply_F_filter_torch(net_target1, wiener)
-                                net_target2 = apply_F_filter_torch(net_target2, wiener)
-
-                            outside_loss1, inside_loss1 = masked_loss(pred_y1, net_target2, rotated_mw, mw, loss_func = loss_func)
-                            outside_loss2, inside_loss2 = masked_loss(pred_y2, net_target1, rotated_mw, mw, loss_func = loss_func)
-                            outside_loss = (outside_loss1 + outside_loss2)/2.
-                            inside_loss = (inside_loss1+ inside_loss2)/2.
-                            
-                            loss1 = loss_func(pred_y1, net_target2)
-                            loss2 = loss_func(pred_y2, net_target1)
-                            
-
-                            if training_params['mw_weight'] > 0:
-                                loss = inside_loss + training_params['mw_weight'] * outside_loss
-                            else:
-                                loss = (loss1 + loss2)/2.
-
-                    if len(gt.shape) > 2:
-                        gt_inside_loss = cross_correlate(apply_F_filter_torch(gt, mw), apply_F_filter_torch(preds_x1, mw))
-                        gt_outside_loss = cross_correlate(apply_F_filter_torch(gt, 1-mw), apply_F_filter_torch(preds_x1, 1-mw))
-                        inside_loss = gt_inside_loss
-                        outside_loss = gt_outside_loss       
+                    # loss = (loss1 + loss2)/2.
+                    loss = loss_func(pred_y[0], net_target[1])
+                    
+                    outside_loss = loss
+                    inside_loss = loss
 
                 loss = loss / training_params['acc_batches']
                 inside_loss = inside_loss / training_params['acc_batches']
@@ -369,25 +296,12 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             print(loss_str)
 
             plot_metrics(training_params["metrics"],f"{training_params['output_dir']}/loss_{training_params['split']}.png")
-            
-            # window = 10
-            # pvalue_thresh = 0.05
-            # if len(training_params["metrics"]["average_loss"]) < window:
-            #     print("insufficient epochs")
-            
-            # recent_losses = training_params["metrics"]["average_loss"][-window:]
-            # epochs = np.arange(window)
-            
-            # result = linregress(epochs, recent_losses, alternative='less')
-            
-            # converged = result.pvalue > pvalue_thresh or result.rvalue**2 < 0.1
-            # print(converged)
 
             if world_size > 1:
                 model_params = model.module.state_dict()
             else:
                 model_params = model.state_dict()
-            
+
             torch.save({
                     'method':training_params['method'],
                     'CTF_mode': training_params['CTF_mode'],
@@ -398,13 +312,37 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                     'cube_size': training_params['cube_size']
                     }, outmodel_path)
                         
+            total_epochs = epoch+1+training_params["starting_epoch"]
+            outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_epoch{total_epochs}_{training_params['split']}.pt"
+
+# =================================================================================================================================================================================================================================================================
+            window = 10
+            pvalue_thresh = 0.01
+            epochs = np.arange(window)
+            if len(training_params["metrics"]["average_loss"]) > window:    
+                
+                if (training_params["metrics"]["average_loss"][-1] == min(training_params["metrics"]["average_loss"])):
+                    min_files = glob(os.path.join(training_params['output_dir'], "*_min_loss.pt"))
+                    for mf in min_files:
+                        try:
+                            os.remove(mf)
+                        except OSError as e:
+                            logging.warning(f"Failed to remove {mf}: {e}")
+                    shutil.copy(outmodel_path, f"{outmodel_path_epoch[:-3]}_min_loss.pt")         
+
+                else:
+                    recent_losses = training_params["metrics"]["average_loss"][-window:]
+                    result = linregress(epochs, recent_losses, alternative='less')
+                    converged = (result.pvalue > pvalue_thresh or result.rvalue**2 < 0.1)
+# =================================================================================================================================================================================================================================================================            
+            
             if (epoch+1)%training_params['T_max'] == 0:
-                total_epochs = epoch+1+training_params["starting_epoch"]
-                outmodel_path_epoch = f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_epoch{total_epochs}_{training_params['split']}.pt"
                 shutil.copy(outmodel_path, outmodel_path_epoch)
 
     if world_size > 1:
         dist.destroy_process_group()
+    
+    return(outmodel_path, converged)
 
 
 def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mask,idx=None):
@@ -424,7 +362,7 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
 
     outputs = []
     with torch.no_grad():
-        for i in tqdm(
+        for tensor in tqdm(
             range(rank * steps_per_rank, min((rank + 1) * steps_per_rank, num_data_points)),
             disable=(rank != 0), desc=f'Predicting Tomogram{f" {idx}" if idx is not None else ""}: '
         ):

@@ -46,58 +46,58 @@ class Net:
             from .unet import Unet
             self.model = Unet(filter_base = 16,unet_depth=4, add_last=True)
 
-        elif self.arch in ['scunet-large','scunet-medium','scunet-small','scunet-fast','scunet-fast-large']:
-            if self.state == "train":
-                drop_rate=0.1
-            else:
-                drop_rate=0
+        # elif self.arch in ['scunet-large','scunet-medium','scunet-small','scunet-fast','scunet-fast-large']:
+        #     if self.state == "train":
+        #         drop_rate=0.1
+        #     else:
+        #         drop_rate=0
 
-            if cube_size%3 == 0:
-                window_size = 3
-            elif cube_size%4 == 0:
-                window_size = 4
+        #     if cube_size%3 == 0:
+        #         window_size = 3
+        #     elif cube_size%4 == 0:
+        #         window_size = 4
             
-            if self.arch == 'scunet-medium':
-                dim=64
-                #config=[1,1,1,1,1,1,1,1,1]
-                config=[2,2,2,2,2,2,2,2,2]
-            elif self.arch == 'scunet-small':
-                dim=32
-                #config=[1,1,1,1,1,1,1,1,1]
-                config=[2,2,2,2,2,2,2,2,2]
-            elif self.arch == 'scunet-fast':
-                dim=32
-                config=[0,2,2,2,2,2,2,2,0]
-            elif self.arch == 'scunet-fast-large':
-                dim=64
-                config=[0,2,2,2,2,2,2,2,0]
+        #     if self.arch == 'scunet-medium':
+        #         dim=64
+        #         #config=[1,1,1,1,1,1,1,1,1]
+        #         config=[2,2,2,2,2,2,2,2,2]
+        #     elif self.arch == 'scunet-small':
+        #         dim=32
+        #         #config=[1,1,1,1,1,1,1,1,1]
+        #         config=[2,2,2,2,2,2,2,2,2]
+        #     elif self.arch == 'scunet-fast':
+        #         dim=32
+        #         config=[0,2,2,2,2,2,2,2,0]
+        #     elif self.arch == 'scunet-fast-large':
+        #         dim=64
+        #         config=[0,2,2,2,2,2,2,2,0]
             
 
-            from IsoNet.models.scunet import SCUNet_depth4,  SCUNet, SCUNet_depth4_from2nd
-            if self.arch in ['scunet-fast', 'scunet-fast-large']:
-                self.model = SCUNet_depth4_from2nd(
-                            in_nc=1,
-                            config=config,
-                            dim=dim,
-                            drop_path_rate=drop_rate,
-                            input_resolution=cube_size,
-                            head_dim=16,
-                            window_size=window_size,
-                        )
-            else:
-                self.model = SCUNet_depth4(
-                            in_nc=1,
-                            config=config,
-                            dim=dim,
-                            drop_path_rate=drop_rate,
-                            input_resolution=cube_size,
-                            head_dim=16,
-                            window_size=window_size,
-                        )            
-                self.model.apply(self.model._init_weights)
+            # from IsoNet.models.scunet import SCUNet_depth4,  SCUNet, SCUNet_depth4_from2nd
+            # if self.arch in ['scunet-fast', 'scunet-fast-large']:
+            #     self.model = SCUNet_depth4_from2nd(
+            #                 in_nc=1,
+            #                 config=config,
+            #                 dim=dim,
+            #                 drop_path_rate=drop_rate,
+            #                 input_resolution=cube_size,
+            #                 head_dim=16,
+            #                 window_size=window_size,
+            #             )
+            # else:
+            #     self.model = SCUNet_depth4(
+            #                 in_nc=1,
+            #                 config=config,
+            #                 dim=dim,
+            #                 drop_path_rate=drop_rate,
+            #                 input_resolution=cube_size,
+            #                 head_dim=16,
+            #                 window_size=window_size,
+            #             )            
+            #     self.model.apply(self.model._init_weights)
 
         else:
-            logging.info(f"method {method} should be either unet-default, unet-small,unet-medium,HSFormer" )
+            logging.info(f"method {method} should be either unet-default, unet-small,unet-medium" )
         # elif self.arch == 'HSFormer':
         #     from IsoNet.models.HSFormer import swin_tiny_patch4_window8
         #     self.model = swin_tiny_patch4_window8(img_size=cube_size, embed_dim=128,num_classes =1)
@@ -154,21 +154,21 @@ class Net:
         else:
             clip_first_peak_mode = training_params['clip_first_peak_mode']
 
-        if training_params['method'] == 'regular':
-            from IsoNet.models.data_sequence import Train_sets_regular
-            self.train_dataset = Train_sets_regular(training_params['data_path'])
+        # if training_params['method'] == 'regular':
+        #     from IsoNet.models.data_sequence import Train_sets_regular
+        #     self.train_dataset = Train_sets_regular(training_params['data_path'])
 
-        elif training_params['method'] in ['n2n', 'isonet2', 'isonet2-n2n']:
-            if training_params["noise_level"] > 0:
-                noise_dir = f'{training_params["output_dir"]}/noise_volumes'
-            else:
-                noise_dir = None
+        # if training_params['method'] in ['n2n', 'isonet2', 'isonet2-n2n']:
+        if training_params["noise_level"] > 0:
+            noise_dir = f'{training_params["output_dir"]}/noise_volumes'
+        else:
+            noise_dir = None
 
-            from IsoNet.models.data_sequence import Train_sets_n2n, MRCDataset
-            self.train_dataset = Train_sets_n2n(training_params['star_file'],method=training_params['method'], 
-                                        cube_size=training_params['cube_size'], input_column=training_params['input_column'],\
-                                        split=training_params['split'], noise_dir=noise_dir, clip_first_peak_mode=clip_first_peak_mode,\
-                                        start_bt_size=training_params["start_bt_size"], bfactor=training_params["bfactor"])
+        from IsoNet.models.data_sequence import Train_sets_n2n
+        self.train_dataset = Train_sets_n2n(training_params['star_file'],method=training_params['method'], 
+                                    cube_size=training_params['cube_size'], input_column=training_params['input_column'],\
+                                    split=training_params['split'], noise_dir=noise_dir, clip_first_peak_mode=clip_first_peak_mode,\
+                                    start_bt_size=training_params["start_bt_size"], bfactor=training_params["bfactor"])
 
 
     def train(self, training_params):
@@ -178,10 +178,9 @@ class Net:
         training_params['metrics'] = self.metrics
 
         #### preparing data
-        # from chatGPT: The DistributedSampler shuffles the indices of the entire dataset, not just the portion assigned to a specific GPU. 
-        if training_params['method'] == 'regular':
-            from IsoNet.models.data_sequence import Train_sets_regular
-            train_dataset = Train_sets_regular(training_params['star_file'])
+        # if training_params['method'] == 'regular':
+        #     from IsoNet.models.data_sequence import Train_sets_regular
+        #     train_dataset = Train_sets_regular(training_params['star_file'])
 
         try:
             if self.world_size > 1:
@@ -194,29 +193,6 @@ class Net:
            dist.destroy_process_group() 
            os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
         self.load(f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt")
-
-        
-    def predict_subtomos(self, settings):
-        # This is legacy
-        from IsoNet.utils.fileio import read_mrc,write_mrc
-        first_map, pixel_size = read_mrc(settings['mrc_list'][0])
-        shape = first_map.shape
-        data = np.zeros((len(settings['mrc_list']),shape[0], shape[1], shape[2]), dtype=np.float32)
-        for i, file_name in enumerate(settings['mrc_list']):
-            subtomo, _ = read_mrc(file_name)
-            data[i] = -subtomo
-        tmp_data_path = f"{settings['output_dir']}/tmp.npy"
-        outData = self.predict(data, tmp_data_path=tmp_data_path)
-        os.remove(tmp_data_path)
-
-        for i, file_name in enumerate(settings['mrc_list']):
-            root_name = os.path.splitext(os.path.basename(file_name))[0]
-
-            write_mrc('{}/{}_iter{:0>2d}.mrc'.format(settings['output_dir'],
-                                                     root_name,
-                                                     settings['iter_count']-1), 
-                                                     -outData[i])
-        return outData
 
     def predict(self, data, tmp_data_path, F_mask=None, idx=None):
         data = data[:,np.newaxis,:,:].astype(np.float32)
@@ -249,53 +225,53 @@ class Net:
         return outData
     
 
-class DuoNet:
-    def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model1=None, pretrained_model2=None, state="train"):
-        self.net1 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model1, state=state)
-        self.net2 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model2, state=state)
-        self.method = method
-        self.arch = arch
-        self.cube_size = cube_size
-        self.state = state
-        if pretrained_model1 not in ["None", None] and pretrained_model1 not in ["None", None]:
-            self.method = self.net1.method
-            self.arch = self.net1.arch
-            self.cube_size = self.net1.cube_size
-            self.state = self.net1.state
+# class DuoNet:
+#     def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model1=None, pretrained_model2=None, state="train"):
+#         self.net1 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model1, state=state)
+#         self.net2 = Net(method=method, arch=arch, cube_size = cube_size, pretrained_model=pretrained_model2, state=state)
+#         self.method = method
+#         self.arch = arch
+#         self.cube_size = cube_size
+#         self.state = state
+#         if pretrained_model1 not in ["None", None] and pretrained_model1 not in ["None", None]:
+#             self.method = self.net1.method
+#             self.arch = self.net1.arch
+#             self.cube_size = self.net1.cube_size
+#             self.state = self.net1.state
 
-    def load(self, pretrained_model1, pretrained_model2):
-        self.net1.load(pretrained_model1)
-        self.net2.load(pretrained_model2)
-        self.method = self.net1.method
-        self.arch = self.net1.arch
-        self.cube_size = self.net1.cube_size
-        self.state = self.net1.state
+#     def load(self, pretrained_model1, pretrained_model2):
+#         self.net1.load(pretrained_model1)
+#         self.net2.load(pretrained_model2)
+#         self.method = self.net1.method
+#         self.arch = self.net1.arch
+#         self.cube_size = self.net1.cube_size
+#         self.state = self.net1.state
     
-    def train(self, training_params):
-        assert training_params["epochs"] % training_params["T_max"] == 0
+#     def train(self, training_params):
+#         assert training_params["epochs"] % training_params["T_max"] == 0
 
-        epochs = training_params["epochs"]
-        T_max = training_params["T_max"]
-        T_steps = training_params["epochs"] // training_params["T_max"] 
+#         epochs = training_params["epochs"]
+#         T_max = training_params["T_max"]
+#         T_steps = training_params["epochs"] // training_params["T_max"] 
 
-        training_params1 = training_params.copy()
-        training_params1['split'] = "top"
-        training_params1['epochs'] = T_max
+#         training_params1 = training_params.copy()
+#         training_params1['split'] = "top"
+#         training_params1['epochs'] = T_max
 
-        training_params2 = training_params.copy()
-        training_params2['split'] = "bottom"
-        training_params2['epochs'] = T_max
+#         training_params2 = training_params.copy()
+#         training_params2['split'] = "bottom"
+#         training_params2['epochs'] = T_max
 
-        for i in range(T_steps):
-            logging.info(f"training the top half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
-            self.net1.train(training_params1)
-            training_params1["starting_epoch"]+=T_max
-            logging.info(f"training the bottom half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
-            self.net2.train(training_params2)
-            training_params2["starting_epoch"]+=T_max
+#         for i in range(T_steps):
+#             logging.info(f"training the top half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
+#             self.net1.train(training_params1)
+#             training_params1["starting_epoch"]+=T_max
+#             logging.info(f"training the bottom half of tomograms for {T_max} epochs, remaining epochs {epochs-T_max*i}")
+#             self.net2.train(training_params2)
+#             training_params2["starting_epoch"]+=T_max
 
 
-    def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, F_mask=None):
-        predicted_map1 = self.net1.predict_map(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
-        predicted_map2 = self.net2.predict_map(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
-        return [predicted_map1, predicted_map2]
+#     def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, F_mask=None):
+#         predicted_map1 = self.net1.predict_map(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
+#         predicted_map2 = self.net2.predict_map(data=data, output_dir=output_dir, cube_size = cube_size, crop_size=crop_size, F_mask=F_mask)
+#         return [predicted_map1, predicted_map2]

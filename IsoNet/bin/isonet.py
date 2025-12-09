@@ -336,7 +336,8 @@ class ISONET:
                 padding_factor: float=1.5,
                 tomo_idx=None,
                 output_prefix: str  = "",
-                save_slices: bool = True):
+                step: str=""
+                ):
         """
         Apply a trained IsoNet model to tomograms to produce denoised or missing-wedge–corrected volumes. Prediction utilizes the model's saved cube size and CTF handling options, but allows for runtime adjustments.
 
@@ -433,8 +434,7 @@ class ISONET:
             # 5) Update STAR
             column = "rlnDenoisedTomoName" if network.method == 'n2n' else "rlnCorrectedTomoName"
             new_star.at[i, column] = out_file
-            if save_slices:
-                save_slices_and_spectrum(out_file,output_dir,'')
+            save_slices_and_spectrum(out_file,output_dir,step)
             logging.info(f"Predicted {[os.path.relpath(p) for p in tomo_paths]} → {out_file}")
 
         process_tomograms(
@@ -480,6 +480,10 @@ class ISONET:
                    ):
         """
         Entry point for IsoNet2 training. Use denoise for quicker noise-to-noise (n2n) training workflows for preliminary tomogram testing and mask generation.
+        
+        This function is a convenience wrapper around refine() with method='n2n' and preset parameters optimized for denoising.
+        
+        For detailed parameter documentation, see refine(). Key parameters are listed below:
 
         Args:
             star_file: STAR file for tomograms. Required parameter.
@@ -506,64 +510,51 @@ class ISONET:
             highpassnyquist: Fraction of the Nyquist used as a very-low-frequency high-pass cutoff; use to remove large-scale intensity gradients and drift. 02.
             with_preview: If True, run prediction using the final checkpoint(s) after training. 
             prev_tomo_idx: If set, automatically predict only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16"). 
+        
+        See Also:
+            refine: Full training function with all parameters and options.
         """
-        acc_batches=1
-        create_folder(output_dir,remove=False)
-        batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus)
-        steps_per_epoch = 200000000
 
-        training_params = {
-            "method":'n2n',
-            "input_column": None,
-            "arch": arch,
-            "ncpus": ncpus,
-            "star_file":star_file,
-            "output_dir":output_dir,
-            "batch_size":batch_size,
-            "acc_batches": acc_batches,
-            "epochs": epochs,
-            "steps_per_epoch":steps_per_epoch,
-            "learning_rate":learning_rate,
-            "cube_size": cube_size,
-            "mw_weight": 0,
-            'apply_mw_x1':True,
-            'mixed_precision':mixed_precision,
-            'compile_model':False,
-            'T_max':save_interval,
-            'learning_rate_min':learning_rate_min,
-            'loss_func':loss_func,
-            'CTF_mode':CTF_mode,
-            "phaseflipped": isCTFflipped,
-            "starting_epoch": 0,
-            "noise_level": 0,
-            "correct_between_tilts":False,
-            "start_bt_size":128,
-            'snrfalloff':snrfalloff,
-            "deconvstrength": deconvstrength,
-            "highpassnyquist":highpassnyquist,
-            "do_phaseflip_input":do_phaseflip_input,
-            "bfactor":bfactor,
-            "clip_first_peak_mode":clip_first_peak_mode,
-        }
+        self.refine(star_file=star_file,
+                    output_dir=output_dir,
 
-        training_params['split'] = "full"
-        from IsoNet.models.network import Net
-        network = Net(method='n2n', arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
-        network.prepare_train_dataset(training_params)
-        if with_preview:
-            new_epochs = save_interval
-            training_params["epochs"] = new_epochs
-            for step in range(save_interval, epochs+1, save_interval):
-                logging.info(f"Training for {step-save_interval} to {step} epochs")
-                network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
-                model_file = f"{output_dir}/network_n2n_{arch}_{cube_size}_full.pt"
-                shutil.copy(model_file, f"{output_dir}/network_n2n_{arch}_{cube_size}_epoch{step}_full.pt")
-                all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                            isCTFflipped=isCTFflipped, tomo_idx=prev_tomo_idx,output_prefix=f"corrected_epochs{step}") 
-                save_slices_and_spectrum(all_tomo_paths[0],output_dir,step)
-        else:
-            network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
+                   gpuID=gpuID,
+                   ncpus=ncpus, 
 
+                   arch=arch,
+                   pretrained_model=pretrained_model,
+
+                   cube_size=cube_size,
+                   epochs=epochs,
+                   
+                   batch_size=batch_size, 
+                   loss_func=loss_func,
+                   learning_rate=learning_rate,
+                   save_interval=save_interval,
+                   learning_rate_min=learning_rate_min,
+                   mixed_precision=mixed_precision,
+
+                   CTF_mode=CTF_mode,
+                   clip_first_peak_mode=clip_first_peak_mode,
+                   bfactor=bfactor,
+
+                   isCTFflipped=isCTFflipped,
+                   do_phaseflip_input=do_phaseflip_input,
+
+
+                   with_preview=with_preview,
+                   prev_tomo_idx=prev_tomo_idx,
+
+                   snrfalloff=snrfalloff,
+                   deconvstrength=deconvstrength,
+                   highpassnyquist=highpassnyquist,
+
+                   method='n2n',
+                   input_column=None,
+                   mw_weight=0,
+                   apply_mw_x1=True, 
+                   noise_level=0
+                   )
 
 
     def refine(self, 
@@ -578,7 +569,7 @@ class ISONET:
                    pretrained_model: str=None,
 
                    cube_size: int=96,
-                   epochs: int=50,
+                   epochs: int=200,
                    
                    input_column: str= 'rlnDeconvTomoName',
                    batch_size: int="auto", 
@@ -607,7 +598,10 @@ class ISONET:
 
                    snrfalloff: float=0,
                    deconvstrength: float=1,
-                   highpassnyquist:float=0.02
+                   highpassnyquist:float=0.02,
+                   with_deconv: bool=False,
+                   with_mask: bool=False,
+                   mask_update_interval: int=0
                    ):
         """
         Use refine for IsoNet2 missing-wedge correction (isonet2) or isonet2-n2n combined modes.
@@ -650,9 +644,6 @@ class ISONET:
         acc_batches=1
         correct_between_tilts: bool=False
         start_bt_size: int=128
-        with_deconv: bool=False
-        with_mask: bool=False
-        mask_update_interval: int=0
 
         create_folder(output_dir,remove=False)
         batch_size, ngpus, ncpus = parse_params(batch_size, gpuID, ncpus, fit_ncpus_to_ngpus=True)
@@ -734,7 +725,8 @@ class ISONET:
             "random_rot_weight":random_rot_weight,
             'do_phaseflip_input':do_phaseflip_input,
             "clip_first_peak_mode":clip_first_peak_mode,
-            "bfactor": bfactor
+            "bfactor": bfactor,
+            "with_preview": with_preview
         }
 
         training_params['split'] = "full"
@@ -742,25 +734,25 @@ class ISONET:
         network = Net(method=method, arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
         network.prepare_train_dataset(training_params)
         if with_preview:
-            new_epochs = save_interval
-            training_params["epochs"] = new_epochs
+            training_params["epochs"] = save_interval
             for step in range(save_interval, epochs+1, save_interval):
                 logging.info(f"Training for {step-save_interval} to {step} epochs")
-                network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
-                model_file = f"{output_dir}/network_{method}_{arch}_{cube_size}_full.pt"
-                shutil.copy(model_file, f"{output_dir}/network_{method}_{arch}_{cube_size}_epoch{step}_full.pt")
-                if mask_update_interval == step // save_interval:
-                    all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                                isCTFflipped=isCTFflipped, tomo_idx=None,output_prefix=f"corrected_epochs{step}",save_slices=False)
+                model_file_name, converged = network.train(training_params)
+                update_mask = (mask_update_interval == step // save_interval)
+                self.predict(star_file=star_file,
+                             model=model_file_name,
+                             output_dir=output_dir, 
+                             gpuID=gpuID,
+                             isCTFflipped=isCTFflipped,
+                             output_prefix=f"corrected_epochs{step}",
+                             step=step, 
+                             tomo_idx= {None if update_mask else prev_tomo_idx})
+                if update_mask:
                     logging.info(f"Updating masks based on the corrected tomograms at epoch {step}")
                     self.make_mask(star_file=star_file,
                            input_column="rlnCorrectedTomoName",
                            output_dir=f"{output_dir}/masks_updated_epoch{step}",
                            tomo_idx=None)
-                else:
-                    all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                                isCTFflipped=isCTFflipped, tomo_idx=prev_tomo_idx,output_prefix=f"corrected_epochs{step}",save_slices=False)
-                save_slices_and_spectrum(all_tomo_paths[0],output_dir,step)
         else:
             network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
 
