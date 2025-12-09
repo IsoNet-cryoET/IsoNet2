@@ -1,6 +1,9 @@
 import { BrowserWindow, shell } from 'electron'
 import { fileURLToPath } from 'url'
 import { CHANNELS } from './constants.js'
+// IMPORT THE ICON HERE
+// The '?asset' suffix tells Vite to handle the path resolution automatically
+import icon from '../../resources/icon.png?asset'
 
 export function createMainWindow() {
     const preloadPath = fileURLToPath(new URL('../preload/preload.mjs', import.meta.url))
@@ -10,6 +13,8 @@ export function createMainWindow() {
         height: 900,
         show: false,
         autoHideMenuBar: true,
+        // USE THE IMPORTED VARIABLE HERE
+        icon: icon,
         title: 'IsoNet2',
         titleBarStyle: 'default',
         titleBarOverlay: {
@@ -22,7 +27,7 @@ export function createMainWindow() {
             sandbox: false,
             devTools: true,
             contextIsolation: true
-        },
+        }
     })
 
     win.on('ready-to-show', () => win.show())
