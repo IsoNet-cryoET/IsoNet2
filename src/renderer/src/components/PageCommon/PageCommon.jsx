@@ -16,15 +16,59 @@ const PageCommon = (props) => {
 
     // --- NEW CODE START: Setup Ref for auto-scrolling ---
     const messagesEndRef = useRef(null)
+    const prevLenRef = useRef(0)
+    const prevLastRef = useRef(null)
 
     const scrollToBottom = () => {
         // You can change behavior to 'auto' for instant scrolling if logs come in very fast
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
 
-    // This effect runs every time props.messages changes
+    // Only auto-scroll when content actually changed (avoids scrolling on parent re-renders
+    // that recreate the same messages array reference)
+    // Only auto-scroll when content actually changed AND the user is already at the bottom.
+    // If the user has scrolled up, preserve their position and do not force-scroll.
     useEffect(() => {
-        scrollToBottom()
+        const getScrollContainer = (el) => {
+            if (!el) return document.scrollingElement || document.documentElement
+            let node = el
+            while (node) {
+                if (node === document.body || node === document.documentElement) {
+                    return document.scrollingElement || document.documentElement
+                }
+                const s = window.getComputedStyle(node)
+                if (s.overflowY === 'auto' || s.overflowY === 'scroll') return node
+                node = node.parentElement
+            }
+            return document.scrollingElement || document.documentElement
+        }
+
+        const isScrolledToBottom = (threshold = 50) => {
+            const end = messagesEndRef.current
+            if (!end) return true
+            const container = getScrollContainer(end)
+            if (!container) return true
+            if (container === document.scrollingElement || container === document.documentElement) {
+                const scrollTop = window.scrollY || window.pageYOffset || document.documentElement.scrollTop
+                const clientHeight = window.innerHeight
+                const scrollHeight = document.documentElement.scrollHeight
+                return scrollHeight - (scrollTop + clientHeight) <= threshold
+            } else {
+                return container.scrollHeight - (container.scrollTop + container.clientHeight) <= threshold
+            }
+        }
+
+        const msgs = props.messages || []
+        const len = msgs.length
+        const last = len ? msgs[len - 1] : null
+
+        // only scroll when content changed AND the user is currently at/bottom (visible end)
+        if (len !== prevLenRef.current || last !== prevLastRef.current) {
+            const wasAtBottom = isScrolledToBottom()
+            if (wasAtBottom) scrollToBottom()
+            prevLenRef.current = len
+            prevLastRef.current = last
+        }
     }, [props.messages])
     // --- NEW CODE END ---
 
