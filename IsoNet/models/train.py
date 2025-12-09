@@ -163,53 +163,76 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         rotate_func = rotate_vol
                         rot = random.choice(rotation_list)
                     
-                    x = [apply_F_filter_torch(vol, mw) for vol in x]
-                    x_orig_stats = [normalize_mean_std(vol, stats_only=True) for vol in x]
+                    x1 = apply_F_filter_torch(x1, mw)
+                    x2 = apply_F_filter_torch(x2, mw) if x2 is not None else None
+                    x = [x1, x2]
+
+                    x1_stats = normalize_mean_std(x1,stats_only=True)
+                    x2_stats = normalize_mean_std(x2,stats_only=True) if x2 is not None else None
 
                     with torch.no_grad(), torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                        pred_x = [model(vol).to(torch.float32) for vol in x]
+                        pred_x1 = model(x1).to(torch.float32)
+                        pred_x2 = model(x2).to(torch.float32) if x2 is not None else None
 
-                    orig_noise_std = torch.std(x[0]-x[1])/1.414
-                    new_noise_std = torch.std(pred_x[0]-pred_x[1])/1.414
+                    orig_noise_std = torch.std(x1 - x2) / 1.414 if x2 is not None else torch.tensor(0.0, device=x1.device)
+                    new_noise_std = torch.std(pred_x1 - pred_x2) / 1.414 if (pred_x2 is not None) else torch.tensor(0.0, device=pred_x1.device)
                     delta_noise_std = torch.sqrt(torch.abs(orig_noise_std**2 - new_noise_std**2))
-                    pred_x = [vol + torch.randn_like(vol) * delta_noise_std for vol in pred_x]
 
+                    pred_x1 = pred_x1 + torch.randn_like(pred_x1) * delta_noise_std
+                    pred_x2 = pred_x2 + torch.randn_like(pred_x2) * delta_noise_std if pred_x2 is not None else None
+
+                    # apply ctf if required
                     if training_params['CTF_mode'] in ['network', 'wiener']:
-                        pred_x = [apply_F_filter_torch(vol, ctf) for vol in pred_x]
+                        pred_x1 = apply_F_filter_torch(pred_x1, ctf)
+                        pred_x2 = apply_F_filter_torch(pred_x2, ctf) if pred_x2 is not None else None
 
-                    x_filled = [apply_F_filter_torch(pred, 1-mw) + orig for pred, orig in zip(pred_x, x)]
-                    
-                    x_filled_rot = [rotate_func(vol, rot) for vol in x_filled]
-    
-                    x_filled_rot_mw = [apply_F_filter_torch(vol, mw) for vol in x_filled_rot]
+                    # fill with original content and inverse mw
+                    x_filled1 = apply_F_filter_torch(pred_x1, 1 - mw) + x1
+                    x_filled2 = apply_F_filter_torch(pred_x2, 1 - mw) + x2 if (pred_x2 is not None and x2 is not None) else None
 
-                    x_filled_rot_mw_normalized= [normalize_mean_std(tensor=vol,
-                                                         mean_val=x_orig_stats[i]["mean"],
-                                                         std_val=x_orig_stats[i]["std"],
-                                                         matching=True) 
-                                                         for i,vol in enumerate(x_filled_rot_mw)]    
+                    # rotate filled volumes
+                    x_filled_rot1 = rotate_func(x_filled1, rot)
+                    x_filled_rot2 = rotate_func(x_filled2, rot) if x_filled2 is not None else None
 
+                    # apply mw to rotated filled volumes
+                    x_filled_rot_mw1 = apply_F_filter_torch(x_filled_rot1, mw)
+                    x_filled_rot_mw2 = apply_F_filter_torch(x_filled_rot2, mw) if x_filled_rot2 is not None else None
+
+                    # normalize per-item using stored original stats
+                    x_filled_rot_mw_normalized1 = normalize_mean_std(
+                        tensor=x_filled_rot_mw1,
+                        mean_val=x1_stats["mean"],
+                        std_val=x1_stats["std"],
+                        matching=True
+                    )
+                    x_filled_rot_mw_normalized2 = None
+                    if x_filled_rot_mw2 is not None and x2_stats is not None:
+                        x_filled_rot_mw_normalized2 = normalize_mean_std(
+                            tensor=x_filled_rot_mw2,
+                            mean_val=x2_stats["mean"],
+                            std_val=x2_stats["std"],
+                            matching=True
+                        )
                     rotated_mw = rotate_func(mw, rot)
                     
-                    net_input = x_filled_rot_mw_normalized
-                    
-                    net_target = x_filled_rot
+                    net_input = x_filled_rot_mw_normalized1
+                    # net_input2 = x_filled_rot_mw_normalized2 if x_filled_rot_mw_normalized2 is not None else None
+                    # net_target1 = x_filled_rot1
+                    net_target = x_filled_rot2 if x_filled_rot2 is not None else x_filled_rot1
                 
                 else:
-                    net_input = x
+                    net_input = x1
                     
-                    net_target = x
+                    net_target = x2
                 
                 with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                    # pred_y = [model(vol).to(torch.float32) for vol in net_input] 
-                    pred_y = model(net_input[0]).to(torch.float32)
+                    pred_y = model(net_input).to(torch.float32)
 
                 if training_params['CTF_mode']  == 'network':
-                    pred_y = [apply_F_filter_torch(vol, ctf) for vol in pred_y]
+                    pred_y = apply_F_filter_torch(pred_y, ctf)
                     
                 elif training_params['CTF_mode']  == 'wiener':
-                    # net_target = [apply_F_filter_torch(vol, wiener) for vol in net_target] 
-                    net_target = [apply_F_filter_torch(net_target[1], wiener) ]
+                    net_target = apply_F_filter_torch(net_target, wiener)
                 
                 # Loss Calculation
                 if training_params['method'] == "isonet2":
