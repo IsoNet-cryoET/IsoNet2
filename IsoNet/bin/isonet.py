@@ -751,7 +751,7 @@ class ISONET:
                 shutil.copy(model_file, f"{output_dir}/network_{method}_{arch}_{cube_size}_epoch{step}_full.pt")
                 if mask_update_interval == step // save_interval:
                     all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                                isCTFflipped=isCTFflipped, tomo_idx=None,output_prefix=f"corrected_epochs{step}",save_slices=False)
+                                isCTFflipped=isCTFflipped, tomo_idx=None,output_prefix=f"corrected_epochs{step}",save_slices=False, input_column=input_column)
                     logging.info(f"Updating masks based on the corrected tomograms at epoch {step}")
                     self.make_mask(star_file=star_file,
                            input_column="rlnCorrectedTomoName",
@@ -759,7 +759,7 @@ class ISONET:
                            tomo_idx=None)
                 else:
                     all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
-                                isCTFflipped=isCTFflipped, tomo_idx=prev_tomo_idx,output_prefix=f"corrected_epochs{step}",save_slices=False)
+                                isCTFflipped=isCTFflipped, tomo_idx=prev_tomo_idx,output_prefix=f"corrected_epochs{step}",save_slices=False, input_column=input_column)
                 save_slices_and_spectrum(all_tomo_paths[0],output_dir,step)
         else:
             network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5

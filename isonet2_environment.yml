@@ -9,13 +9,13 @@ dependencies:
   - python=3.10
   - pip
 
-  # PyTorch Core (Keep these pinned strictly)
+  # PyTorch Core
   - pytorch==2.1.1
   - torchvision==0.16.1
   - torchaudio==2.1.1
   - pytorch-cuda=12.1
 
-  # Core PyTorch Dependencies (Relaxed to let Conda solve)
+  # Core PyTorch Dependencies
   - sympy
   - jinja2
   - filelock
@@ -23,8 +23,7 @@ dependencies:
   - typing-extensions
   
   # Scientific/Binary Packages 
-  # (Unpinned to resolve the Numpy/Tifffile/SimpleITK conflicts)
-  - numpy<2.0             # Restrict to <2.0 for PyTorch compatibility, but allow >1.24
+  - numpy<2.0
   - scipy
   - pandas
   - scikit-image
@@ -109,7 +108,6 @@ dependencies:
     - torchmetrics==1.3.0.post0
     - torchviz==0.0.2
     - tqdm==4.66.1
-    # - triton==2.1.0 
     - typer==0.12.3
     - typer-config==1.4.2
     - tzdata
