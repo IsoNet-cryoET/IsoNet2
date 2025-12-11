@@ -1,10 +1,35 @@
-# *IsoNet2* Tutorial
+# *IsoNet2* 
+## Contents
++ [Overview](#0-overview)
++ [Installation and System Requirements](#1-installation-and-system-requirements)
++ [Tutorial](#2-tutorial)
++ [IsoNet2 Modules](#3-isonet2-modules)
++ [FAQs](#4-faqs)
 
-*IsoNet2* is a deep-learning software package for simultaneous missing wedge correction, denoising, and CTF correction in cryo-electron tomography reconstructions using a deep neural network trained on information from the original tomogram(s). Compared to IsoNet1, *IsoNet2* produces tomograms with higher resolution and less noise in roughly a tenth of the time. The software requires full tomograms or even/odd paired tomograms as input. Paired tomograms for Noise2Noise training can be split by either frame or tilt.
+# 0. Overview
+
+*IsoNet2* is a deep-learning software package for simultaneous missing wedge correction, denoising, and CTF correction in cryo-electron tomography reconstructions using a deep neural network trained on information from the original tomogram(s). Compared to IsoNet1 [(DOI: 10.1038/s41467-022-33957-8)](https://www.nature.com/articles/s41467-022-33957-8), *IsoNet2* produces tomograms with higher resolution and less noise in roughly a tenth of the time. The software requires full tomograms or even/odd paired tomograms as input. Paired tomograms for Noise2Noise training can be split by either frame or tilt.
 
 *IsoNet2* contains six modules: ***prepare_star***, ***deconv***, ***make_mask***, ***denoise***, ***refine***, and ***predict***. All commands in IsoNet operate on `.star` text files which record paths of data and relevant parameters. For detailed descriptions of each module please refer to the individual tasks. Users can choose to utilize IsoNet through either GUI or command-lines.
 
+We maintain an IsoNet Google group for discussions or news. To subscribe or visit the group via the web interface please visit [https://groups.google.com/u/1/g/isonet](https://groups.google.com/u/1/g/isonet). To post to the forum you can either use the web interface or email to isonet@googlegroups.com
+
 # 1. Installation and System Requirements
+## Prerequisites
+### Computing Resources
+IsoNet2 is optimized for high-performance GPU computing.
++ Supported Hardware: NVIDIA GPUs (Ampere architecture or newer recommended).
++ Memory: 40 GB VRAM recommended for standard configurations.
+  + *Low-memory environments: Users with limited VRAM must adjust configuration parameters (specifically cube and batch sizes) to ensure stability.*
+
+### Software Environment
+ + Operating System: Linux (64-bit).
+ + Validation: Validated on Rocky Linux 8.6; compatible with most standard Linux distributions.
+
+### Python Dependencies
+
+All dependencies can be found in the `isonet2_environment.yml` file.
+
 ## Installing [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html)
 + Download your `conda-installer`:
 
@@ -75,12 +100,12 @@ After successfully installing, you can check your CUDA version using `nvidia-smi
 ## Installing IsoNet2
 
 ### GUI Installation
-Download the *IsoNet2* release from the release tab on the right column of our [Github](https://github.com/procyontao/IsoNet2) repository. This release contains the source code and the binary file for the GUI. Extract the compressed files into your desired installation folder. 
+Download the *IsoNet2* release from the release tab on the right column of our [Github](https://github.com/IsoNet-cryoET/IsoNet2) repository. This release contains the source code and the binary file for the GUI. Extract the compressed files into your desired installation folder. 
 
 ### non-GUI Installation
-Alternatively, if you only plan to use our command-line interface (CLI), you can clone this repository by running `git clone https://github.com/procyontao/IsoNet2.git` in your desired installation folder. This will not contain the compiled GUI file. 
+Alternatively, if you only plan to use our command-line interface (CLI), you can clone this repository by running `git clone https://github.com/IsoNet-cryoET/IsoNet2.git` in your desired installation folder. This will not contain the compiled GUI file. 
 
-Once you have installed IsoNet2, navigate to your installation folder and run `cd IsoNet2` and `bash install.sh`. This uses the included `isonet2_environment.yml` file to create a new Conda environment and runs `source isonet2.bashrc` to tell your shell the location of `isonet.py`. You may append this command to your `.bashrc` file so you don't have to re-source it every time you wish to use IsoNet.
+Once you have installed IsoNet2, navigate to your installation folder and run `cd IsoNet2` and `bash install.sh`. This uses the included `isonet2_environment.yml` file to create a new Conda environment and runs `source <your_installation_directory>/IsoNet2/isonet2.bashrc` to tell your shell the location of `isonet.py`. You may want to append this command to your `.bashrc` file so you don't have to re-source it every time you wish to use IsoNet.
 
 Installation should take 5-10 minutes. Upon successful installation, activate your environment by running `conda activate isonet2_environment`. Running the command `isonet.py --help` should display the following help message.
 ```
@@ -93,7 +118,7 @@ NAME
 ```
 # 2. Tutorial
 
-The following tutorial outlines the basic *IsoNet2* workflow on 5 immature HIV-1 dMACANC VLP even/odd paired tomograms using the GUI and CLI.
+The following tutorial outlines the basic *IsoNet2* workflow on 5 immature HIV-1 dMACANC VLP even/odd paired tomograms using the [GUI](#21-gui) and [CLI](#22-command-line-interface).
 
 In-depth explanations for every parameter can be found under Section [**3. ***IsoNet2*** Modules.**](#3-isonet2-modules) The tutorial dataset, along with a video tutorial, can be found in the following [Box](https://ucla.box.com/v/isonet2tutorial) drive.
 
