@@ -3,7 +3,7 @@ build-backend = 'setuptools.build_meta'
 requires = ['setuptools']
 
 [tool.setuptools.packages.find]
-where = ["IsoNet/"]
+where = ["."]
 
 [project]
 name = "IsoNet2"
