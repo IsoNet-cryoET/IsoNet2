@@ -19,7 +19,7 @@ We maintain an IsoNet Google group for discussions or news. To subscribe or visi
 ### Computing Resources
 IsoNet2 is optimized for high-performance GPU computing.
 + Supported Hardware: NVIDIA GPUs (Ampere architecture or newer recommended).
-+ Memory: 40 GB VRAM recommended for standard configurations.
++ Memory: 24 GB VRAM recommended.
   + *Low-memory environments: Users with limited VRAM must adjust configuration parameters (specifically cube and batch sizes) to ensure stability.*
 
 ### Software Environment
