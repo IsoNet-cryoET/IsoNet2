@@ -1,0 +1,14 @@
+[build-system]
+build-backend = 'setuptools.build_meta'
+requires = ['setuptools']
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[project]
+name = "IsoNet2"
+version = "2.0.1b"
+readme = {file = "README.md", content-type = "text/markdown"}
+
+[project.scripts]
+"isonet.py" = "IsoNet.bin.isonet:main"
