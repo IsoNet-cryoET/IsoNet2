@@ -1033,10 +1033,6 @@ class ISONET:
         logging.basicConfig(format='%(asctime)s, %(levelname)-8s %(message)s',
         datefmt="%m-%d %H:%M:%S",level=logging.DEBUG,handlers=[logging.StreamHandler(sys.stdout)])
 
-        from IsoNet.bin.predict import predict
-        from IsoNet.bin.refine import run
-        import skimage
-        import tqdm
         logging.info('IsoNet --version 2.0 alpha installed')
         logging.info(f"checking gpu speed")
         from IsoNet.bin.verify import verify
