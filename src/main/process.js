@@ -1,39 +1,35 @@
-import { spawn } from 'child_process';
+import { spawn } from 'child_process'
 import toCommand from '../renderer/src/utils/handle_json'
-import fs from 'fs';
-import path from 'path';
-import ElectronStore from 'electron-store';
-const Store = (ElectronStore && ElectronStore.default) ? ElectronStore.default : ElectronStore;
+import fs from 'fs'
+import path from 'path'
 
-// same store file as main.js
-const environmentStore = new Store({ name: 'environment', cwd: process.cwd() });
+// Store will be injected by main.js context
+let environmentStore
 
 /** read + validate settings */
 function readRuntimeSettings() {
-    const condaEnv = String(environmentStore.get('condaEnv', '') || '');
-    const isoNetPath = String(environmentStore.get('IsoNetPath', '') || '');
+    const condaEnv = String(environmentStore.get('condaEnv', '') || '')
+    const isoNetPath = String(environmentStore.get('IsoNetPath', '') || '')
 
-    const isoBin = isoNetPath ? path.join(isoNetPath, 'IsoNet', 'bin') : '';
-    const isoOk = isoNetPath && fs.existsSync(isoNetPath);
-    const isoBinOk = isoBin && fs.existsSync(isoBin);
-
-    return { condaEnv, isoNetPath, isoBin, isoOk, isoBinOk };
+    const isoBin = isoNetPath ? path.join(isoNetPath, 'IsoNet', 'bin') : ''
+    const isoOk = isoNetPath && fs.existsSync(isoNetPath)
+    const isoBinOk = isoBin && fs.existsSync(isoBin)
+    console.log('Runtime settings:', { condaEnv, isoNetPath, isoBin, isoOk, isoBinOk })
+    return { condaEnv, isoNetPath, isoBin, isoOk, isoBinOk }
 }
 
 /** build merged env (PATH / PYTHONPATH) cross-platform */
 function buildEnvOverlay(isoNetPath, isoBin) {
-    const sep = process.platform === 'win32' ? ';' : ':';
-    const env = { ...process.env };
+    const sep = process.platform === 'win32' ? ';' : ':'
+    const env = { ...process.env }
 
     if (isoBin && fs.existsSync(isoBin)) {
-        env.PATH = env.PATH ? `${isoBin}${sep}${env.PATH}` : isoBin;
+        env.PATH = env.PATH ? `${isoBin}${sep}${env.PATH}` : isoBin
     }
     if (isoNetPath && fs.existsSync(isoNetPath)) {
-        env.PYTHONPATH = env.PYTHONPATH
-            ? `${isoNetPath}${sep}${env.PYTHONPATH}`
-            : isoNetPath;
+        env.PYTHONPATH = env.PYTHONPATH ? `${isoNetPath}${sep}${env.PYTHONPATH}` : isoNetPath
     }
-    return env;
+    return env
 }
 
 /**
@@ -43,23 +39,21 @@ function buildEnvOverlay(isoNetPath, isoBin) {
  * - keeps your current { shell:true, detached:true, stdio:['ignore','pipe','pipe'] }
  */
 function spawnWithRuntime(commandLine) {
-    const { condaEnv, isoNetPath, isoBin } = readRuntimeSettings();
-    const env = buildEnvOverlay(isoNetPath, isoBin);
+    const { condaEnv, isoNetPath, isoBin } = readRuntimeSettings()
+    const env = buildEnvOverlay(isoNetPath, isoBin)
 
     // Prefer conda run so we don't rely on activation scripts
     // If no condaEnv saved, run raw command
     const cmd = condaEnv
         ? `conda run -n "${condaEnv}" --no-capture-output ${commandLine}`
-        : commandLine;
-
+        : commandLine
     return spawn(cmd, {
         shell: true,
         detached: true,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env, // ← inject our PATH/PYTHONPATH overlay
-    });
+        env // ← inject our PATH/PYTHONPATH overlay
+    })
 }
-
 
 let inQueueList = [] // List for queued processes
 let notInQueueList = [] // List for non-queued processes
@@ -133,7 +127,7 @@ function processNotInQueue() {
 function runProcess(processItem, callback) {
     console.log(`Running command: ${processItem.command_line}`)
 
-    const pythonProcess = spawnWithRuntime(processItem.command_line);
+    const pythonProcess = spawnWithRuntime(processItem.command_line)
 
     processItem.event.sender.send('python-status-change', {
         id: processItem.id,
@@ -153,7 +147,6 @@ function runProcess(processItem, callback) {
         logFileName = processItem.output_dir + '/log.txt'
         logStream = fs.createWriteStream(logFileName, { flags: 'a' })
     }
-
 
     logStream.write(`Command: ${processItem.command_line}\n`)
     pythonProcess.stdout.on('data', (data) => {
@@ -185,7 +178,8 @@ function runProcess(processItem, callback) {
                     })
                 }
             })
-        } else if (processItem.type === 'star2json') {//error
+        } else if (processItem.type === 'star2json') {
+            //error
             processItem.event.sender.send('json-star', {
                 cmd: 'prepare_star',
                 output: null,
@@ -206,4 +200,8 @@ function runProcess(processItem, callback) {
     })
 }
 
-export { handleProcess, spawnWithRuntime, inQueueList, notInQueueList };
+export function setEnvironmentStore(store) {
+    environmentStore = store
+}
+
+export { handleProcess, spawnWithRuntime, inQueueList, notInQueueList }

@@ -3,6 +3,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { createStore, createEnvironmentStore } from './store.js'
 import { registerRpc } from './rpc.js'
 import { createMainWindow } from './window.js'
+import { setEnvironmentStore } from './process.js'
 import counter from './handlers/counter.js'
 import environment from './handlers/environment.js'
 import files from './handlers/files.js'
@@ -12,6 +13,7 @@ import other from './handlers/other.js'
 let mainWindow = null
 const store = createStore(process.cwd())
 const environmentStore = createEnvironmentStore()
+setEnvironmentStore(environmentStore)
 
 app.whenReady().then(async () => {
     electronApp.setAppUserModelId('com.electron')
