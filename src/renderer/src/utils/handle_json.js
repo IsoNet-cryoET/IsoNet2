@@ -56,6 +56,9 @@ function toCommand(data_raw, id) {
         delete data.noise_level
         delete data.noise_mode
     }
+    if (data.hasOwnProperty('even_odd_input') && data.type === 'predict' && data.even_odd_input) {
+        delete data.input_column
+    }
 
     let result = ''
     const pyBoolMap = { true: 'True', false: 'False', null: 'None' }
