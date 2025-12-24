@@ -1040,18 +1040,6 @@ class ISONET:
         logging.info(f"time for mixed/half precsion and single precision are {fp16} and {fp32}. ")
         logging.info(f"The first number should be much smaller than the second one, if not please check whether cudnn, cuda, and pytorch versions match.")
 
-    def gui(self):
-        """
-        Launch the graphical user interface for IsoNet.
-
-        Usage:
-            isonet.py gui
-
-        This opens the IsoNet GUI application for interactive use.
-        """
-        import IsoNet.gui.Isonet_star_app as app
-        app.main()
-
 def Display(lines, out):
     """
     Display formatted text output.
