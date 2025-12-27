@@ -334,7 +334,7 @@ isonet.py refine tomograms.star --method isonet2-n2n --cube_size 128 --epochs 70
 After training, apply the trained model to all of the original tomograms to obtain CTF-corrected, denoised, and missing-wedge-corrected tomograms.
 
 ```
-isonet.py predict tomograms.star isonet_maps/network_isonet2-n2n_unet-medium_96_full.pt --gpuID <ids>
+isonet.py predict tomograms.star isonet_maps/network_isonet2-n2n_unet-medium_128_full.pt --gpuID <ids>
 ```
 
 Once prediction is done, view your CTF-corrected, denoised, and missing-wedge-corrected tomograms!
