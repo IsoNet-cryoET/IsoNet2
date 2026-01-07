@@ -71,7 +71,7 @@ def generate_3D_image(array_size=(256, 512, 512), num_objects=200, size_object=1
     # Randomly place objects in the array with random orientation
     for _ in range(num_objects):
         #shape = random.choice(['cube', 'pyramid', 'sphere'])
-        shape = random.choice(['molecule'])
+        shape = random.choice(['cube', 'pyramid', 'sphere'])
         center = (random.randint(41, array_size[0]-41),
                 random.randint(41, array_size[1]-41),
                 random.randint(41, array_size[2]-41))
