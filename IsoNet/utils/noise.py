@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+from tqdm import tqdm
 import random
 from scipy.ndimage import rotate
 from IsoNet.utils.Fourier import apply_F_filter
@@ -131,32 +132,44 @@ def simulate_noise(params):
     size = params[0]
     global angles
     angles = np.arange(-60,61,3)
-    print(angles)
+    # print(angles)
 
     sinograms = np.random.normal(size=(size,int(size*1.4),len(angles)))
     start=int(params[0]*0.2)
     from multiprocessing import Pool
+    
     with Pool(params[2]) as p:
         if params[1] == 'ramp':
-            res = p.map(part_iradon_ramp,sinograms)
+            func = part_iradon_ramp
         elif params[1] == 'hamming':
-            res = p.map(part_iradon_hamming,sinograms)
+            func = part_iradon_hamming
         else:
-            res = p.map(part_iradon_nofilter,sinograms)
-            
+            func = part_iradon_nofilter
+        
+        # Use imap with optimized chunksize for best performance + progress
+        optimal_chunksize = max(1, len(sinograms) // (params[2] * 2))
+        progress_bar = tqdm(p.imap(func, sinograms, chunksize=optimal_chunksize), 
+                           total=len(sinograms), desc="Generating noise volumes")
+        
+        progress_bar.set_postfix({"mode": params[1]})
+        res = list(progress_bar)
+    
         
     iradon_image = np.rot90(np.array(list(res), dtype=np.float32)[:,start:start+params[0],start:start+params[0]], k = 1 , axes = (0,1))
     return iradon_image
 
 def make_noise_folder(noise_folder,noise_filter,cube_size,num_noise=1000,ncpus=1,large_side=1000):
     create_folder(noise_folder)
-    print('generating large noise volume; mode: {}'.format(noise_filter))
+    # print('generating large noise volume; mode: {}'.format(noise_filter))
     NoiseMap.refresh(large_side, noise_filter, ncpus)
-                        
-    for i in range(num_noise):
-        img = NoiseMap.get_one(cube_size)
-        with mrcfile.new('{}/n_{:0>5d}.mrc'.format(noise_folder,i), overwrite=True) as output_mrc:
-            output_mrc.set_data(img)
+
+    with tqdm(total=num_noise, unit="mrc", desc="Writing noise volumes") as progress_bar:
+        for i in range(num_noise):
+            img = NoiseMap.get_one(cube_size)
+            with mrcfile.new('{}/n_{:0>5d}.mrc'.format(noise_folder,i), overwrite=True) as output_mrc:
+                output_mrc.set_data(img)
+
+            progress_bar.update()
 
 if __name__ == '__main__':
     import mrcfile

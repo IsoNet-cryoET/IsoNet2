@@ -232,7 +232,7 @@ class Train_sets_n2n(Dataset):
             return y, x
         return x, y
 
-    def load_and_normalize(self, tomo_paths, tomo_index, z, y, x, eo_idx, invert=True):
+    def load_and_normalize(self, tomo_paths, tomo_index, z, y, x, eo_idx = 0, invert=True):
         """Load and normalize a subvolume from a tomogram."""
         half_size = self.cube_size // 2
         with mrcfile.mmap(tomo_paths[tomo_index], mode='r', permissive=True) as tomo:

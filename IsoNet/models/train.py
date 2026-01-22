@@ -12,8 +12,10 @@ import torch.distributed as dist
 from IsoNet.utils.utils import debug_matrix
 import random
 from IsoNet.models.masked_loss import masked_loss, apply_fourier_mask_to_tomo
+from IsoNet.models.masked_loss import masked_loss, apply_fourier_mask_to_tomo
 from IsoNet.utils.plot_metrics import plot_metrics
-from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
+from IsoNet.utils.normalize import normalize_percentage, normalize_mean_std 
+from IsoNet.utils.rotations import rotation_list_90, generate_random_rotation, rotate_vol_around_axis_torch, rotate_vol_90
 import torch.optim.lr_scheduler as lr_scheduler
 import shutil
 from packaging import version
@@ -22,26 +24,27 @@ if version.parse(torch.__version__) >= version.parse("2.3.0"):
     from torch.amp import GradScaler
 else:
     from torch.cuda.amp import GradScaler
+import math
 
 
-def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None):
-    original_shape = tensor.shape
+# def normalize_percentage(tensor, percentile=4, lower_bound = None, upper_bound=None):
+#     original_shape = tensor.shape
     
-    batch_size = tensor.size(0)
-    flattened_tensor = tensor.reshape(batch_size, -1)
+#     batch_size = tensor.size(0)
+#     flattened_tensor = tensor.reshape(batch_size, -1)
 
-    factor = percentile/100.
-    lower_bound_subtomo = torch.quantile(flattened_tensor, factor, dim=1, keepdim=True)
-    upper_bound_subtomo = torch.quantile(flattened_tensor, 1-factor, dim=1, keepdim=True)
+#     factor = percentile/100.
+#     lower_bound_subtomo = torch.quantile(flattened_tensor, factor, dim=1, keepdim=True)
+#     upper_bound_subtomo = torch.quantile(flattened_tensor, 1-factor, dim=1, keepdim=True)
 
-    if lower_bound is None: 
-        normalized_flattened = (flattened_tensor - lower_bound_subtomo) / (upper_bound_subtomo - lower_bound_subtomo)
-        normalized_flattened = normalized_flattened.view(original_shape)
-    else:
-        normalized_flattened = (flattened_tensor - lower_bound) / (upper_bound - lower_bound)
-        normalized_flattened = normalized_flattened.view(original_shape)        
+#     if lower_bound is None: 
+#         normalized_flattened = (flattened_tensor - lower_bound_subtomo) / (upper_bound_subtomo - lower_bound_subtomo)
+#         normalized_flattened = normalized_flattened.view(original_shape)
+#     else:
+#         normalized_flattened = (flattened_tensor - lower_bound) / (upper_bound - lower_bound)
+#         normalized_flattened = normalized_flattened.view(original_shape)        
     
-    return normalized_flattened, lower_bound_subtomo, upper_bound_subtomo
+#     return normalized_flattened, lower_bound_subtomo, upper_bound_subtomo
 
 
 def normalize_mean_std(tensor, mean_val = None, std_val=None, matching = False, stats_only = False):
@@ -84,7 +87,9 @@ def apply_F_filter_torch(tensornput_map,F_map):
 
 def process_batch(batch):
     if len(batch) == 7:
+    if len(batch) == 7:
         return [b.cuda() for b in batch]
+    return batch[0].cuda(), batch[1].cuda(), None, None, None, None, None
     return batch[0].cuda(), batch[1].cuda(), None, None, None, None, None
 
 def ddp_train(rank, world_size, port_number, model, train_dataset, training_params):
@@ -120,13 +125,23 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 model = torch.compile(model)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
-    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
-
+    # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
+    # compute effective steps-per-epoch (account for gradient accumulation cap by training_params['steps_per_epoch'])
+    eff_steps_per_epoch = max(1, min(len(train_loader) // max(1, training_params['acc_batches']), training_params['steps_per_epoch']))
+    scheduler = lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=training_params['learning_rate'],
+        steps_per_epoch=eff_steps_per_epoch,
+        epochs=training_params['epochs'],
+        pct_start=0.1,
+        anneal_strategy='cos'
+    )
+    
     loss_funcs = {"L2": nn.MSELoss(), "Huber": nn.HuberLoss(), "L1": nn.L1Loss()}
     loss_func = loss_funcs.get(training_params['loss_func'])
     
     if training_params['mixed_precision']:
-        scaler = GradScaler()
+        scaler = torch.amp.GradScaler('cuda')   
 
     steps_per_epoch_train = training_params['steps_per_epoch']
     total_steps = min(len(train_loader)//training_params['acc_batches'], training_params['steps_per_epoch'])
@@ -137,8 +152,11 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
         model.train()
         optimizer.zero_grad() 
         with tqdm(total=total_steps, unit=" batch", disable=(rank!=0),desc=f"Epoch {epoch+1}") as progress_bar:
+        with tqdm(total=total_steps, unit=" batch", disable=(rank!=0),desc=f"Epoch {epoch+1}") as progress_bar:
             # have to convert to tensor because reduce needed it
             average_loss = torch.tensor(0, dtype=torch.float).to(rank)
+            average_inside_loss = torch.tensor(0, dtype=torch.float).to(rank)
+            average_outside_loss = torch.tensor(0, dtype=torch.float).to(rank)
             average_inside_loss = torch.tensor(0, dtype=torch.float).to(rank)
             average_outside_loss = torch.tensor(0, dtype=torch.float).to(rank)
 
@@ -276,11 +294,33 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                                         
                 if ( (i_batch+1)%training_params['acc_batches'] == 0 ) or (i_batch+1) == min(len(train_loader), steps_per_epoch_train * training_params['acc_batches']):
                     if training_params['mixed_precision']:
-                        scaler.step(optimizer)
-                        scaler.update()
+                        # Unscale first so we can check for inf/nan in gradients.
+                        scaler.unscale_(optimizer)
+                        found_inf = False
+                        for group in optimizer.param_groups:
+                            for p in group['params']:
+                                if p.grad is not None:
+                                    # If any gradient contains non-finite values, skip the step.
+                                    if not torch.isfinite(p.grad).all():
+                                        found_inf = True
+                                        break
+                            if found_inf:
+                                break
+
+                        if not found_inf:
+                            # safe to do the scaled step
+                            scaler.step(optimizer)
+                            scaler.update()
+                            # advance scheduler only when optimizer actually stepped
+                            scheduler.step()
+                        else:
+                            # skip optimizer step but still update the scaler so scale may be reduced
+                            scaler.update()
                     else:
                         optimizer.step()
-                optimizer.zero_grad() 
+                        # advance scheduler only when optimizer actually stepped
+                        scheduler.step()
+                    optimizer.zero_grad() 
 
                 if rank == 0 and ( (i_batch+1)%training_params['acc_batches'] == 0 ):        
                     loss_str = (f"Loss: {loss.item():6.5f}, Learning rate: {scheduler.get_last_lr()[0]:.4e}")
@@ -290,11 +330,12 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                 average_loss += loss.item()
                 average_inside_loss += inside_loss.item()
                 average_outside_loss += outside_loss.item()
+                average_inside_loss += inside_loss.item()
+                average_outside_loss += outside_loss.item()
                 
                 if i_batch + 1 >= steps_per_epoch_train*training_params['acc_batches']:
                     break
-        optimizer.step()            
-        scheduler.step()
+        # removed extra optimizer.step() and epoch-level scheduler.step() because scheduler is stepped per optimizer step
 
         if world_size > 1:
             dist.barrier()

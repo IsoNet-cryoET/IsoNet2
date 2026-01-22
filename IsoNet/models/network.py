@@ -20,7 +20,7 @@ def get_num_parameters(model):
     return sum(p.numel() for p in model.parameters())
 
 class Net:
-    def __init__(self, method=None, arch = 'unet-default', cube_size = 96, pretrained_model=None, state="train"):
+    def __init__(self, method=None, arch = 'unet-large', cube_size = 96, pretrained_model=None, state="train"):
         self.state = state
         if pretrained_model != None and pretrained_model != "None":
             self.load(pretrained_model)

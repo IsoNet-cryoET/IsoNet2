@@ -152,7 +152,7 @@ def extract(star_file: str,
 
     tomo_star = starfile.read(star_file)
     tomo_columns = tomo_star.columns.to_list()
-    create_folder(subtomo_dir, remove=True)
+    create_folder(subtomo_dir)
     particle_list = []
     for i, row in tqdm.tqdm(tomo_star.iterrows(), total=len(tomo_star), desc="Extracting subtomograms"):
     # for i, row in tomo_star.iterrows():

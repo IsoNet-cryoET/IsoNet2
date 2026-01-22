@@ -248,7 +248,7 @@ if __name__=='__main__':
     parser.add_argument("--tile",type=tuple,default=(1,4,4))
     parser.add_argument("--ncpu",type=int,default=8)
     args = parser.parse_args()
-    start = time.time()
+    # start = time.time()
 
     # deconv_one(args.mrcFile, args.outFile,defocus=args.defocus/10000.0, pixel_size=args.pixsize,snrfalloff=args.snrfalloff, deconvstrength=args.deconvstrength,tile=args.tile,ncpu=args.ncpu)
     tom_deconv_tomo(args.mrcFile, voltage=args.voltage, cs=args.cs, defocus=args.defocus/10000.0, angpix=args.pixsize,snrfalloff=args.snrfalloff, deconvstrength=args.deconvstrength,
