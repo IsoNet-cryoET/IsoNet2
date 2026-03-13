@@ -8,6 +8,7 @@ dependencies:
   # --- Conda Packages ---
   - python=3.10
   - pip
+  - wheel<0.46
 
   # PyTorch Core
   - pytorch==2.1.1
@@ -26,7 +27,7 @@ dependencies:
   - numpy<2.0
   - scipy
   - pandas
-  - scikit-image
+  - scikit-image=0.22.*
   - pillow
   - mrcfile
   - pyarrow
