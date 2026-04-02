@@ -222,8 +222,12 @@ class Net:
         data = data[:,np.newaxis,:,:].astype(np.float32)
         data = torch.from_numpy(data)
         # logging.info('data_shape',data.shape)
-        mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path,\
+        if self.world_size > 1:
+            mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path,\
                                      F_mask,idx), nprocs=self.world_size)
+        else:
+            ddp_predict(0, self.world_size, self.port_number, self.model, data, tmp_data_path, F_mask, idx)
+
         all_outputs = []
         for r in range(self.world_size):
             rank_output_path = f"{tmp_data_path}_rank_{r}.npy"

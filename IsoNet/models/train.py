@@ -246,12 +246,12 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         new_noise_std = torch.std(preds_x1-preds_x2)/1.414
                         delta_noise_std = torch.sqrt(torch.abs(noise_std**2 - new_noise_std**2))
 
-                        preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
-                        preds_x2 = preds_x2 + torch.randn_like(preds_x2) * delta_noise_std
-
                         if training_params['CTF_mode'] in ['network', 'wiener']:
                             preds_x1 = apply_F_filter_torch(preds_x1, ctf)
                             preds_x2 = apply_F_filter_torch(preds_x2, ctf)
+
+                        preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
+                        preds_x2 = preds_x2 + torch.randn_like(preds_x2) * delta_noise_std
 
                         x1_filled = apply_F_filter_torch(preds_x1, 1-mw) + x1
                         x2_filled = apply_F_filter_torch(preds_x2, 1-mw) + x2
