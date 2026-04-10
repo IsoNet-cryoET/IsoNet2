@@ -30,32 +30,52 @@ def debug_matrix(mat, filename='debug.mrc'):
             mrc.set_data(out_mat)
 
 def process_gpuID(gpuID):
-    if gpuID == None or gpuID == "None":
-        import torch
-        gpuID_list = list(range(torch.cuda.device_count()))
-        gpuID=','.join(map(str, gpuID_list))
-        logging.info("using all GPUs in this node: %s" %gpuID)  
-        ngpus = len(gpuID_list)
+    import os
+    os.environ["NCCL_P2P_DISABLE"] = "1"
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
-    if type(gpuID) == str:
-        gpuID_list = list(set(gpuID.split(',')))
-        gpuID_list = list(map(int,gpuID_list))
-        ngpus = len(gpuID_list)
- 
-    elif type(gpuID) == tuple or type(gpuID) == list:
-        gpuID_list = gpuID
-        ngpus = len(gpuID)
-        gpuID = ','.join(map(str, gpuID_list))
-
+    # Normalize gpuID into a list of ints, or None if unspecified
+    if gpuID is None or gpuID == "None":
+        requested = None  # means "use all available"
+    elif type(gpuID) == str:
+        requested = list(map(int, set(gpuID.split(','))))
+    elif type(gpuID) in (tuple, list):
+        requested = list(map(int, gpuID))
     elif type(gpuID) == int:
-        ngpus = 1
-        gpuID_list = [gpuID]
-        gpuID = str(gpuID)
+        requested = [gpuID]
 
-    import os    
-    os.environ["NCCL_P2P_DISABLE"]="1"
-    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"]=gpuID
+    existing = os.environ.get("CUDA_VISIBLE_DEVICES")
+
+    if existing is None:
+        # CUDA_VISIBLE_DEVICES not already set
+        # set it from requested (or all GPUs)
+        if requested is None:
+            import torch
+            gpuID_list = list(range(torch.cuda.device_count()))
+        else:
+            gpuID_list = requested
+        os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, gpuID_list))
+    else:
+        # CUDA_VISIBLE_DEVICES already set (e.g. by a job scheduler) —
+        # treat gpuID as indices into the existing visible list to subset it
+        visible = list(map(int, existing.split(',')))
+        if requested is None:
+            # No gpuID specified: respect whatever is already set
+            gpuID_list = visible
+        else:
+            try:
+                gpuID_list = [visible[i] for i in requested]
+            except IndexError:
+                raise ValueError(
+                    f"Requested GPU index out of range for CUDA_VISIBLE_DEVICES={existing}. "
+                    f"Got indices: {requested}"
+                )
+            os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, gpuID_list))
+
+    gpuID = ','.join(map(str, gpuID_list))
+    ngpus = len(gpuID_list)
+    # Log the final resolved GPU indices 
+    logging.info(f"using GPUs: {gpuID}")
     return ngpus, gpuID, gpuID_list
 
 def process_batch_size(batch_size, ngpus):
