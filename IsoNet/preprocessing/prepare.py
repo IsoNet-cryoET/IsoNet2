@@ -41,7 +41,7 @@ def get_cubes(inp, settings):
     origional_subtomo, wedge_data, start = inp
     root_name = origional_subtomo.split('/')[-1].split('.')[0]
     current_subtomo = '{}/{}_iter{:0>2d}.mrc'.format(settings['output_dir'],root_name,settings['iter_count']-1)
-    iw_data, _ = read_mrc(origional_subtomo)
+    iw_data, voxel_size = read_mrc(origional_subtomo)
     ow_data, _ = read_mrc(current_subtomo)
 
     iw_data = normalize(-iw_data)
@@ -60,8 +60,8 @@ def get_cubes(inp, settings):
         if settings['noise_level_current'] > 0.0000001:
             data_X = data_X + get_noise(settings['noise_dir']) * settings['noise_level_current'] 
         start += 1
-        write_mrc('{}/train_x/x_{}.mrc'.format(settings['data_dir'], start), data_X)
-        write_mrc('{}/train_y/y_{}.mrc'.format(settings['data_dir'], start), data_Y)
+        write_mrc('{}/train_x/x_{}.mrc'.format(settings['data_dir'], start), data_X, voxel_size=voxel_size)
+        write_mrc('{}/train_y/y_{}.mrc'.format(settings['data_dir'], start), data_Y, voxel_size=voxel_size)
 
 
 def get_cubes_list(settings):
@@ -108,7 +108,7 @@ def generate_first_iter_mrc(mrc,settings):
     extension = mrc.split('/')[-1].split('.')[1]
     #with mrcfile.open(mrc) as mrcData:
     #    orig_data = normalize(mrcData.data.astype(np.float32)*-1, percentile = settings['normalize_percentile)
-    orig_data, _ = read_mrc(mrc)
+    orig_data, voxel_size = read_mrc(mrc)
     orig_data = apply_F_filter(orig_data*-1, mw3D(orig_data.shape[-1]))
     
     #prefill = True
@@ -119,7 +119,7 @@ def generate_first_iter_mrc(mrc,settings):
 
     #TODO this normalize was removed necessary
     #orig_data = normalize(orig_data, percentile = settings['normalize_percentile)
-    write_mrc('{}/{}_iter00.{}'.format(settings['output_dir'],root_name, extension),-orig_data)
+    write_mrc('{}/{}_iter00.{}'.format(settings['output_dir'],root_name, extension),-orig_data, voxel_size=voxel_size)
     #with mrcfile.new(, overwrite=True) as output_mrc:
     #    output_mrc.set_data(-orig_data)
 

@@ -404,8 +404,11 @@ class ISONET:
             prefix = f"{output_dir}/{output_prefix}_{network.method}_{network.arch}_{base}"
             
             out_data = []
+            voxel_size = None
             for tomo_p in tomo_paths:
-                tomo_vol, _ = read_mrc(tomo_p)
+                tomo_vol, current_voxel = read_mrc(tomo_p)
+                if voxel_size is None:
+                    voxel_size = current_voxel
                 # now we are using precentile again similar to isonet1
                 if network.method =='isonet2':
                     tomo_vol = normalize(tomo_vol * -1, percentile=True)
@@ -426,7 +429,7 @@ class ISONET:
             out_data = sum(out_data) / len(out_data)
 
             out_file = f"{prefix}.mrc"
-            write_mrc(out_file, out_data.astype(np.float32) * -1)
+            write_mrc(out_file, out_data.astype(np.float32) * -1, voxel_size=voxel_size)
             all_tomo_paths.append(out_file)
 
 

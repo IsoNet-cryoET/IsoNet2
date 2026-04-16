@@ -216,7 +216,8 @@ class Net:
             write_mrc('{}/{}_iter{:0>2d}.mrc'.format(settings['output_dir'],
                                                      root_name,
                                                      settings['iter_count']-1), 
-                                                     -outData[i])
+                                                     -outData[i],
+                                                     voxel_size=pixel_size)
         return outData
 
     def predict(self, data, tmp_data_path, F_mask=None, idx=None):
