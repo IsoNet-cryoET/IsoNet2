@@ -190,9 +190,10 @@ class Net:
                 ddp_train(0, self.world_size, self.port_number, self.model, self.train_dataset, training_params)
 
         except KeyboardInterrupt:
-           logging.info('KeyboardInterrupt: Terminating all processes...')
-           dist.destroy_process_group() 
-           os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
+            logging.info('KeyboardInterrupt: Terminating all processes...')
+            if dist.is_initialized():
+                dist.destroy_process_group()
+            os.system("kill $(ps aux | grep multiprocessing.spawn | grep -v grep | awk '{print $2}')")
         self.load(f"{training_params['output_dir']}/network_{training_params['method']}_{training_params['arch']}_{training_params['cube_size']}_{training_params['split']}.pt")
 
         
