@@ -1,0 +1,57 @@
+/* main wrapper */
+.epoch-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* top row: XY slice + view button */
+.epoch-top-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    width: 60%;
+}
+
+/* view button column */
+.epoch-view-btn-column {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 5%;
+}
+
+/* view button style */
+.epoch-icon-btn {
+    padding: 0 !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+}
+
+/* view icon */
+.epoch-icon {
+    color: #14446e;
+    font-size: large;
+}
+
+/* captions under images */
+.epoch-caption {
+    text-align: center;
+}
+
+/* bottom row: XZ + Power Spectrum */
+.epoch-bottom-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    width: 60%;
+}
+
+/* each item in the bottom row */
+.epoch-bottom-item {
+    flex: 1;
+}

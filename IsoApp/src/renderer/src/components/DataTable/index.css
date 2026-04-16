@@ -1,0 +1,37 @@
+.head-table-cell {
+    white-space: nowrap;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: min-width 0.3s ease, max-width 0.3s ease;
+}
+
+.body-table-cell {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 8px;
+    transition: min-width 0.3s ease, max-width 0.3s ease;
+}
+
+.table-input-cell {
+    overflow: auto;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-action-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    padding: 0;
+    margin: 0;
+}
+
+.icon-button {
+    padding: 0 !important;
+    margin: 0 !important;
+    min-width: 0 !important;
+}
