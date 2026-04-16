@@ -246,12 +246,12 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         new_noise_std = torch.std(preds_x1-preds_x2)/1.414
                         delta_noise_std = torch.sqrt(torch.abs(noise_std**2 - new_noise_std**2))
 
-                        preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
-                        preds_x2 = preds_x2 + torch.randn_like(preds_x2) * delta_noise_std
-
                         if training_params['CTF_mode'] in ['network', 'wiener']:
                             preds_x1 = apply_F_filter_torch(preds_x1, ctf)
                             preds_x2 = apply_F_filter_torch(preds_x2, ctf)
+
+                        preds_x1 = preds_x1 + torch.randn_like(preds_x1) * delta_noise_std
+                        preds_x2 = preds_x2 + torch.randn_like(preds_x2) * delta_noise_std
 
                         x1_filled = apply_F_filter_torch(preds_x1, 1-mw) + x1
                         x2_filled = apply_F_filter_torch(preds_x2, 1-mw) + x2
@@ -411,37 +411,45 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = str(port_number)
-    dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
 
-    model = model.to(rank)
-    model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    model = DDP(model, device_ids=[rank])
-    model.eval()
-
-    num_data_points = data.shape[0]
-    steps_per_rank = (num_data_points + world_size - 1) // world_size
-
-    outputs = []
-    with torch.no_grad():
-        for i in tqdm(
-            range(rank * steps_per_rank, min((rank + 1) * steps_per_rank, num_data_points)),
-            disable=(rank != 0), desc=f'Predicting Tomogram{f" {idx}" if idx is not None else ""}: '
-        ):
-            batch_input = data[i:i + 1].to(rank)
-            if F_mask is not None:
-                F_m = torch.from_numpy(F_mask[np.newaxis,np.newaxis,:,:,:]).to(rank)
-                batch_input = apply_F_filter_torch(batch_input, F_m)
-            batch_output = model(batch_input).cpu()  # Move output to CPU immediately
-            # if rank == 0:
-            #     write_mrc('testIN.mrc', batch_input[0][0].cpu().numpy().astype(np.float32))
-            #     write_mrc('testOUT.mrc', batch_output[0][0].numpy().astype(np.float32))
-            outputs.append(batch_output)
-
-    output = torch.cat(outputs, dim=0).cpu().numpy().astype(np.float32)
-    rank_output_path = f"{tmp_data_path}_rank_{rank}.npy"
-    np.save(rank_output_path, output)
     if world_size > 1:
-        dist.barrier()
-        dist.destroy_process_group()
+        dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+        model = model.to(rank)
+        model = DDP(model, device_ids=[rank])
+    else:
+        model = model.to(rank)
+
+    try:
+        model.eval()
+
+        num_data_points = data.shape[0]
+        steps_per_rank = (num_data_points + world_size - 1) // world_size
+
+        outputs = []
+        with torch.no_grad():
+            for i in tqdm(
+                range(rank * steps_per_rank, min((rank + 1) * steps_per_rank, num_data_points)),
+                disable=(rank != 0), desc=f'Predicting Tomogram{f" {idx}" if idx is not None else ""}: '
+            ):
+                batch_input = data[i:i + 1].to(rank)
+                if F_mask is not None:
+                    F_m = torch.from_numpy(F_mask[np.newaxis,np.newaxis,:,:,:]).to(rank)
+                    batch_input = apply_F_filter_torch(batch_input, F_m)
+                batch_output = model(batch_input).cpu()  # Move output to CPU immediately
+                # if rank == 0:
+                #     write_mrc('testIN.mrc', batch_input[0][0].cpu().numpy().astype(np.float32))
+                #     write_mrc('testOUT.mrc', batch_output[0][0].numpy().astype(np.float32))
+                outputs.append(batch_output)
+
+        output = torch.cat(outputs, dim=0).cpu().numpy().astype(np.float32)
+        rank_output_path = f"{tmp_data_path}_rank_{rank}.npy"
+        np.save(rank_output_path, output)
+
+        if world_size > 1:
+            dist.barrier()
+    finally:
+        if world_size > 1 and dist.is_initialized():
+            dist.destroy_process_group()
 
