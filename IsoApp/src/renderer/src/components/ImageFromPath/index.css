@@ -1,0 +1,28 @@
+.img-wrapper {
+    text-align: center;
+}
+
+.img-label {
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.img-main {
+    width: 100%;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* placeholder when loading */
+.img-loading-box {
+    width: 180px;
+    height: 135px;
+    background: #eee;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    color: #777;
+    font-size: 14px;
+}

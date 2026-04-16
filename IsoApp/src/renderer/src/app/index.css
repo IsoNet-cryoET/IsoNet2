@@ -1,0 +1,158 @@
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  overflow-y: hidden;
+  box-sizing: border-box;
+}
+
+/* Webkit Browsers */
+::-webkit-scrollbar {
+  width: 10px !important;
+  height: 10px !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #dfebfe;
+  border-radius: 8px;
+  width: 18px;
+}
+
+::-webkit-scrollbar-track {
+  background: #fdfdfd;
+}
+
+
+.outer-container {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  color: #202124;
+}
+
+/* Top Bar */
+.top-bar {
+  -webkit-app-region: drag;
+  background-color: #eaf1fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+}
+
+/* Main Content Layout */
+.main-content {
+  flex: 1;
+  display: flex;
+  background-color: #f2f6fc;
+}
+
+/* Primary Menu */
+.primary-menu {
+  width: 180px;
+  background-color: #eef5fe;
+  display: flex;
+  flex-direction: column;
+  margin: 0 3px;
+}
+
+.primary-menu li {
+  border-radius: 30px;
+  margin-top: 2px;
+}
+
+.primary-menu li:hover {
+  background-color: #acd2ff;
+}
+
+.primary-menu li .Mui-selected {
+  background-color: #D5E2F4;
+  border-radius: 30px;
+}
+
+.primary-menu li button {
+  padding: 3px;
+  border-radius: 50%;
+}
+
+.primary-menu li button:hover {
+  background-color: #e0e0e0;
+}
+
+.primary-menu li span {
+  font-size: 14px;
+}
+
+
+/* Secondary Menu */
+.secondary-menu {
+  width: 160px;
+  background-color: #f6f8fc;
+  padding: 0 4px;
+}
+
+.secondary-menu li {
+  border-radius: 30px;
+  padding: 0;
+  margin-top: 2px;
+}
+
+.secondary-menu li:hover {
+  background-color: #abd0fe;
+}
+
+.secondary-menu li .Mui-selected {
+  background-color: #d5e2f4;
+  border-radius: 30px;
+}
+
+.secondary-menu li div {
+  height: 40px;
+}
+
+.secondary-menu li button {
+  padding: 0;
+}
+
+.secondary-menu li p {
+  font-size: 14px;
+}
+
+.secondary-menu-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+
+/* Main Content Area */
+.content-area {
+  flex: 1;
+  height: calc(100vh - 41px);
+  padding: 20px;
+  background-color: #fff;
+  overflow-y: auto;
+}
+
+.content-area .log-line {
+  padding: 4px 8px;
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 0 10px 10px 0;
+}
+
+.page-prepare-logs-container {
+  margin-top: 16px;
+}

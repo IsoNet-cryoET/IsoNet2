@@ -1,0 +1,69 @@
+*.pt
+
+# Ignore node_modules directory
+node_modules/
+
+# Ignore logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore environment variable files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.eslint*
+.editorconfig
+
+# Ignore build output
+dist/
+build/
+out/
+isonet_maps/
+trash/
+EVN
+ODD
+
+.prettier*
+.npmrc
+# Ignore IDE specific files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.star
+settings.json
+.*.json
+*~
+sum*
+corrected_tomos
+deconv
+denoise/
+refine
+predict
+make_mask
+
+mask
+*.mrc
+*.rec
+log.txt
+.star2json_log.txt
+prepare_log.txt
+*.txt
+# Ignore OS generated files
+.DS_Store
+Thumbs.db
+
+# Ignore coverage directory
+coverage/
+
+# Ignore temporary files
+tmp/
+temp/
