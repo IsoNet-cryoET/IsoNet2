@@ -8,7 +8,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 from IsoNet.utils.utils import debug_matrix
 import random
-from IsoNet.models.masked_loss import masked_loss, apply_fourier_mask_to_tomo
+from IsoNet.models.masked_loss import FSCLoss, masked_loss, apply_fourier_mask_to_tomo
 from IsoNet.utils.plot_metrics import plot_metrics
 from IsoNet.utils.rotations import rotation_list, sample_rot_axis_and_angle, rotate_vol_around_axis_torch
 import torch.optim.lr_scheduler as lr_scheduler
@@ -115,8 +115,10 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
     optimizer = torch.optim.AdamW(model.parameters(), lr=training_params['learning_rate'])
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=training_params['T_max'], eta_min=training_params['learning_rate_min'])
 
-    loss_funcs = {"L2": nn.MSELoss(), "Huber": nn.HuberLoss(), "L1": nn.L1Loss()}
+    loss_funcs = {"L2": nn.MSELoss(), "Huber": nn.HuberLoss(), "L1": nn.L1Loss(), "FSC": FSCLoss()}
     loss_func = loss_funcs.get(training_params['loss_func'])
+    if loss_func is None:
+        raise ValueError(f"Unknown loss function: {training_params['loss_func']}")
     
     if training_params['mixed_precision']:
         scaler = GradScaler()
