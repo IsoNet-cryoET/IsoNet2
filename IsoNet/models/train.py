@@ -365,7 +365,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
             loss_str = f"Epoch [{epoch+1:3d}/{training_params['epochs']:3d}] Loss: {average_loss:6.5f}"
 
             if training_params['method'] in ['isonet2', 'isonet2-n2n']:
-                loss_str += f", inside_loss: {average_inside_loss:6.5f}, outside_loss: {average_outside_loss:6.5f}"
+                loss_str += f", n2n_loss: {average_inside_loss:6.5f}, mw_loss: {average_outside_loss:6.5f}"
             print(loss_str)
 
             plot_metrics(training_params["metrics"],f"{training_params['output_dir']}/loss_{training_params['split']}.png")

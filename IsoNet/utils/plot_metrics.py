@@ -13,11 +13,15 @@ def plot_metrics(metrics, filename, bottom=None, top=None):
     fig, ax = plt.subplots()
     #with plt.style.context('Solarize_Light2'):
     keys = []
+    display_names = {
+        'inside_loss': 'n2n_loss',
+        'outside_loss': 'mw_loss'
+    }
     for k,v in metrics.items():
         if len(v)>0 and k != 'average_loss':
             x = np.arange(len(v))+1
             plt.plot(x, np.array(v), linewidth=2)
-            keys.append(k)
+            keys.append(display_names.get(k, k))
     plt.legend(title='metrics', labels=keys)
     #plt.legend(title='metrics', title_fontsize = 13, labels=metrics.keys())
     #if len(tl) > 20:
