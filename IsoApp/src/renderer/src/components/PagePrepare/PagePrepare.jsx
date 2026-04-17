@@ -1,50 +1,58 @@
 import "./index.css";
-import { useState, useEffect } from 'react'
-import { renderContent } from '../LogHandler/log_handler'
-import { Box, TextField, Button, CircularProgress } from '@mui/material'
-import FolderOpenIcon from '@mui/icons-material/FolderOpen'
-import DataTable from '../DataTable'
-import { useError } from '../../context/ErrorContext';
+import { useEffect, useState } from "react";
+import { renderContent } from "../LogHandler/log_handler";
+import { Box, TextField, Button, CircularProgress } from "@mui/material";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
+import DataTable from "../DataTable";
+import { useError } from "../../context/ErrorContext";
 
 const PagePrepare = (props) => {
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(false);
     const { showError } = useError();
 
     useEffect(() => {
-        const handleJsonUpdate = (data) => {
-            props.setJsonData(data.output) // Update the table data
-            setLoading(false);
-            if (data.error) {
+        const unsubscribe = window.api.on("json-star", (data) => {
+            if (data?.output) {
+                props.setJsonData(data.output);
+            }
+            if (data?.error) {
                 showError(data.error);
             }
-        }
-        window.api.on('json-star', handleJsonUpdate)
-    }, [])
+            setLoading(false);
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    }, [props.setJsonData, showError]);
 
     const handleFileSelect = async (property) => {
-        let filePath
+        let filePath;
         try {
-            filePath = await window.api.call('selectFile', property)
-            if (!filePath) { return }
-            props.setStarName(filePath) // Update the state
+            filePath = await window.api.call("selectFile", property);
+            if (!filePath) {
+                return;
+            }
+            props.setStarName(filePath); // Update the state
         } catch (error) {
-            console.error('Error selecting file:', error)
-            showError(`'Error selecting file:'${error}`);
+            console.error("Error selecting file:", error);
+            showError(`Error selecting file: ${error}`);
+            return;
         }
         setLoading(true);
         try {
-            await window.api.call('run', {
-                id: -1,
-                type: 'star2json',
-                star_file: filePath,
-                json_file: '.to_node.json',
-                status: 'completed',
-            });
+            const result = await window.api.call("parseStarFile", filePath);
+            if (!result.ok) {
+                throw new Error(result.error || "Failed to parse STAR file");
+            }
+            props.setJsonData(result.output);
         } catch (error) {
-            showError(data.error);
+            console.error("Error parsing STAR file:", error);
+            showError(`Error parsing STAR file: ${error}`);
+        } finally {
             setLoading(false);
         }
-    }
+    };
     return (
         <div>
             <Box className="load-star-row">
@@ -53,7 +61,7 @@ const PagePrepare = (props) => {
                     variant="outlined"
                     color="primary"
                     startIcon={<FolderOpenIcon />}
-                    onClick={() => handleFileSelect('openFile')}
+                    onClick={() => handleFileSelect("openFile")}
                     className="load-star-button"
                 >
                     Load from star
@@ -75,13 +83,16 @@ const PagePrepare = (props) => {
                         <Box className="loading-text">Loading data...</Box>
                     </Box>
                 )}
-                <DataTable jsonData={props.jsonData} star_name={props.starName} />
+                <DataTable
+                    jsonData={props.jsonData}
+                    star_name={props.starName}
+                />
             </Box>
 
             <div className="page-prepare-logs-container">
                 {renderContent(props.messages, props?.selectedJob?.id)}
             </div>
         </div>
-    )
-}
-export default PagePrepare
+    );
+};
+export default PagePrepare;
