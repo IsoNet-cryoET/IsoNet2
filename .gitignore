@@ -1,5 +1,5 @@
 *.pt
-
+.*
 # Ignore node_modules directory
 node_modules/
 
@@ -33,6 +33,7 @@ ODD
 # Ignore IDE specific files
 .idea/
 .vscode/
+.*
 *.suo
 *.ntvs*
 *.njsproj
