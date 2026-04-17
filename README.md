@@ -592,7 +592,12 @@ Increasing the number of subtomograms is analogous to increasing the number of t
 - Reduce batch_size (minimum being the number of GPUs you have)
 - Choose a smaller network architecture
 - Reduce cube_size
-- Use chunk_size with overlap_rate for processing large tomograms
+
+## Q: Why can refine run out of memory on one GPU but work on two GPUs?
+
+By default, `batch_size` is chosen automatically. When using one GPU, the default is **4**. When using multiple GPUs, the default is **2 x number_of_GPUs**, so the work is split across devices. That means a single-GPU run can place more memory pressure on one device than a multi-GPU run.
+
+If refine runs out of memory on a single GPU, first set `batch_size` manually to **3**, **2**, or **1**. If memory is still insufficient, reduce `cube_size` to **96** or choose a smaller network architecture. Lowering `batch_size` is usually the first thing to try.
 
 ## Q: When should I use the CTF deconvolution module?
 
