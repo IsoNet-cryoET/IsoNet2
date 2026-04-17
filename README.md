@@ -400,13 +400,13 @@ Generate a tomograms.star file in the same style as the RELION5 tomographic proc
 - `number_subtomos` — Number of subtomograms to extract per tomogram (written to rlnNumberSubtomo). For _IsoNet2_, increasing this is analogous to increasing training exposure and can improve results at the cost of runtime and memory. Default: `"auto"` (3000 total per epoch divided by number of tomograms).
 - `pixel_size` — Pixel size in Å. By default, this is read from tomogram metadata. Override this if there is no metadata or if you have a different value. Default: `"auto"`.
 - `star_name` — Name of output starfile. Default: `"tomograms.star"`.
-- `tilt_max` — Maximum tilt angle in degrees. Default: **60**. Override if your tilt range is different.
-- `tilt_min` — Minimum tilt angle in degrees. Default: **-60**. Override if your tilt range is different.
+- `tilt_max` — Maximum final tilt angle in degrees. Default: **60**. Use the maximum angle reported in your `.tlt` or `.aln` file after any pre-tilt correction already applied during alignment.
+- `tilt_min` — Minimum final tilt angle in degrees. Default: **-60**. Use the minimum angle reported in your `.tlt` or `.aln` file after any pre-tilt correction already applied during alignment.
 - `voltage` — Acceleration voltage in kV. Default: **300**.
 
 ### Practical notes
 
-> _This function accepts either a single set of full tomograms or paired even/odd half tomograms for noise2noise workflows. By default, **pixel size in Å** and **number of subtomograms per tomogram** are determined automatically from your tomograms' metadata. **tilt min/max** (default ±60) are used to define the shape of the missing wedge mask used during training. The other parameters are related to your physical electron microscope and are used later for CTF correction. Always inspect and edit the generated STAR if you need tomogram-specific subtomogram counts or have pregenerated mask/defocus entries._
+> _This function accepts either a single set of full tomograms or paired even/odd half tomograms for noise2noise workflows. By default, **pixel size in Å** and **number of subtomograms per tomogram** are determined automatically from your tomograms' metadata. **tilt min/max** (default ±60) are used to define the shape of the missing wedge mask used during training. These should be the final minimum and maximum tilt angles from your `.tlt` or `.aln` file; do not need to apply an additional pre-tilt correction here. The other parameters are related to your physical electron microscope and are used later for CTF correction. Always inspect and edit the generated STAR if you need tomogram-specific subtomogram counts or have pregenerated mask/defocus entries._
 
 ## denoise
 

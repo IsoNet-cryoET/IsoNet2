@@ -76,8 +76,8 @@ class ISONET:
             cs: Spherical aberration in mm.
             voltage: Acceleration voltage in kV.
             ac: Amplitude contrast.
-            tilt_min: Minimum tilt angle.
-            tilt_max: Maximum tilt angle.
+            tilt_min: Minimum final tilt angle used for tomogram reconstruction from your `.tlt` or `.aln` file.
+            tilt_max: Maximum final tilt angle used for tomogram reconstruction from your `.tlt` or `.aln` file.
             tilt_step: Tilt step size.
             create_average: Whether to create average tomograms from even/odd pairs.
             number_subtomos: Number of subtomograms to be extracted during training. You can directly modify this in the generated star file or with gui if you want different numbers extracted for different tomograms.
