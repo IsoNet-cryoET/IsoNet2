@@ -12,53 +12,45 @@ import {
     Button,
     Accordion,
     AccordionSummary,
-    AccordionDetails
-} from '@mui/material'
-import FolderOpenIcon from '@mui/icons-material/FolderOpen'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import { useDrawerForm } from './useDrawerForm.js'
-import DrawerBase from './DrawerBase.jsx'
+    AccordionDetails,
+} from "@mui/material";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { useDrawerForm } from "./useDrawerForm.js";
+import DrawerBase from "./DrawerBase.jsx";
 
 const DrawerDenoise = ({ open, onClose, onSubmit }) => {
-    const {
-        formData,
-        handleChange,
-        handleFileSelect,
-        handleSubmit,
-    } = useDrawerForm({
-        type: 'denoise',
-        name: 'denoise',
-        star_file: 'tomograms.star',
-        gpuID: 'None',
-        ncpus: 16,
-        arch: 'unet-medium',
-        pretrained_model: 'None',
-        cube_size: 96,
-        epochs: 50,
-        batch_size: 'auto',
-        loss_func: 'L2',
-        save_interval: 10,
-        learning_rate: 3e-4,
-        learning_rate_min: 3e-4,
-        mixed_precision: true,
-        CTF_mode: 'None',
-        isCTFflipped: false,
-        do_phaseflip_input: true,
-        bfactor: 0,
-        clip_first_peak_mode: 1,
-        snrfalloff: 0,
-        deconvstrength: 1,
-        highpassnyquist: 0.02,
-        with_preview: true,
-        prev_tomo_idx: 1
-    })
+    const { formData, handleChange, handleFileSelect, handleSubmit } =
+        useDrawerForm({
+            type: "denoise",
+            name: "denoise",
+            star_file: "tomograms.star",
+            gpuID: "None",
+            ncpus: 16,
+            arch: "unet-medium",
+            pretrained_model: "None",
+            cube_size: 96,
+            epochs: 50,
+            batch_size: "auto",
+            loss_func: "L2",
+            save_interval: 10,
+            learning_rate: 3e-4,
+            learning_rate_min: 3e-4,
+            mixed_precision: true,
+            CTF_mode: "None",
+            isCTFflipped: false,
+            do_phaseflip_input: true,
+            bfactor: 0,
+            clip_first_peak_mode: 1,
+            snrfalloff: 0,
+            deconvstrength: 1,
+            highpassnyquist: 0.02,
+            with_preview: true,
+            prev_tomo_idx: 1,
+        });
 
     return (
-        <DrawerBase
-            formData={formData}
-            open={open}
-            onClose={onClose}
-        >
+        <DrawerBase formData={formData} open={open} onClose={onClose}>
             <Typography variant="h6" gutterBottom>
                 Denoise
             </Typography>
@@ -72,13 +64,13 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     label="input star file"
                     value={formData.star_file}
                     fullWidth
-                    onChange={(e) => handleChange('star_file', e.target.value)}
+                    onChange={(e) => handleChange("star_file", e.target.value)}
                 />
                 <Button
                     variant="contained"
                     color="primary"
                     startIcon={<FolderOpenIcon />}
-                    onClick={() => handleFileSelect('star_file', 'openFile')}
+                    onClick={() => handleFileSelect("star_file", "openFile")}
                 ></Button>
             </Box>
 
@@ -87,7 +79,7 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                 label="job name"
                 type="string"
                 value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
+                onChange={(e) => handleChange("name", e.target.value)}
                 fullWidth
                 margin="normal"
             />
@@ -99,13 +91,13 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                         // labelId="demo-simple-select-standard-label"
                         // id="demo-simple-select-standard"
                         value={formData.arch}
-                        onChange={(e) => handleChange('arch', e.target.value)}
-                    // label="Age"
+                        onChange={(e) => handleChange("arch", e.target.value)}
+                        // label="Age"
                     >
-                        <MenuItem value={'unet-small'}>unet-small</MenuItem>
-                        <MenuItem value={'unet-medium'}>unet-medium</MenuItem>
-                        <MenuItem value={'unet-large'}>unet-large</MenuItem>
-                        <MenuItem value={'scunet-fast'}>scunet-fast</MenuItem>
+                        <MenuItem value={"unet-small"}>unet-small</MenuItem>
+                        <MenuItem value={"unet-medium"}>unet-medium</MenuItem>
+                        <MenuItem value={"unet-large"}>unet-large</MenuItem>
+                        <MenuItem value={"scunet-fast"}>scunet-fast</MenuItem>
                     </Select>
                 </FormControl>
             </Box>
@@ -114,7 +106,9 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     control={
                         <Switch
                             checked={formData.with_preview}
-                            onChange={(e) => handleChange('with_preview', e.target.checked)}
+                            onChange={(e) =>
+                                handleChange("with_preview", e.target.checked)
+                            }
                         />
                     }
                     label="with preview"
@@ -124,7 +118,9 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                         label="preview tomo index"
                         type="str"
                         value={formData.prev_tomo_idx}
-                        onChange={(e) => handleChange('prev_tomo_idx', e.target.value)}
+                        onChange={(e) =>
+                            handleChange("prev_tomo_idx", e.target.value)
+                        }
                         fullWidth
                     />
                 )}
@@ -135,7 +131,7 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     label="subtomo size"
                     type="int"
                     value={formData.cube_size}
-                    onChange={(e) => handleChange('cube_size', e.target.value)}
+                    onChange={(e) => handleChange("cube_size", e.target.value)}
                     fullWidth
                 />
 
@@ -143,14 +139,16 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     label="No. epochs"
                     type="int"
                     value={formData.epochs}
-                    onChange={(e) => handleChange('epochs', e.target.value)}
+                    onChange={(e) => handleChange("epochs", e.target.value)}
                     fullWidth
                 />
                 <TextField
                     label="saving interval"
                     type="int"
                     value={formData.save_interval}
-                    onChange={(e) => handleChange('save_interval', e.target.value)}
+                    onChange={(e) =>
+                        handleChange("save_interval", e.target.value)
+                    }
                     fullWidth
                 />
             </Box>
@@ -160,14 +158,14 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     label="gpuID"
                     type="string"
                     value={formData.gpuID}
-                    onChange={(e) => handleChange('gpuID', e.target.value)}
+                    onChange={(e) => handleChange("gpuID", e.target.value)}
                     fullWidth
                 />
                 <TextField
                     label="No. of CPUs"
                     type="number"
                     value={formData.ncpus}
-                    onChange={(e) => handleChange('ncpus', e.target.value)}
+                    onChange={(e) => handleChange("ncpus", e.target.value)}
                     fullWidth
                 />
             </Box>
@@ -181,7 +179,9 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     variant="contained"
                     color="primary"
                     startIcon={<FolderOpenIcon />}
-                    onClick={() => handleFileSelect('pretrained_model', 'openFile')}
+                    onClick={() =>
+                        handleFileSelect("pretrained_model", "openFile")
+                    }
                 ></Button>
             </Box>
             <Box
@@ -198,12 +198,14 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     <InputLabel>CTF_mode</InputLabel>
                     <Select
                         value={formData.CTF_mode}
-                        onChange={(e) => handleChange('CTF_mode', e.target.value)}
+                        onChange={(e) =>
+                            handleChange("CTF_mode", e.target.value)
+                        }
                     >
-                        <MenuItem value={'None'}>None</MenuItem>
-                        <MenuItem value={'network'}>network</MenuItem>
-                        <MenuItem value={'phase_only'}>phase_only</MenuItem>
-                        <MenuItem value={'wiener'}>wiener</MenuItem>
+                        <MenuItem value={"None"}>None</MenuItem>
+                        <MenuItem value={"network"}>network</MenuItem>
+                        <MenuItem value={"phase_only"}>phase_only</MenuItem>
+                        <MenuItem value={"wiener"}>wiener</MenuItem>
                     </Select>
                 </FormControl>
 
@@ -212,20 +214,25 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                     control={
                         <Switch
                             checked={formData.isCTFflipped}
-                            onChange={(e) => handleChange('isCTFflipped', e.target.checked)}
+                            onChange={(e) =>
+                                handleChange("isCTFflipped", e.target.checked)
+                            }
                         />
                     }
                     label="isCTFflipped"
                 />
 
                 {/* Bottom switch (only visible if CTF_mode ≠ None) */}
-                {formData.CTF_mode !== 'None' && (
+                {formData.CTF_mode !== "None" && (
                     <FormControlLabel
                         control={
                             <Switch
                                 checked={formData.do_phaseflip_input}
                                 onChange={(e) =>
-                                    handleChange('do_phaseflip_input', e.target.checked)
+                                    handleChange(
+                                        "do_phaseflip_input",
+                                        e.target.checked,
+                                    )
                                 }
                             />
                         }
@@ -234,39 +241,47 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                 )}
 
                 {/* Mode-specific inputs */}
-                {formData.CTF_mode === 'wiener' && (
+                {formData.CTF_mode === "wiener" && (
                     <Box display="flex" alignItems="center" gap={2} marginY={1}>
                         <TextField
                             label="snrfalloff"
                             type="number"
                             value={formData.snrfalloff}
-                            onChange={(e) => handleChange('snrfalloff', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("snrfalloff", e.target.value)
+                            }
                             fullWidth
                         />
                         <TextField
                             label="deconvstrength"
                             type="number"
                             value={formData.deconvstrength}
-                            onChange={(e) => handleChange('deconvstrength', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("deconvstrength", e.target.value)
+                            }
                             fullWidth
                         />
                         <TextField
                             label="highpassnyquist"
                             type="number"
                             value={formData.highpassnyquist}
-                            onChange={(e) => handleChange('highpassnyquist', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("highpassnyquist", e.target.value)
+                            }
                             fullWidth
                         />
                     </Box>
                 )}
 
-                {formData.CTF_mode === 'network' && (
+                {formData.CTF_mode === "network" && (
                     <Box display="flex" alignItems="center" gap={2} marginY={1}>
                         <TextField
                             label="bfactor"
                             type="number"
                             value={formData.bfactor}
-                            onChange={(e) => handleChange('bfactor', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("bfactor", e.target.value)
+                            }
                             fullWidth
                         />
                         <FormControl fullWidth>
@@ -274,7 +289,10 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                             <Select
                                 value={formData.clip_first_peak_mode}
                                 onChange={(e) =>
-                                    handleChange('clip_first_peak_mode', e.target.value)
+                                    handleChange(
+                                        "clip_first_peak_mode",
+                                        e.target.value,
+                                    )
                                 }
                             >
                                 <MenuItem value="0">0</MenuItem>
@@ -302,7 +320,9 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                             label="Batch Size"
                             type="string"
                             value={formData.batch_size}
-                            onChange={(e) => handleChange('batch_size', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("batch_size", e.target.value)
+                            }
                             fullWidth
                         />
 
@@ -310,11 +330,14 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                             <InputLabel>Loss Function</InputLabel>
                             <Select
                                 value={formData.loss_func}
-                                onChange={(e) => handleChange('loss_func', e.target.value)}
+                                onChange={(e) =>
+                                    handleChange("loss_func", e.target.value)
+                                }
                             >
                                 <MenuItem value="L2">L2</MenuItem>
                                 <MenuItem value="L1">L1</MenuItem>
                                 <MenuItem value="Huber">Huber</MenuItem>
+                                <MenuItem value="FSC">FSC</MenuItem>
                             </Select>
                         </FormControl>
                         {/* Learning Rate */}
@@ -327,7 +350,9 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                             label="Learning Rate"
                             type="number"
                             value={formData.learning_rate}
-                            onChange={(e) => handleChange('learning_rate', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("learning_rate", e.target.value)
+                            }
                             fullWidth
                         />
 
@@ -336,7 +361,12 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                             label="Min LR"
                             type="number"
                             value={formData.learning_rate_min}
-                            onChange={(e) => handleChange('learning_rate_min', e.target.value)}
+                            onChange={(e) =>
+                                handleChange(
+                                    "learning_rate_min",
+                                    e.target.value,
+                                )
+                            }
                             fullWidth
                         />
                     </Box>
@@ -347,7 +377,10 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                             <Switch
                                 checked={formData.mixed_precision}
                                 onChange={(e) =>
-                                    handleChange('mixed_precision', e.target.checked)
+                                    handleChange(
+                                        "mixed_precision",
+                                        e.target.checked,
+                                    )
                                 }
                             />
                         }
@@ -360,7 +393,7 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                 color="primary"
                 fullWidth
                 sx={{ marginTop: 2 }}
-                onClick={() => handleSubmit('inqueue', onClose, onSubmit)}
+                onClick={() => handleSubmit("inqueue", onClose, onSubmit)}
             >
                 Submit (in queue)
             </Button>
@@ -369,12 +402,12 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
                 color="primary"
                 fullWidth
                 sx={{ marginTop: 2 }}
-                onClick={() => handleSubmit('running', onClose, onSubmit)}
+                onClick={() => handleSubmit("running", onClose, onSubmit)}
             >
                 Submit (run immediately)
             </Button>
         </DrawerBase>
-    )
-}
+    );
+};
 
-export default DrawerDenoise
+export default DrawerDenoise;

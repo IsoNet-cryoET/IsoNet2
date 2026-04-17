@@ -494,7 +494,7 @@ class ISONET:
             cube_size: Size in voxels of training subvolumes. Must be compatible with the network (divisible by the network downsampling factors). 
             epochs: Number of training epochs. 
             batch_size: Number of subtomograms per optimization step; if "auto", this is automatically determined by multiplying the number of available GPUs by 2. If the number of GPUs is 1, batch size is 4. Batch size per GPU matters for gradient stability. 
-            loss_func: Loss function to use (L2, Huber, L1). 
+            loss_func: Loss function to use (L2, Huber, L1, FSC). 
             save_interval: Interval to save model checkpoints. 
             learning_rate: Initial learning rate. 
             learning_rate_min: Minimum learning rate for scheduler. 
@@ -627,7 +627,7 @@ class ISONET:
             epochs: Number of training epochs. 
             input_column: Column name in STAR file to use as input tomograms. 
             batch_size: Number of subtomograms per optimization step; if None, this is automatically determined by multiplying the number of available GPUs by 2. If the number of GPUs is 1, batch size is 4. Batch size per GPU matters for gradient stability. 
-            loss_func: Loss function to use (L2, Huber, L1). 
+            loss_func: Loss function to use (L2, Huber, L1, FSC). 
             learning_rate: Initial learning rate. 
             save_interval: Interval to save model checkpoints. 
             learning_rate_min: Minimum learning rate for scheduler. 

@@ -12,61 +12,53 @@ import {
     Button,
     Accordion,
     AccordionSummary,
-    AccordionDetails
-} from '@mui/material'
-import FolderOpenIcon from '@mui/icons-material/FolderOpen'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import { useDrawerForm } from './useDrawerForm.js'
-import DrawerBase from './DrawerBase.jsx'
+    AccordionDetails,
+} from "@mui/material";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { useDrawerForm } from "./useDrawerForm.js";
+import DrawerBase from "./DrawerBase.jsx";
 
 const DrawerRefine = ({ open, onClose, onSubmit }) => {
-    const {
-        formData,
-        handleChange,
-        handleFileSelect,
-        handleSubmit,
-    } = useDrawerForm({
-        type: 'refine',
-        star_file: 'tomograms.star',
-        name: 'refine',
-        gpuID: 'None',
-        ncpus: 16,
-        method: 'isonet2-n2n',
-        arch: 'unet-medium',
-        pretrained_model: 'None',
-        cube_size: 96,
-        epochs: 50,
-        input_column: 'rlnDeconvTomoName',
-        batch_size: 'None',
-        loss_func: 'L2',
-        learning_rate: 3e-4,
-        save_interval: 10,
-        learning_rate_min: 3e-4,
-        mw_weight: 20,
-        apply_mw_x1: true,
-        random_rot_weight: 0.2,
-        mixed_precision: true,
-        CTF_mode: 'None',
-        isCTFflipped: false,
-        do_phaseflip_input: true,
-        clip_first_peak_mode: 1,
-        bfactor: 0,
-        noise_level: 0,
-        noise_mode: 'nofilter',
-        with_preview: true,
-        prev_tomo_idx: 1,
-        even_odd_input: true,
-        snrfalloff: 0,
-        deconvstrength: 1,
-        highpassnyquist: 0.02
-    })
+    const { formData, handleChange, handleFileSelect, handleSubmit } =
+        useDrawerForm({
+            type: "refine",
+            star_file: "tomograms.star",
+            name: "refine",
+            gpuID: "None",
+            ncpus: 16,
+            method: "isonet2-n2n",
+            arch: "unet-medium",
+            pretrained_model: "None",
+            cube_size: 96,
+            epochs: 50,
+            input_column: "rlnDeconvTomoName",
+            batch_size: "None",
+            loss_func: "L2",
+            learning_rate: 3e-4,
+            save_interval: 10,
+            learning_rate_min: 3e-4,
+            mw_weight: 20,
+            apply_mw_x1: true,
+            random_rot_weight: 0.2,
+            mixed_precision: true,
+            CTF_mode: "None",
+            isCTFflipped: false,
+            do_phaseflip_input: true,
+            clip_first_peak_mode: 1,
+            bfactor: 0,
+            noise_level: 0,
+            noise_mode: "nofilter",
+            with_preview: true,
+            prev_tomo_idx: 1,
+            even_odd_input: true,
+            snrfalloff: 0,
+            deconvstrength: 1,
+            highpassnyquist: 0.02,
+        });
 
     return (
-        <DrawerBase
-            formData={formData}
-            open={open}
-            onClose={onClose}
-        >
+        <DrawerBase formData={formData} open={open} onClose={onClose}>
             <Typography variant="h6" gutterBottom>
                 Refine
             </Typography>
@@ -77,9 +69,12 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         <Switch
                             checked={formData.even_odd_input}
                             onChange={(e) => {
-                                const isChecked = e.target.checked
-                                handleChange('even_odd_input', isChecked)
-                                handleChange('method', isChecked ? 'isonet2-n2n' : 'isonet2')
+                                const isChecked = e.target.checked;
+                                handleChange("even_odd_input", isChecked);
+                                handleChange(
+                                    "method",
+                                    isChecked ? "isonet2-n2n" : "isonet2",
+                                );
                             }}
                         />
                     }
@@ -92,13 +87,13 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     label="input star file"
                     value={formData.star_file}
                     fullWidth
-                    onChange={(e) => handleChange('star_file', e.target.value)}
+                    onChange={(e) => handleChange("star_file", e.target.value)}
                 />
                 <Button
                     variant="contained"
                     color="primary"
                     startIcon={<FolderOpenIcon />}
-                    onClick={() => handleFileSelect('star_file', 'openFile')}
+                    onClick={() => handleFileSelect("star_file", "openFile")}
                 ></Button>
             </Box>
 
@@ -106,7 +101,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                 label="job name"
                 type="string"
                 value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
+                onChange={(e) => handleChange("name", e.target.value)}
                 fullWidth
                 margin="normal"
             />
@@ -118,13 +113,21 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         // labelId="demo-simple-select-standard-label"
                         // id="demo-simple-select-standard"
                         value={formData.input_column}
-                        onChange={(e) => handleChange('input_column', e.target.value)}
-                    // label="Age"
+                        onChange={(e) =>
+                            handleChange("input_column", e.target.value)
+                        }
+                        // label="Age"
                     >
-                        <MenuItem value={'rlnDeconvTomoName'}>rlnDeconvTomoName</MenuItem>
-                        <MenuItem value={'rlnTomoName'}>rlnTomoName</MenuItem>
-                        <MenuItem value={'rlnDenoisedTomoName'}>rlnDenoisedTomoName</MenuItem>
-                        <MenuItem value={'rlnCorrectedTomoName'}>rlnCorrectedTomoName</MenuItem>
+                        <MenuItem value={"rlnDeconvTomoName"}>
+                            rlnDeconvTomoName
+                        </MenuItem>
+                        <MenuItem value={"rlnTomoName"}>rlnTomoName</MenuItem>
+                        <MenuItem value={"rlnDenoisedTomoName"}>
+                            rlnDenoisedTomoName
+                        </MenuItem>
+                        <MenuItem value={"rlnCorrectedTomoName"}>
+                            rlnCorrectedTomoName
+                        </MenuItem>
                     </Select>
                 </FormControl>
             )}
@@ -133,30 +136,42 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
 
             <Box display="flex" alignItems="center" gap={2} marginY={2}>
                 {!formData.even_odd_input && (
-                    <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
+                    <FormControl
+                        variant="standard"
+                        sx={{ m: 1, minWidth: 120 }}
+                    >
                         <InputLabel>algorithm</InputLabel>
                         <Select
                             // labelId="demo-simple-select-standard-label"
                             // id="demo-simple-select-standard"
                             value={formData.method}
-                            onChange={(e) => handleChange('method', e.target.value)}
-                        // label="Age"
+                            onChange={(e) =>
+                                handleChange("method", e.target.value)
+                            }
+                            // label="Age"
                         >
-                            <MenuItem value={'isonet2'}>isonet2</MenuItem>
+                            <MenuItem value={"isonet2"}>isonet2</MenuItem>
                         </Select>
                     </FormControl>
                 )}
                 {formData.even_odd_input && (
-                    <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
+                    <FormControl
+                        variant="standard"
+                        sx={{ m: 1, minWidth: 120 }}
+                    >
                         <InputLabel>algorithm</InputLabel>
                         <Select
                             // labelId="demo-simple-select-standard-label"
                             // id="demo-simple-select-standard"
                             value={formData.method}
-                            onChange={(e) => handleChange('method', e.target.value)}
-                        // label="Age"
+                            onChange={(e) =>
+                                handleChange("method", e.target.value)
+                            }
+                            // label="Age"
                         >
-                            <MenuItem value={'isonet2-n2n'}>isonet2-n2n</MenuItem>
+                            <MenuItem value={"isonet2-n2n"}>
+                                isonet2-n2n
+                            </MenuItem>
                         </Select>
                     </FormControl>
                 )}
@@ -167,12 +182,12 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         // labelId="demo-simple-select-standard-label"
                         // id="demo-simple-select-standard"
                         value={formData.arch}
-                        onChange={(e) => handleChange('arch', e.target.value)}
-                    // label="Age"
+                        onChange={(e) => handleChange("arch", e.target.value)}
+                        // label="Age"
                     >
-                        <MenuItem value={'unet-small'}>unet-small</MenuItem>
-                        <MenuItem value={'unet-medium'}>unet-medium</MenuItem>
-                        <MenuItem value={'unet-large'}>unet-large</MenuItem>
+                        <MenuItem value={"unet-small"}>unet-small</MenuItem>
+                        <MenuItem value={"unet-medium"}>unet-medium</MenuItem>
+                        <MenuItem value={"unet-large"}>unet-large</MenuItem>
                     </Select>
                 </FormControl>
             </Box>
@@ -181,7 +196,9 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     control={
                         <Switch
                             checked={formData.with_preview}
-                            onChange={(e) => handleChange('with_preview', e.target.checked)}
+                            onChange={(e) =>
+                                handleChange("with_preview", e.target.checked)
+                            }
                         />
                     }
                     label="with preview"
@@ -191,7 +208,9 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         label="preview tomo index"
                         type="str"
                         value={formData.prev_tomo_idx}
-                        onChange={(e) => handleChange('prev_tomo_idx', e.target.value)}
+                        onChange={(e) =>
+                            handleChange("prev_tomo_idx", e.target.value)
+                        }
                         fullWidth
                     />
                 )}
@@ -201,7 +220,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     label="subtomo size"
                     type="int"
                     value={formData.cube_size}
-                    onChange={(e) => handleChange('cube_size', e.target.value)}
+                    onChange={(e) => handleChange("cube_size", e.target.value)}
                     fullWidth
                 />
 
@@ -209,14 +228,16 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     label="No. epochs"
                     type="int"
                     value={formData.epochs}
-                    onChange={(e) => handleChange('epochs', e.target.value)}
+                    onChange={(e) => handleChange("epochs", e.target.value)}
                     fullWidth
                 />
                 <TextField
                     label="saving interval"
                     type="int"
                     value={formData.save_interval}
-                    onChange={(e) => handleChange('save_interval', e.target.value)}
+                    onChange={(e) =>
+                        handleChange("save_interval", e.target.value)
+                    }
                     fullWidth
                 />
             </Box>
@@ -226,21 +247,21 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     label="mw weight"
                     type="number"
                     value={formData.mw_weight}
-                    onChange={(e) => handleChange('mw_weight', e.target.value)}
+                    onChange={(e) => handleChange("mw_weight", e.target.value)}
                     fullWidth
                 />
                 <TextField
                     label="gpuID"
                     type="string"
                     value={formData.gpuID}
-                    onChange={(e) => handleChange('gpuID', e.target.value)}
+                    onChange={(e) => handleChange("gpuID", e.target.value)}
                     fullWidth
                 />
                 <TextField
                     label="No. of CPUs"
                     type="number"
                     value={formData.ncpus}
-                    onChange={(e) => handleChange('ncpus', e.target.value)}
+                    onChange={(e) => handleChange("ncpus", e.target.value)}
                     fullWidth
                 />
             </Box>
@@ -251,19 +272,26 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                         label="Noise Level"
                         type="number"
                         value={formData.noise_level}
-                        onChange={(e) => handleChange('noise_level', e.target.value)}
+                        onChange={(e) =>
+                            handleChange("noise_level", e.target.value)
+                        }
                         fullWidth
                     />
 
-                    <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
+                    <FormControl
+                        variant="standard"
+                        sx={{ m: 1, minWidth: 120 }}
+                    >
                         <InputLabel>Noise Mode</InputLabel>
                         <Select
                             value={formData.noise_mode}
-                            onChange={(e) => handleChange('noise_mode', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("noise_mode", e.target.value)
+                            }
                         >
-                            <MenuItem value={'nofilter'}>nofilter</MenuItem>
-                            <MenuItem value={'ramp'}>ramp</MenuItem>
-                            <MenuItem value={'hamming'}>hamming</MenuItem>
+                            <MenuItem value={"nofilter"}>nofilter</MenuItem>
+                            <MenuItem value={"ramp"}>ramp</MenuItem>
+                            <MenuItem value={"hamming"}>hamming</MenuItem>
                         </Select>
                     </FormControl>
                 </Box>
@@ -279,7 +307,9 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     variant="contained"
                     color="primary"
                     startIcon={<FolderOpenIcon />}
-                    onClick={() => handleFileSelect('pretrained_model', 'openFile')}
+                    onClick={() =>
+                        handleFileSelect("pretrained_model", "openFile")
+                    }
                 ></Button>
             </Box>
             <Box
@@ -296,12 +326,14 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     <InputLabel>CTF_mode</InputLabel>
                     <Select
                         value={formData.CTF_mode}
-                        onChange={(e) => handleChange('CTF_mode', e.target.value)}
+                        onChange={(e) =>
+                            handleChange("CTF_mode", e.target.value)
+                        }
                     >
-                        <MenuItem value={'None'}>None</MenuItem>
-                        <MenuItem value={'network'}>network</MenuItem>
-                        <MenuItem value={'phase_only'}>phase_only</MenuItem>
-                        <MenuItem value={'wiener'}>wiener</MenuItem>
+                        <MenuItem value={"None"}>None</MenuItem>
+                        <MenuItem value={"network"}>network</MenuItem>
+                        <MenuItem value={"phase_only"}>phase_only</MenuItem>
+                        <MenuItem value={"wiener"}>wiener</MenuItem>
                     </Select>
                 </FormControl>
 
@@ -310,20 +342,25 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                     control={
                         <Switch
                             checked={formData.isCTFflipped}
-                            onChange={(e) => handleChange('isCTFflipped', e.target.checked)}
+                            onChange={(e) =>
+                                handleChange("isCTFflipped", e.target.checked)
+                            }
                         />
                     }
                     label="isCTFflipped"
                 />
 
                 {/* Bottom switch (only visible if CTF_mode ≠ None) */}
-                {formData.CTF_mode !== 'None' && (
+                {formData.CTF_mode !== "None" && (
                     <FormControlLabel
                         control={
                             <Switch
                                 checked={formData.do_phaseflip_input}
                                 onChange={(e) =>
-                                    handleChange('do_phaseflip_input', e.target.checked)
+                                    handleChange(
+                                        "do_phaseflip_input",
+                                        e.target.checked,
+                                    )
                                 }
                             />
                         }
@@ -332,39 +369,47 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                 )}
 
                 {/* Mode-specific inputs */}
-                {formData.CTF_mode === 'wiener' && (
+                {formData.CTF_mode === "wiener" && (
                     <Box display="flex" alignItems="center" gap={2} marginY={1}>
                         <TextField
                             label="snrfalloff"
                             type="number"
                             value={formData.snrfalloff}
-                            onChange={(e) => handleChange('snrfalloff', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("snrfalloff", e.target.value)
+                            }
                             fullWidth
                         />
                         <TextField
                             label="deconvstrength"
                             type="number"
                             value={formData.deconvstrength}
-                            onChange={(e) => handleChange('deconvstrength', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("deconvstrength", e.target.value)
+                            }
                             fullWidth
                         />
                         <TextField
                             label="highpassnyquist"
                             type="number"
                             value={formData.highpassnyquist}
-                            onChange={(e) => handleChange('highpassnyquist', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("highpassnyquist", e.target.value)
+                            }
                             fullWidth
                         />
                     </Box>
                 )}
 
-                {formData.CTF_mode === 'network' && (
+                {formData.CTF_mode === "network" && (
                     <Box display="flex" alignItems="center" gap={2} marginY={1}>
                         <TextField
                             label="bfactor"
                             type="number"
                             value={formData.bfactor}
-                            onChange={(e) => handleChange('bfactor', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("bfactor", e.target.value)
+                            }
                             fullWidth
                         />
                         <FormControl fullWidth>
@@ -372,7 +417,10 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             <Select
                                 value={formData.clip_first_peak_mode}
                                 onChange={(e) =>
-                                    handleChange('clip_first_peak_mode', e.target.value)
+                                    handleChange(
+                                        "clip_first_peak_mode",
+                                        e.target.value,
+                                    )
                                 }
                             >
                                 <MenuItem value="0">0</MenuItem>
@@ -399,18 +447,23 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             label="Batch Size"
                             type="string"
                             value={formData.batch_size}
-                            onChange={(e) => handleChange('batch_size', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("batch_size", e.target.value)
+                            }
                             fullWidth
                         />
                         <FormControl fullWidth>
                             <InputLabel>Loss Function</InputLabel>
                             <Select
                                 value={formData.loss_func}
-                                onChange={(e) => handleChange('loss_func', e.target.value)}
+                                onChange={(e) =>
+                                    handleChange("loss_func", e.target.value)
+                                }
                             >
                                 <MenuItem value="L2">L2</MenuItem>
                                 <MenuItem value="L1">L1</MenuItem>
                                 <MenuItem value="Huber">Huber</MenuItem>
+                                <MenuItem value="FSC">FSC</MenuItem>
                             </Select>
                         </FormControl>
                     </Box>
@@ -420,7 +473,9 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             label="Learning Rate"
                             type="number"
                             value={formData.learning_rate}
-                            onChange={(e) => handleChange('learning_rate', e.target.value)}
+                            onChange={(e) =>
+                                handleChange("learning_rate", e.target.value)
+                            }
                             fullWidth
                         />
 
@@ -429,7 +484,12 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             label="Min LR"
                             type="number"
                             value={formData.learning_rate_min}
-                            onChange={(e) => handleChange('learning_rate_min', e.target.value)}
+                            onChange={(e) =>
+                                handleChange(
+                                    "learning_rate_min",
+                                    e.target.value,
+                                )
+                            }
                             fullWidth
                         />
                     </Box>
@@ -439,7 +499,12 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                             label="random_rot_weight"
                             type="number"
                             value={formData.random_rot_weight}
-                            onChange={(e) => handleChange('random_rot_weight', e.target.value)}
+                            onChange={(e) =>
+                                handleChange(
+                                    "random_rot_weight",
+                                    e.target.value,
+                                )
+                            }
                             fullWidth
                         />
                         <FormControlLabel
@@ -447,7 +512,10 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                                 <Switch
                                     checked={formData.apply_mw_x1}
                                     onChange={(e) =>
-                                        handleChange('apply_mw_x1', e.target.checked)
+                                        handleChange(
+                                            "apply_mw_x1",
+                                            e.target.checked,
+                                        )
                                     }
                                 />
                             }
@@ -461,7 +529,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                 color="primary"
                 fullWidth
                 sx={{ marginTop: 2 }}
-                onClick={() => handleSubmit('inqueue', onClose, onSubmit)}
+                onClick={() => handleSubmit("inqueue", onClose, onSubmit)}
             >
                 Submit (in queue)
             </Button>
@@ -470,12 +538,12 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                 color="primary"
                 fullWidth
                 sx={{ marginTop: 2 }}
-                onClick={() => handleSubmit('running', onClose, onSubmit)}
+                onClick={() => handleSubmit("running", onClose, onSubmit)}
             >
                 Submit (run immediately)
             </Button>
         </DrawerBase>
-    )
-}
+    );
+};
 
-export default DrawerRefine
+export default DrawerRefine;
