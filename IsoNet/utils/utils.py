@@ -71,12 +71,22 @@ def process_gpuID(gpuID):
         if requested is None:
             gpuID_list = visible
         else:
-            if min(requested) < 0 or max(requested) >= len(visible):
+            # Accept either local indices into CUDA_VISIBLE_DEVICES (e.g. 0,1)
+            # or absolute IDs that are already visible (e.g. 2,3 when
+            # CUDA_VISIBLE_DEVICES=2,3).
+            local_index_mode = min(requested) >= 0 and max(requested) < len(visible)
+            absolute_id_mode = all(str(i) in visible for i in requested)
+
+            if local_index_mode:
+                gpuID_list = [visible[i] for i in requested]
+            elif absolute_id_mode:
+                gpuID_list = [str(i) for i in requested]
+            else:
                 raise ValueError(
-                    f"Requested GPU index out of range for CUDA_VISIBLE_DEVICES={existing}. "
-                    f"Got indices: {requested}; available indices: 0..{len(visible)-1}."
+                    f"Requested GPU selection is incompatible with CUDA_VISIBLE_DEVICES={existing}. "
+                    f"Got: {requested}; valid local indices: 0..{len(visible)-1}; "
+                    f"or visible absolute IDs: {visible}."
                 )
-            gpuID_list = [visible[i] for i in requested]
             os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(gpuID_list)
 
     gpuID = ','.join(gpuID_list)
