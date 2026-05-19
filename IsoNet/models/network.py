@@ -111,7 +111,14 @@ class Net:
         logging.info(f'Total number of parameters: {num_params}')
 
 
-        self.world_size = torch.cuda.device_count()
+        visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+        if visible_devices not in [None, ""]:
+            self.world_size = len([d for d in visible_devices.split(',') if d.strip()])
+        else:
+            self.world_size = torch.cuda.device_count()
+
+        if self.world_size < 1:
+            raise ValueError("No CUDA GPUs available for IsoNet2 training/prediction.")
         self.port_number = str(find_unused_port())
         logging.info(f"Port number: {self.port_number}")
 
