@@ -160,6 +160,7 @@ def extract(star_file: str,
 
             tomo_name = row[input_column]
             tomo, _ = read_mrc(tomo_name)
+            voxel_size = float(row["rlnPixelSize"])
             tomo = -normalize(-tomo)
 
             if "rlnMaskName" in tomo_columns and row["rlnMaskName"] not in [None, "None"]:
@@ -171,11 +172,27 @@ def extract(star_file: str,
             count_start = len(particle_list)
             if uniform_extract:
                 #TODO uniform extract with mask
-                subtomos_names = extract_with_overlap(tomo, crop_size, cube_size, subtomo_dir, prefix='', wedge=None)
+                subtomos_names = extract_with_overlap(
+                    tomo,
+                    crop_size,
+                    cube_size,
+                    subtomo_dir,
+                    prefix='',
+                    wedge=None,
+                    voxel_size=voxel_size
+                )
             else:
                 n_subtomo_per_tomo = row["rlnNumberSubtomo"]
                 seeds=create_cube_seeds(tomo, n_subtomo_per_tomo, crop_size, mask)
-                subtomos_names = extract_subvolume(tomo, seeds, crop_size, subtomo_dir, count_start, wedge=None)
+                subtomos_names = extract_subvolume(
+                    tomo,
+                    seeds,
+                    crop_size,
+                    subtomo_dir,
+                    count_start,
+                    wedge=None,
+                    voxel_size=voxel_size
+                )
             
             
             for i in range(len(subtomos_names)):

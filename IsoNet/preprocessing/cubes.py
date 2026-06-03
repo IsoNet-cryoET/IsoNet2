@@ -1,7 +1,7 @@
 import numpy as np
 import mrcfile
 from IsoNet.utils.toTile import reform3D
-def extract_with_overlap(current_map, crop_size, cube_size, output_dir, prefix='', wedge = None):
+def extract_with_overlap(current_map, crop_size, cube_size, output_dir, prefix='', wedge=None, voxel_size=None):
     r3d=reform3D(current_map, cube_size, crop_size, edge_depth=7)
     subtomos=r3d.pad_and_crop()
     mrc_list = []
@@ -9,11 +9,13 @@ def extract_with_overlap(current_map, crop_size, cube_size, output_dir, prefix='
         im_name = '{}/subvolume{}_{:0>6d}.mrc'.format(output_dir, prefix, j)
         with mrcfile.new(im_name, overwrite=True) as output_mrc:
             output_mrc.set_data(s.astype(np.float32))
+            if voxel_size is not None:
+                output_mrc.voxel_size = float(voxel_size)
 
         mrc_list.append(im_name)
     return mrc_list
 
-def extract_subvolume(current_map, seeds, crop_size, output_dir, start=0, wedge = None):
+def extract_subvolume(current_map, seeds, crop_size, output_dir, start=0, wedge=None, voxel_size=None):
     subtomos=crop_cubes(current_map,seeds,crop_size)
     mrc_list = []
     # from IsoNet.utils.missing_wedge import mw3D
@@ -24,6 +26,8 @@ def extract_subvolume(current_map, seeds, crop_size, output_dir, start=0, wedge 
         im_name = '{}/subvolume_{:0>6d}.mrc'.format(output_dir, start+j)
         with mrcfile.new(im_name, overwrite=True) as output_mrc:
             output_mrc.set_data(s.astype(np.float32))
+            if voxel_size is not None:
+                output_mrc.voxel_size = float(voxel_size)
 
         mrc_list.append(im_name)
     return mrc_list

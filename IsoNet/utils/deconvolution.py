@@ -53,7 +53,6 @@ def tom_deconv_tomo(vol_file, out_file,angpix, voltage, cs, defocus, snrfalloff,
         with mrcfile.open(vol_file, permissive=True) as f:
             header_in = f.header
             vol = f.data
-            voxelsize = f.voxel_size
         
         data = np.arange(0,1+1/2047.,1/2047.)
         highpass = np.minimum(np.ones(data.shape[0]), data/highpassnyquist) * np.pi
@@ -131,7 +130,7 @@ def tom_deconv_tomo(vol_file, out_file,angpix, voltage, cs, defocus, snrfalloff,
         
         with mrcfile.new(out_name,overwrite=True) as n:
             n.set_data(deconv) #.astype(type(vol[0,0,0]))
-            n.voxel_size = voxelsize
+            n.voxel_size = float(angpix)
             n.header.origin = header_in.origin
             n.header.nversion = header_in.nversion
         pbar.update(1)  # write done
@@ -218,11 +217,10 @@ def deconv_one(tomo,  out_tomo, output_dir='.', voltage=300.0, cs=2.7, defocus=1
         
         with mrcfile.open(tomo, permissive=True) as n:
             header_input = n.header
-            pixel_size = n.voxel_size
 
         with mrcfile.new(out_tomo, overwrite=True) as mrc:
             mrc.set_data(vol_restored)
-            mrc.voxel_size = pixel_size
+            mrc.voxel_size = float(pixel_size)
             #print(header_input)
             #print(mrc.header)
             mrc.header.origin = header_input.origin

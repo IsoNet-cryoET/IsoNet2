@@ -108,6 +108,15 @@ class ISONET:
                     data.append([default_val]*num_tomo)
             label.append(param_name)
 
+        def star_pixel_size_for_index(index, header_voxel_size):
+            if pixel_size in ["None", None, "auto"]:
+                return float(header_voxel_size)
+            if isinstance(pixel_size, (list, tuple)):
+                if len(pixel_size) == 1:
+                    return float(pixel_size[0])
+                return float(pixel_size[index])
+            return float(pixel_size)
+
         def create_average_func(even, odd, average = "averaged_tomos"):
             even_files_names = sorted(os.listdir(even))
             even_files = [f"{even}/{item}" for item in even_files_names]
@@ -117,7 +126,11 @@ class ISONET:
             for i in tqdm.tqdm(range(len(even_files)), desc="Averaging even and odd tomograms", unit=" tomograms"):
                 tomo_even, voxel_size = read_mrc(even_files[i])
                 tomo_odd, _ = read_mrc(odd_files[i])
-                write_mrc(f'{average}/{os.path.splitext(even_files_names[i])[0]}_full.mrc',tomo_odd+tomo_even, voxel_size=voxel_size)
+                write_mrc(
+                    f'{average}/{os.path.splitext(even_files_names[i])[0]}_full.mrc',
+                    tomo_odd + tomo_even,
+                    voxel_size=star_pixel_size_for_index(i, voxel_size)
+                )
             return average
         
         if full in ["None",None] and create_average:
@@ -310,7 +323,8 @@ class ISONET:
                 side=patch_size,
                 density_percentage=density_percentage,
                 std_percentage=std_percentage,
-                surface=z_crop/2
+                surface=z_crop/2,
+                pixel_size=float(row["rlnPixelSize"])
             )
             new_star.at[i, 'rlnMaskName'] = mask_name
             logging.info(f"Masked {os.path.relpath(tomo)} → {mask_name}")
@@ -404,11 +418,8 @@ class ISONET:
             prefix = f"{output_dir}/{output_prefix}_{network.method}_{network.arch}_{base}"
             
             out_data = []
-            voxel_size = None
             for tomo_p in tomo_paths:
-                tomo_vol, current_voxel = read_mrc(tomo_p)
-                if voxel_size is None:
-                    voxel_size = current_voxel
+                tomo_vol, _ = read_mrc(tomo_p)
                 # now we are using precentile again similar to isonet1
                 if network.method =='isonet2':
                     tomo_vol = normalize(tomo_vol * -1, percentile=True)
@@ -429,7 +440,7 @@ class ISONET:
             out_data = sum(out_data) / len(out_data)
 
             out_file = f"{prefix}.mrc"
-            write_mrc(out_file, out_data.astype(np.float32) * -1, voxel_size=voxel_size)
+            write_mrc(out_file, out_data.astype(np.float32) * -1, voxel_size=float(row.rlnPixelSize))
             all_tomo_paths.append(out_file)
 
 

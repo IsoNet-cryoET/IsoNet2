@@ -23,12 +23,12 @@ def make_mask_dir(tomo_dir,mask_dir,side = 8, density_percentage=30,std_percenta
         print('tomo and mask',tomo, mask_list[i])
         make_mask(tomo, mask_list[i],side = side,density_percentage=density_percentage,std_percentage=std_percentage,surface=surface)
 
-def make_mask_sp(tomo_path, mask_name, sd = 2, offset = 3):
+def make_mask_sp(tomo_path, mask_name, sd=2, offset=3, pixel_size=None):
     from scipy.ndimage.filters import gaussian_filter, convolve
     from skimage.filters import threshold_otsu
     with mrcfile.open(tomo_path) as n:
         header_input = n.header
-        pixel_size = n.voxel_size
+        output_pixel_size = n.voxel_size if pixel_size is None else float(pixel_size)
         tomo = n.data.astype(np.float32)
     gauss = gaussian_filter(tomo, float(sd), mode='constant')
     sp=np.array(tomo.shape)
@@ -48,15 +48,15 @@ def make_mask_sp(tomo_path, mask_name, sd = 2, offset = 3):
         n.header.extra2 = header_input.extra2
         n.header.origin = header_input.origin
         n.header.nversion = header_input.nversion
-        n.voxel_size = pixel_size
+        n.voxel_size = output_pixel_size
 
-def make_mask(tomo_path, mask_name, mask_boundary=None, side=5, density_percentage=50., std_percentage=50., surface=None):
+def make_mask(tomo_path, mask_name, mask_boundary=None, side=5, density_percentage=50., std_percentage=50., surface=None, pixel_size=None):
     from scipy.ndimage.filters import gaussian_filter
     from skimage.transform import resize
     
     with mrcfile.open(tomo_path) as n:
         header_input = n.header
-        pixel_size = n.voxel_size
+        output_pixel_size = n.voxel_size if pixel_size is None else float(pixel_size)
         tomo = n.data.astype(np.float32)
     
     # Estimate total steps: load + resize + gaussian + mask1 + mask2 + combine + boundary + surface + upsample + write
@@ -112,7 +112,7 @@ def make_mask(tomo_path, mask_name, mask_boundary=None, side=5, density_percenta
             n.header.extra2 = header_input.extra2
             n.header.origin = header_input.origin
             n.header.nversion = header_input.nversion
-            n.voxel_size = pixel_size
+            n.voxel_size = output_pixel_size
         pbar.update(1)  # write done
     # with mrcfile.new('./test_mask1.rec',overwrite=True) as n:
     #     n.set_data(mask1.astype(np.float32))    
@@ -121,4 +121,3 @@ def make_mask(tomo_path, mask_name, mask_boundary=None, side=5, density_percenta
 if __name__ == "__main__":
 # the first arg is tomo name the second is mask name
     make_mask(args[1],args[2])
-
