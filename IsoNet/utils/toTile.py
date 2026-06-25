@@ -95,6 +95,48 @@ class reform3D:
         restored = restored[p:p+self._sp[0],p:p+self._sp[1],p:p+self._sp[2]]
         return restored
 
+    def restore_to_volume(self, cube_sets, target, scale=1.0):
+        start = (self.cropsize-self.cubesize)//2-self.edge_depth
+        end = (self.cropsize-self.cubesize)//2+self.cubesize+self.edge_depth
+        cube_shape = self.cubesize+self.edge_depth*2
+        mask_cube = self.mask(cube_shape, cube_shape, cube_shape)
+        crop_start = self.edge_depth*2
+        crop_end = crop_start + self._sp
+
+        cube_index = 0
+        for cubes in cube_sets:
+            for cube in cubes:
+                cube = np.squeeze(cube)[start:end,start:end,start:end]
+                grid_z = cube_index // (self._sidelen[1] * self._sidelen[2])
+                grid_y = (cube_index // self._sidelen[2]) % self._sidelen[1]
+                grid_x = cube_index % self._sidelen[2]
+
+                restored_start = np.array([
+                    grid_z * self.cubesize,
+                    grid_y * self.cubesize,
+                    grid_x * self.cubesize,
+                ])
+                restored_end = restored_start + cube_shape
+                write_start = np.maximum(restored_start, crop_start)
+                write_end = np.minimum(restored_end, crop_end)
+
+                if np.all(write_start < write_end):
+                    target_slices = tuple(
+                        slice(int(s - crop_start), int(e - crop_start))
+                        for s, e in zip(write_start, write_end)
+                    )
+                    cube_slices = tuple(
+                        slice(int(s - rs), int(e - rs))
+                        for s, e, rs in zip(write_start, write_end, restored_start)
+                    )
+                    target[target_slices] += cube[cube_slices] * mask_cube[cube_slices] * scale
+
+                cube_index += 1
+
+        expected_cubes = int(np.prod(self._sidelen))
+        if cube_index != expected_cubes:
+            raise ValueError(f"Expected {expected_cubes} cubes, got {cube_index}")
+
     def mask_old(self):
         from functools import reduce
         c = self.cropsize

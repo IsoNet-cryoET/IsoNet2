@@ -417,30 +417,33 @@ class ISONET:
             base = os.path.splitext(os.path.basename(tomo_paths[0]))[0]
             prefix = f"{output_dir}/{output_prefix}_{network.method}_{network.arch}_{base}"
             
-            out_data = []
-            for tomo_p in tomo_paths:
+            out_file = f"{prefix}.mrc"
+            output_scale = -1.0 / len(tomo_paths)
+            for tomo_i, tomo_p in enumerate(tomo_paths):
                 tomo_vol, _ = read_mrc(tomo_p)
+                tomo_vol = tomo_vol.astype(np.float32, copy=not tomo_vol.flags.writeable)
+                tomo_vol *= -1
                 # now we are using precentile again similar to isonet1
                 if network.method =='isonet2':
-                    tomo_vol = normalize(tomo_vol * -1, percentile=True)
+                    tomo_vol = normalize(tomo_vol, percentile=True)
                 else:
                     Z = tomo_vol.shape[0]
-                    tomo_vol = tomo_vol*-1
                     mean = np.mean(tomo_vol[Z//2-30:Z//2+30])
                     std = np.std(tomo_vol[Z//2-30:Z//2+30])
-                    tomo_vol = (tomo_vol-mean)/std#normalize(tomo_vol * -1, percentile=False)
-                out_data.append(network.predict_map(
-                    tomo_vol, output_dir,
+                    tomo_vol -= mean
+                    tomo_vol /= std
+                network.predict_map_to_mrc(
+                    out_file, tomo_vol, output_dir,
                     cube_size= int(cube_size / padding_factor+0.1),
                     crop_size=cube_size,
                     F_mask=F_mask,
-                    idx=i + 1
-                ))
-
-            out_data = sum(out_data) / len(out_data)
-
-            out_file = f"{prefix}.mrc"
-            write_mrc(out_file, out_data.astype(np.float32) * -1, voxel_size=float(row.rlnPixelSize))
+                    idx=i + 1,
+                    voxel_size=float(row.rlnPixelSize),
+                    scale=output_scale,
+                    append=tomo_i > 0,
+                    update_stats=tomo_i == len(tomo_paths) - 1,
+                )
+                del tomo_vol
             all_tomo_paths.append(out_file)
 
 

@@ -32,7 +32,7 @@ def read_mrc(filename, inplace=False):
 
 def write_mrc(filename, data, voxel_size=1, origin=0):
     with mrcfile.new(filename, overwrite=True) as mrc:
-        mrc.set_data(data.astype(np.float32))
+        mrc.set_data(data.astype(np.float32, copy=False))
         mrc.voxel_size = voxel_size
         mrc.header.origin = origin
 

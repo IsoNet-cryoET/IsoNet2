@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import os
 import logging
+import mrcfile
 from IsoNet.utils.toTile import reform3D
 import socket
 import torch.multiprocessing as mp
@@ -227,25 +228,28 @@ class Net:
                                                      voxel_size=pixel_size)
         return outData
 
-    def predict(self, data, tmp_data_path, F_mask=None, idx=None):
-        data = data[:,np.newaxis,:,:].astype(np.float32)
+    def predict_to_files(self, data, tmp_data_path, F_mask=None, idx=None):
+        data = data[:,np.newaxis,:,:].astype(np.float32, copy=False)
         data = torch.from_numpy(data)
-        # logging.info('data_shape',data.shape)
         if self.world_size > 1:
             mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path,\
                                      F_mask,idx), nprocs=self.world_size)
         else:
             ddp_predict(0, self.world_size, self.port_number, self.model, data, tmp_data_path, F_mask, idx)
 
+        return [f"{tmp_data_path}_rank_{r}.npy" for r in range(self.world_size)], data.shape[0]
+
+    def predict(self, data, tmp_data_path, F_mask=None, idx=None):
+        rank_output_paths, num_data_points = self.predict_to_files(data, tmp_data_path, F_mask, idx)
+
         all_outputs = []
-        for r in range(self.world_size):
-            rank_output_path = f"{tmp_data_path}_rank_{r}.npy"
+        for rank_output_path in rank_output_paths:
             rank_output = np.load(rank_output_path,mmap_mode='r')
             all_outputs.append(rank_output)
-        outData = np.concatenate(all_outputs, axis=0)[:data.shape[0]]
+        outData = np.concatenate(all_outputs, axis=0)[:num_data_points]
 
-        for r in range(self.world_size):
-            os.remove(f"{tmp_data_path}_rank_{r}.npy")
+        for rank_output_path in rank_output_paths:
+            os.remove(rank_output_path)
 
         outData = outData.squeeze()
         return outData
@@ -260,6 +264,41 @@ class Net:
         outData = outData.squeeze()
         outData=reform_ins.restore(outData)
         return outData
+
+    def predict_map_to_mrc(self, out_file, data, output_dir, cube_size=64, crop_size=96,
+                           F_mask=None, idx=None, voxel_size=1, scale=-1.0,
+                           append=False, update_stats=True, cleanup=True):
+        reform_ins = reform3D(data, cube_size, crop_size, 5)
+        data = reform_ins.pad_and_crop()
+        tmp_data_path = f"{output_dir}/tmp.npy"
+        rank_output_paths, _ = self.predict_to_files(data, tmp_data_path=tmp_data_path, F_mask=F_mask, idx=idx)
+        del data
+
+        try:
+            if append:
+                mrc = mrcfile.mmap(out_file, mode='r+', permissive=True)
+            else:
+                mrc = mrcfile.new_mmap(
+                    out_file,
+                    shape=tuple(int(x) for x in reform_ins._sp),
+                    mrc_mode=2,
+                    fill=0,
+                    overwrite=True,
+                )
+
+            with mrc:
+                mrc.voxel_size = float(voxel_size)
+                cube_sets = [np.load(path, mmap_mode='r') for path in rank_output_paths]
+                reform_ins.restore_to_volume(cube_sets, mrc.data, scale=scale)
+                if hasattr(mrc.data, "flush"):
+                    mrc.data.flush()
+                if update_stats:
+                    mrc.update_header_stats()
+        finally:
+            if cleanup:
+                for rank_output_path in rank_output_paths:
+                    if os.path.exists(rank_output_path):
+                        os.remove(rank_output_path)
     
 
 class DuoNet:
