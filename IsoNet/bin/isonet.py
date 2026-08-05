@@ -42,21 +42,25 @@ class ISONET:
         predict           Predict tomograms using trained model
     """
 
-    def prepare_star(self, full: str="None",
-                     even: str="None",
-                     odd: str="None",
-                     mask_folder: str='None',
-                     coordinate_folder: str='None',
-                     star_name: str='tomograms.star',
-                     pixel_size = 'auto', 
-                     defocus: list=[10000],
-                     cs: float=2.7,
-                     voltage: float=300,
-                     ac: float=0.1,
-                     tilt_min: float=-60,
-                     tilt_max: float=60,
-                     create_average: bool=False,
-                     number_subtomos = 'auto'):
+    def prepare_star(
+        self,
+        full: str = "None",
+        even: str = "None",
+        odd: str = "None",
+        mask_folder: str = 'None',
+        coordinate_folder: str = 'None',
+        star_name: str = 'tomograms.star',
+        pixel_size = 'auto',
+        defocus: list = [10000],
+        cs: float = 2.7,
+        voltage: float = 300,
+        ac: float = 0.1,
+        tilt_min: float = -60,
+        tilt_max: float = 60,
+        create_average: bool = False,
+        average_output_dir: str = "averaged_tomos",
+        number_subtomos = 'auto'
+    ):
         """
         Generate a tomograms.star file from folder(s) containing tomogram files.
 
@@ -80,10 +84,9 @@ class ISONET:
             tilt_max: Maximum final tilt angle used for tomogram reconstruction from your `.tlt` or `.aln` file.
             tilt_step: Tilt step size.
             create_average: Whether to create average tomograms from even/odd pairs.
+            average_output_dir: Directory to save averaged tomograms if create_average is True.
             number_subtomos: Number of subtomograms to be extracted during training. You can directly modify this in the generated star file or with gui if you want different numbers extracted for different tomograms.
         """
-        import starfile
-        import pandas as pd
         count_folder = full if full not in ["None", None] else even
         num_tomo = len(os.listdir(count_folder))
         logging.info(f"Number of tomograms: {num_tomo}")
@@ -92,14 +95,14 @@ class ISONET:
         label = []
 
         def add_param(folder_name, param_name, default_val="None"):
-            if folder_name != "None" and folder_name != None:
+            if folder_name != "None" and folder_name is not None:
                 # TODO check file extension
                 files = sorted(os.listdir(folder_name))
                 files = [f"{folder_name}/{item}" for item in files]
                 assert len(files) == num_tomo
                 data.append(files)
             else:
-                if type(default_val) == list:
+                if isinstance(default_val, list):
                     if len(default_val) == 1:
                         data.append(default_val * num_tomo)
                     else:
@@ -108,33 +111,39 @@ class ISONET:
                     data.append([default_val]*num_tomo)
             label.append(param_name)
 
-        def create_average_func(even, odd, average = "averaged_tomos"):
+        def create_average_func(even: str, odd: str, average_output_dir: str):
             even_files_names = sorted(os.listdir(even))
-            even_files = [f"{even}/{item}" for item in even_files_names]
+            even_files = [os.path.join(even, item) for item in even_files_names]
             odd_files_names = sorted(os.listdir(odd))
-            odd_files = [f"{odd}/{item}" for item in odd_files_names]
-            create_folder(average)
+            odd_files = [os.path.join(odd, item) for item in odd_files_names]
+            create_folder(average_output_dir)
             for i in tqdm.tqdm(range(len(even_files)), desc="Averaging even and odd tomograms", unit=" tomograms"):
                 tomo_even, voxel_size = read_mrc(even_files[i])
                 tomo_odd, _ = read_mrc(odd_files[i])
-                write_mrc(f'{average}/{os.path.splitext(even_files_names[i])[0]}_full.mrc',tomo_odd+tomo_even, voxel_size=voxel_size)
-            return average
-        
-        if full in ["None",None] and create_average:
+                write_mrc(
+                    os.path.join(
+                        average_output_dir,
+                        f"{os.path.splitext(even_files_names[i])[0]}_full.mrc"
+                    ),
+                    tomo_odd + tomo_even,
+                    voxel_size=voxel_size,
+                )
+            return average_output_dir
+
+        if full in ["None", None] and create_average:
             logging.info("Creating average from even/odd tomograms ")
-            full = create_average_func(even, odd)
+            full = create_average_func(even, odd, average_output_dir=average_output_dir)
         
         # tomograms setup
         add_param(full, 'rlnTomoName')
         add_param(even, 'rlnTomoReconstructedTomogramHalf1')
         add_param(odd, 'rlnTomoReconstructedTomogramHalf2')
 
-
         # voxel_size
         if pixel_size in ["None", None, "auto"]:
             voxel_size_list = []
             counted_files_names = sorted(os.listdir(count_folder))
-            counted_files = [f"{count_folder}/{item}" for item in counted_files_names]        
+            counted_files = [os.path.join(count_folder, item) for item in counted_files_names]        
             for i in range(len(counted_files)):
                 _, apix = read_mrc(counted_files[i], inplace = True)
                 voxel_size_list.append(str(apix))
@@ -163,12 +172,13 @@ class ISONET:
             number_subtomos = int(3000/num_tomo)
         if coordinate_folder not in ["None", None]:
             number_subtomos = "None"
-            logging.info("the number of subtomogram for each tomogram will be determined by the subtomogram coordinate files")
+            logging.info(
+                "the number of subtomogram for each tomogram will "
+                "be determined by the subtomogram coordinate files"
+            )
         add_param("None", 'rlnNumberSubtomo', number_subtomos)
         add_param(None, 'rlnCorrectedTomoName', "None")
-        
 
-        
         data = list(map(list, zip(*data)))
         df = pd.DataFrame(data = data, columns = label)
         df.insert(0, 'rlnIndex', np.arange(num_tomo)+1)
