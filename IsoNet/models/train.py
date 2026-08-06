@@ -239,8 +239,8 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
 
                         with torch.no_grad():
                             with torch.autocast("cuda", enabled=training_params["mixed_precision"]): 
-                                preds_x1 = model(x1)
-                                preds_x2 = model(x2)
+                                preds_pair = model(torch.cat([x1, x2], dim=0))
+                                preds_x1, preds_x2 = preds_pair.chunk(2, dim=0)
 
                         preds_x1 = preds_x1.to(torch.float32)
                         preds_x2 = preds_x2.to(torch.float32)
@@ -287,8 +287,10 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
                         #     net_input2 = net_input2 + N
 
                         with torch.autocast('cuda', enabled = training_params["mixed_precision"]): 
-                            pred_y1 = model(net_input1).to(torch.float32)
-                            pred_y2 = model(net_input2).to(torch.float32)
+                            pred_pair = model(torch.cat([net_input1, net_input2], dim=0))
+                            pred_y1, pred_y2 = pred_pair.chunk(2, dim=0)
+                            pred_y1 = pred_y1.to(torch.float32)
+                            pred_y2 = pred_y2.to(torch.float32)
 
                             if training_params['CTF_mode']  == 'network':
                                 pred_y1 = apply_F_filter_torch(pred_y1, ctf)
