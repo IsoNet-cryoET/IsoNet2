@@ -390,6 +390,7 @@ Generate a tomograms.star file in the same style as the RELION5 tomographic proc
 - `ac` — Amplitude contrast. Default: **0.1**.
 - `coordinate_folder` — Optional directory with subtomogram coordinate files; if provided, the number of subtomograms is taken from the coordinate files and overrides number_subtomos. Default: `"None"`.
 - `create_average` — Creates full tomograms by summing the provided even and odd folders; useful for reducing noise for **_deconv_** and **_make_mask_**. Default: `False`.
+- `average_output_dir` — Destination for summed half maps when `create_average=True` and no full-map folder is supplied. Must be separate from the input folders; existing output is moved to a `~` backup. Set through the CLI; the GUI uses the default. Default: `"averaged_tomos"`.
 - `cs` — Spherical aberration in mm. Default: **2.7**.
 - `defocus` — Defocus in Å at zero tilt. Can be a single value or list of values for each tomogram. Default: `[10000]`.
 - `mask_folder` — Optional directory with masks; entries are recorded in rlnMaskName. Default: `"None"`.

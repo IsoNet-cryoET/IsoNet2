@@ -14,7 +14,7 @@ def create_folder(folder, remove=True):
             logging.warning(f"The {folder} folder already exists. The old {folder} folder will be moved to {folder}~")
             if os.path.exists(folder+'~'):
                 shutil.rmtree(folder+'~')
-            os.system('mv {} {}'.format(folder, folder+'~'))
+            shutil.move(folder, folder+'~')
             os.makedirs(folder)
         else:
             logging.info(f"The {folder} folder already exists, outputs will write into this folder")
