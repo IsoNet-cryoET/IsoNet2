@@ -39,7 +39,6 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
             save_interval: 10,
             learning_rate_min: 3e-4,
             mw_weight: 20,
-            apply_mw_x1: true,
             random_rot_weight: 0.2,
             mixed_precision: true,
             CTF_mode: "None",
@@ -506,20 +505,6 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
                                 )
                             }
                             fullWidth
-                        />
-                        <FormControlLabel
-                            control={
-                                <Switch
-                                    checked={formData.apply_mw_x1}
-                                    onChange={(e) =>
-                                        handleChange(
-                                            "apply_mw_x1",
-                                            e.target.checked,
-                                        )
-                                    }
-                                />
-                            }
-                            label="apply_mw_x1"
                         />
                     </Box>
                 </AccordionDetails>

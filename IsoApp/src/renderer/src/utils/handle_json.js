@@ -26,6 +26,11 @@ function toCommand(data_raw, id) {
         data.output_dir = data.type + '/job' + id
     }
 
+    // Older saved training jobs can still contain the removed, unused option.
+    if (data.type === 'refine' || data.type === 'denoise') {
+        delete data.apply_mw_x1
+    }
+
     if (data.hasOwnProperty('CTF_mode')) {
         if (data.CTF_mode === 'None') {
             delete data.do_phaseflip_input

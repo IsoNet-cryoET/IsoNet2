@@ -314,7 +314,7 @@ _rlnCorrectedTomoName #16
 
 ### 2.2.2a denoise
 
-If you have access to even/odd paired tomograms, as we do in this tutorial, we recommend using `denoise` before generating masks. This increases SNR, providing comparable results to running `refine` and using the corrected tomograms to generate the mask as done in the _IsoNet2_ paper. `--CTF_mode network` multiplies the network input with the CTF, analogous to applying the missing wedge mask during training.
+If you have access to even/odd paired tomograms, as we do in this tutorial, we recommend using `denoise` before generating masks. This increases SNR, providing comparable results to running `refine` and using the corrected tomograms to generate the mask as done in the _IsoNet2_ paper. `--CTF_mode network` multiplies the network prediction by the CTF before comparison with the training target, so the network learns to compensate for CTF attenuation.
 
 ```
 isonet.py denoise tomograms.star --CTF_mode network --gpuID <ids>
@@ -356,7 +356,7 @@ For `--input_column`, use:
 
 ### 2.2.4 refine
 
-Train the network to predict missing-wedge-corrected, CTF-corrected, and denoised tomograms. `--cube_size` is the length of each subtomogram in voxels. `--mw_weight` determines how heavily missing-wedge correction is prioritized over denoising: here the ratio is 200 to 1. Enabling `--CTF_mode` network multiplies the network input with the CTF, analogous to missing wedge mask application. `--bfactor` boosts high frequency information for CTF correction.
+Train the network to predict missing-wedge-corrected, CTF-corrected, and denoised tomograms. `--cube_size` is the length of each subtomogram in voxels. `--mw_weight` determines how heavily missing-wedge correction is prioritized over denoising: here the ratio is 200 to 1. Enabling `--CTF_mode network` multiplies the network prediction by the CTF before computing the loss, so the predicted volume is learned in the CTF-compensated convention. `--bfactor` boosts high frequency information for CTF correction.
 
 ```
 isonet.py refine tomograms.star --method isonet2-n2n --cube_size 128 --epochs 70 --mw_weight 200 --CTF_mode network --bfactor 200 --gpuID <ids>
@@ -413,43 +413,35 @@ Entry point for _IsoNet2_ training. Use denoise for quicker noise-to-noise (n2n)
 - `star_file` — STAR file for tomograms. Required parameter.
 
 - `arch` — Network architecture string (e.g., unet-small, unet-medium, unet-large). Determines model capacity and VRAM requirements. Default: `"unet-medium"`.
-- `batch_size` — Number of subtomograms per optimization step; if `"auto"`, this is automatically determined by multiplying the number of available GPUs by 2. If the number of GPUs is 1, batch size is 4. Batch size per GPU matters for gradient stability. Default: `"auto"`.
-- `bfactor` — B-factor applied during training/prediction to boost high-frequency content. For cellular tomograms we recommend a b-factor of 0. For isolated samples, you can use a b-factor from 200–300. Default: **0**.
-- `clip_first_peak_mode` — Controls attenuation of overrepresented very-low-frequency CTF peak. Options 2 and 3 might increase low-resolution contrast. Default: **1**.
-    - 0 none
-    - 1 constant clip
-    - 2 negative sine
-    - 3 cosine
-- `CTF_mode` — CTF handling mode: "None", "phase_only", "wiener", or "network". Default: `"None"`.
-    - "None": No CTF correction
-    - "phase_only": Phase-only correction
-    - "network": Applies CTF-shaped filter to network input
-    - "wiener": Applies Wiener filter to network target
-- `cube_size` — Size in voxels of training subvolumes. Must be compatible with the network (divisible by the network downsampling factors). This allows any multiple of 16 >= 64. Default: **96**.
-- `deconvstrength` — Scalar multiplier for deconvolution strength; increasing this emphasizes correction and low-frequency recovery. Default: **1.0**.
-- `do_phaseflip_input` — Whether to apply phase flip during training. Default: `True`.
-- `epochs` — Number of training epochs. Default: **50**.
-- `gpuID` — GPU IDs to use during training (e.g., "0,1,2,3"). Default: `None`.
-- `highpassnyquist` — Fraction of the Nyquist used as a very-low-frequency high-pass cutoff; use to remove large-scale intensity gradients and drift. Default: **0.02**.
-- `isCTFflipped` — Whether input tomograms are phase flipped. Default: `False`.
-- `learning_rate` — Initial learning rate. Default: **3e-4**.
-- `learning_rate_min` — Minimum learning rate for scheduler. Default: **3e-4**.
-- `loss_func` — Loss function to use (L2, Huber, L1). Default: `"L2"`.
+- `batch_size` — Total batch size across GPUs; automatic sizing gives 4 on one GPU or 2 × GPU count on multiple GPUs. Choose a positive multiple of the GPU count. See [Training settings and workflow](#training-settings-and-workflow). Default: `"auto"`.
+- `bfactor` — B-factor of the modeled forward CTF envelope. Positive values damp that envelope, asking `network` mode to learn more high-frequency compensation. Not a final prediction filter; see [CTF handling](#ctf-handling-ctf_mode). Default: **0**.
+- `clip_first_peak_mode` — Low-frequency shaping of the forward CTF in `network` mode only: **0** keeps the original curve, **1** fills to the first-peak value, **2** uses a sine-based lower bound, and **3** uses a cosine-based lower bound. See [First-peak shaping](#first-peak-shaping-clip_first_peak_mode) for formulas and B-factor behavior. Default: **1**.
+- `CTF_mode` — CTF treatment: `"None"` (no explicit correction), `"phase_only"` (sign correction), `"network"` (forward-filter the prediction for the loss), or `"wiener"` (filter the training target). See [CTF handling](#ctf-handling-ctf_mode) for phase flags and prediction behavior. Default: `"None"`.
+- `cube_size` — Training cube side in voxels. U-Net requires a multiple of 16; SCUNet requires a multiple of 48 or 64. Larger cubes increase context and memory demand; see [Training settings and workflow](#training-settings-and-workflow). Default: **96**.
+- `deconvstrength` — Wiener inverse-strength parameter. Current training uses dataset default 1 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **1.0**.
+- `do_phaseflip_input` — For active CTF modes and inputs not already phase flipped, apply `sign(CTF)` before training. Saved in the checkpoint and reused for prediction. Ignored in `None` mode. Default: `True`.
+- `epochs` — Requested training epochs. With previews enabled, only complete `save_interval` blocks run; see [Training settings and workflow](#training-settings-and-workflow). Default: **50**.
+- `gpuID` — GPUs to use, e.g., `"0,1"`; omission uses all visible CUDA GPUs and respects `CUDA_VISIBLE_DEVICES`. See [Training settings and workflow](#training-settings-and-workflow). Default: `None`.
+- `highpassnyquist` — Wiener very-low-frequency cutoff as a fraction of Nyquist. Current training uses dataset default 0.02 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **0.02**.
+- `isCTFflipped` — Whether the supplied input tomograms are already phase flipped. Prevents another sign correction; distinct from amplitude deconvolution. Default: `False`.
+- `learning_rate` — Initial AdamW learning rate; see [Training settings and workflow](#training-settings-and-workflow) for the cosine schedule and preview-block resets. Default: **3e-4**.
+- `learning_rate_min` — Cosine-scheduler minimum. Equal to `learning_rate` by default, keeping the rate constant; see [Training settings and workflow](#training-settings-and-workflow). Default: **3e-4**.
+- `loss_func` — Training objective: `L2`, `L1`, `Huber`, or `FSC`. See [Loss functions](#loss-functions-loss_func) for definitions and training behavior. Default: `"L2"`.
 - `mixed_precision` — If True, uses float16/mixed precision to reduce VRAM and speed up training. Default: `True`.
 - `ncpus` — Number of CPUs to use for data processing. Default: **16**.
 - `output_dir` — Directory to save trained model and results. Default: `"denoise"`.
-- `prev_tomo_idx` — If set, automatically predict only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16"). Default: **1**.
-- `pretrained_model` — Path to pretrained model to continue training. Previous method, arch, cube_size, CTF_mode, and metrics will be loaded. Default: `None`.
-- `save_interval` — Interval to save model checkpoints. Default: **10**.
-- `snrfalloff` — Controls frequency-dependent SNR attenuation applied during deconvolution; larger values reduce high-frequency contribution more aggressively. Default: **0**.
-- `with_preview` — If True, run prediction every save interval. Default: `True`.
+- `prev_tomo_idx` — Tomogram indices for previews, e.g., `"1,2,4"` or `"5-10,15"`. Used only when previews are enabled. Default: **1**.
+- `pretrained_model` — Checkpoint weights and model configuration to load. Optimizer/scheduler state is initialized afresh; repeat consistent training settings as explained in [Training settings and workflow](#training-settings-and-workflow). Default: `None`.
+- `save_interval` — Epochs per preview block, interval for numbered checkpoint copies, and cosine-scheduler `T_max`; the main checkpoint is saved each epoch. See [Training settings and workflow](#training-settings-and-workflow). Default: **10**.
+- `snrfalloff` — Wiener SNR-falloff parameter. Current training uses dataset default 0 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **0**.
+- `with_preview` — Predict selected tomograms after each complete `save_interval` training block; optimizer/scheduler state resets between blocks. See [Training settings and workflow](#training-settings-and-workflow). Default: `True`.
 
 ![](./IsoNet/tutorial_figures/CTF_b_factor.png)
 Fig. 5. Effects of clip_first_peak_mode and bfactor on CTF.
 
 ### Practical notes
 
-> _Choose arch, cube_size, and batch_size to fit your GPU memory; larger architectures and cubes improve fidelity but increase resource needs. Enable mixed_precision to save VRAM and speed up training if your GPU and drivers support it._
+> _See [Training settings and workflow](#training-settings-and-workflow) for GPU memory, preview timing, learning-rate scheduling, and checkpoint continuation. Compare reconstruction quality on your data when changing model size or training settings._
 
 ## deconv
 
@@ -502,51 +494,270 @@ Use refine for _IsoNet2_ missing-wedge correction (isonet2) or isonet2-n2n combi
 
 - `star_file` — Input STAR listing tomograms and acquisition metadata. Required parameter.
 
-- `apply_mw_x1` — Whether to apply missing wedge to subtomograms at the beginning. Default: `True`.
-- `arch` — Network architecture string (e.g., unet-small, unet-medium, unet-large, scunet-fast). Determines model capacity and VRAM requirements. Default: `"unet-medium"`.
-- `batch_size` — Number of subtomograms per optimization step; if None, this is automatically determined by multiplying the number of available GPUs by 2. If the number of GPUs is 1, batch size is 4. Batch size per GPU matters for gradient stability. Default: `None`.
-- `bfactor` — B-factor applied during training/prediction to boost high-frequency content. For cellular tomograms we recommend a b-factor of 0. For isolated samples, you can use a b-factor from 200–300. Default: **0**.
-- `clip_first_peak_mode` — Controls attenuation of overrepresented very-low-frequency CTF peak. Options 2 and 3 might increase low-resolution contrast. Default: **1**.
-    - 0 none
-    - 1 constant clip
-    - 2 negative sine
-    - 3 cosine
-- `CTF_mode` — CTF handling mode: "None", "phase_only", "wiener", or "network". Default: `"None"`.
-    - "None": No CTF correction
-    - "phase_only": Phase-only correction
-    - "network": Applies CTF-shaped filter to network input
-    - "wiener": Applies Wiener filter to network target
-- `cube_size` — Size in voxels of training subvolumes. Must be compatible with the network (divisible by the network downsampling factors). This allows any multiple of 16 >= 64. Default: **96**.
-- `deconvstrength` — Scalar multiplier for deconvolution strength; increasing this emphasizes correction and low-frequency recovery but can introduce ringing/artifacts if set too high. Default: **1.0**.
-- `do_phaseflip_input` — Whether to apply phase flip during training. Default: `True`.
-- `epochs` — Number of training epochs. Default: **50**.
-- `gpuID` — GPU IDs to use during training (e.g., "0,1,2,3"). Default: `None`.
-- `highpassnyquist` — Fraction of the Nyquist used as a very-low-frequency high-pass cutoff; use to remove large-scale intensity gradients and drift; usually left at default. Default: **0.02**.
+- `arch` — Neural network architecture. Choose from three convolutional U-Nets or four configured Swin-Conv U-Nets; see the architecture descriptions below. Default: `"unet-medium"`.
+- `batch_size` — Total batch size across GPUs; automatic sizing gives 4 on one GPU or 2 × GPU count on multiple GPUs. Choose a positive multiple of the GPU count. See [Training settings and workflow](#training-settings-and-workflow). Default: `"auto"`.
+- `bfactor` — B-factor of the modeled forward CTF envelope. Positive values damp that envelope, asking `network` mode to learn more high-frequency compensation. Not a final prediction filter; see [CTF handling](#ctf-handling-ctf_mode). Default: **0**.
+- `clip_first_peak_mode` — Low-frequency shaping of the forward CTF in `network` mode only: **0** keeps the original curve, **1** fills to the first-peak value, **2** uses a sine-based lower bound, and **3** uses a cosine-based lower bound. See [First-peak shaping](#first-peak-shaping-clip_first_peak_mode) for formulas and B-factor behavior. Default: **1**.
+- `CTF_mode` — CTF treatment: `"None"` (no explicit correction), `"phase_only"` (sign correction), `"network"` (forward-filter the prediction for the loss), or `"wiener"` (filter the training target). See [CTF handling](#ctf-handling-ctf_mode) for phase flags and prediction behavior. Default: `"None"`.
+- `cube_size` — Training cube side in voxels. U-Net requires a multiple of 16; SCUNet requires a multiple of 48 or 64. Larger cubes increase context and memory demand; see [Training settings and workflow](#training-settings-and-workflow). Default: **96**.
+- `deconvstrength` — Wiener inverse-strength parameter. Current training uses dataset default 1 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **1.0**.
+- `do_phaseflip_input` — For active CTF modes and inputs not already phase flipped, apply `sign(CTF)` before training. Saved in the checkpoint and reused for prediction. Ignored in `None` mode. Default: `True`.
+- `epochs` — Requested training epochs. With previews enabled, only complete `save_interval` blocks run; see [Training settings and workflow](#training-settings-and-workflow). Default: **50**.
+- `gpuID` — GPUs to use, e.g., `"0,1"`; omission uses all visible CUDA GPUs and respects `CUDA_VISIBLE_DEVICES`. See [Training settings and workflow](#training-settings-and-workflow). Default: `None`.
+- `highpassnyquist` — Wiener very-low-frequency cutoff as a fraction of Nyquist. Current training uses dataset default 0.02 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **0.02**.
 - `input_column` — Column name in STAR file to use as input tomograms. Default: `"rlnDeconvTomoName"`.
-- `isCTFflipped` — Whether input tomograms are phase flipped. Default: `False`.
-- `learning_rate` — Initial learning rate. Default: **3e-4**.
-- `learning_rate_min` — Minimum learning rate for scheduler. Default: **3e-4**.
-- `loss_func` — Loss function to use (L2, Huber, L1). Default: `"L2"`.
-- `method` — "isonet2" for single-map missing-wedge correction, "isonet2-n2n" for noise2noise when even/odd halves are present. If omitted, the code auto-detects the method from the STAR columns. Default: `"None"` (auto-detect).
+- `isCTFflipped` — Whether the supplied input tomograms are already phase flipped. Prevents another sign correction; distinct from amplitude deconvolution. Default: `False`.
+- `learning_rate` — Initial AdamW learning rate; see [Training settings and workflow](#training-settings-and-workflow) for the cosine schedule and preview-block resets. Default: **3e-4**.
+- `learning_rate_min` — Cosine-scheduler minimum. Equal to `learning_rate` by default, keeping the rate constant; see [Training settings and workflow](#training-settings-and-workflow). Default: **3e-4**.
+- `loss_func` — Training objective: `L2`, `L1`, `Huber`, or `FSC`. See [Loss functions](#loss-functions-loss_func) for definitions and training behavior. Default: `"L2"`.
+- `method` — `isonet2` for single-map missing-wedge correction, or `isonet2-n2n` for paired-half correction and denoising. `auto` selects from STAR columns and requires an explicit choice when both full and half maps are present. Default: `"auto"`.
 - `mixed_precision` — If True, uses float16/mixed precision to reduce VRAM and speed up training. Default: `True`.
-- `mw_weight` — Weight for missing wedge loss. Higher values correspond to stronger emphasis on missing wedge regions. Disabled by default. Default: **-1** (disabled).
+- `mw_weight` — For `isonet2-n2n`, positive values enable `n2n_loss + mw_weight × mw_loss`; see [Loss functions](#loss-functions-loss_func). Values <= 0 use the unmasked cross-half loss. Does not alter the `isonet2` objective. Default: **-1** (disabled).
 - `ncpus` — Number of CPUs to use for data processing. Default: **16**.
-- `noise_level` — Adds artificial noise during training. Default: **0**.
-- `noise_mode` — Controls filter applied when generating synthetic noise (None, ramp, hamming). Default: `"nofilter"`.
+- `noise_level` — Added noise standard deviation in normalized intensity units, for single-map `isonet2` only. Keep 0 for paired-half training; see [Training settings and workflow](#training-settings-and-workflow). Default: **0**.
+- `noise_mode` — Simulated-noise reconstruction filter: `nofilter`, `ramp`, or `hamming`. Used for positive single-map noise augmentation; see [Training settings and workflow](#training-settings-and-workflow). Default: `"nofilter"`.
 - `output_dir` — Directory to save trained model and results. Default: `"isonet_maps"`.
-- `prev_tomo_idx` — If set, automatically predict only the tomograms listed by these indices (e.g., "1,2,4" or "5-10,15,16"). Default: **1**.
-- `pretrained_model` — Path to pretrained model to continue training. Previous method, arch, cube_size, CTF_mode, and metrics will be loaded. Default: `None`.
-- `random_rot_weight` — Percentage of rotations applied as random augmentation. Default: **0.2**.
-- `save_interval` — Interval to save model checkpoints. Default: **10**.
-- `snrfalloff` — Controls frequency-dependent SNR attenuation applied during deconvolution; larger values reduce high-frequency contribution more aggressively and can stabilize deconvolution on noisy data; smaller values preserve more high-frequency content but risk amplifying noise. Default: **0**.
-- `with_preview` — If True, run prediction every save interval. Default: `True`.
+- `prev_tomo_idx` — Tomogram indices for previews, e.g., `"1,2,4"` or `"5-10,15"`. Used only when previews are enabled. Default: **1**.
+- `pretrained_model` — Checkpoint weights and model configuration to load. Optimizer/scheduler state is initialized afresh; repeat consistent training settings as explained in [Training settings and workflow](#training-settings-and-workflow). Default: `None`.
+- `random_rot_weight` — Probability of arbitrary-axis rotation per batch, from 0 to 1; otherwise a predefined right-angle rotation is selected. **0.2 means 20%**. See [Training settings and workflow](#training-settings-and-workflow). Default: **0.2**.
+- `save_interval` — Epochs per preview block, interval for numbered checkpoint copies, and cosine-scheduler `T_max`; the main checkpoint is saved each epoch. See [Training settings and workflow](#training-settings-and-workflow). Default: **10**.
+- `snrfalloff` — Wiener SNR-falloff parameter. Current training uses dataset default 0 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **0**.
+- `with_preview` — Predict selected tomograms after each complete `save_interval` training block; optimizer/scheduler state resets between blocks. See [Training settings and workflow](#training-settings-and-workflow). Default: `True`.
 
 ![](./IsoNet/tutorial_figures/CTF_b_factor.png)
 Fig. 5. Effects of clip_first_peak_mode and bfactor on CTF.
 
+### Neural network architectures (`arch`)
+
+The architecture controls how the network represents the 3D correction. It is independent of `method`: the same architectures can be used with `isonet2` and `isonet2-n2n`. All variants have four downsampling steps, an encoder and decoder connected by skip connections, and a residual output that adds the learned correction to the input volume.
+
+**Convolutional U-Net.** These networks extract features using 3×3×3 convolutions, batch normalization, and LeakyReLU activations. Strided convolutions reduce spatial resolution in the encoder; transposed convolutions restore it in the decoder. Concatenated skip connections pass encoder features directly to the corresponding decoder stages, preserving spatial detail while the bottleneck processes features at 1/16 of the input resolution.
+
+| Architecture | Encoder and bottleneck channels | Capacity and resource tradeoff |
+| --- | --- | --- |
+| `unet-small` | 16, 32, 64, 128, 256 | Narrowest U-Net; lowest memory and computation demand within this family at the same cube and batch size. |
+| `unet-medium` (default) | 32, 64, 128, 256, 320 | Intermediate U-Net width and resource demand. |
+| `unet-large` | 64, 128, 256, 320, 320 | Wider features, especially at high spatial resolution; higher memory and computation demand than the smaller U-Nets. |
+
+**Swin-Conv U-Net (SCUNet) — experimental.** All SCUNet variants are experimental and provided without any guarantee of reconstruction quality or stability. They are available only through the command line and are not available in the GUI.
+
+These networks combine convolutional features with windowed self-attention in a 3D U-Net structure. Each hybrid block splits its channels between a convolution branch and an attention branch, then mixes the results. Alternating regular and shifted attention windows let features interact across neighboring windows. The convolution branch uses filter response normalization, which computes normalization per sample rather than using batch statistics; the attention branch uses layer normalization. Encoder and decoder features are combined through additive skip connections.
+
+| Architecture | Encoder and bottleneck channels | Hybrid blocks and resource tradeoff |
+| --- | --- | --- |
+| `scunet-small` | 32, 64, 128, 256, 512 | Two hybrid blocks at each of nine stages: four encoder stages, the bottleneck, and four decoder stages (18 blocks total). Includes attention at full resolution. |
+| `scunet-medium` | 64, 128, 256, 512, 1024 | Same 18-block arrangement as `scunet-small`, with wider features and greater memory and computation demand. |
+| `scunet-fast` | 32, 64, 128, 256, 512 | Replaces hybrid processing at the full-resolution encoder and decoder stages with convolutions. Retains two hybrid blocks at each of seven lower-resolution stages (14 blocks total), reducing the cost of attention compared with `scunet-small`. |
+| `scunet-fast-large` | 64, 128, 256, 512, 1024 | Same 14-block arrangement as `scunet-fast`, with wider features. Reduces the cost of full-resolution attention compared with `scunet-medium`. |
+
+**Cube sizes.** U-Net requires `cube_size` divisible by 16. SCUNet additionally partitions each feature map into attention windows, so use a multiple of 48 or 64, such as **64, 96, 128, or 192**. The implementation selects a window side of 3 when the input cube size is divisible by 3, and 4 otherwise. A size such as 80 is divisible by 16 but does not satisfy SCUNet's window requirements.
+
+**Choosing a variant.** `unet-medium` is the default. Within the U-Net family, `unet-small` reduces resource demand and `unet-large` increases feature width. For SCUNet, the fast variants retain attention at lower resolutions while using convolutions at full resolution. Actual GPU memory use and runtime also depend on cube size, batch size, and mixed precision; there is no fixed memory ranking across the two families. Larger models do not guarantee better reconstruction, so compare results on the same data and training settings.
+
+When `pretrained_model` is supplied, the architecture saved in the checkpoint overrides `arch`. The refine GUI currently exposes the three U-Net choices; the four configured SCUNet variants can be selected through the command line, for example:
+
+```bash
+isonet.py refine tomograms.star --arch scunet-fast --cube_size 96
+```
+
+`scunet-large` has no width/block configuration in this version and cannot be used. HSFormer and VTUnet have no active model-selection paths.
+
+### CTF handling (`CTF_mode`)
+
+`CTF_mode` specifies how training handles the microscope contrast transfer function (CTF), independently of the network architecture and missing-wedge correction. The CTF can reverse the sign of some spatial frequencies and attenuate their amplitudes. **Phase flipping** corrects the sign reversals; **amplitude compensation** addresses attenuation. Phase flipping alone does not restore amplitudes.
+
+Both `denoise` and `refine` accept the case-sensitive values `"None"` (default), `"phase_only"`, `"network"`, and `"wiener"`. All four are available in the GUI.
+
+In the table below, `P` is the network prediction, `T` is the training target, `C` is the modeled CTF, `W` is the Wiener filter, and `loss` is the selected `loss_func`. Products such as `C × P` mean multiplication in Fourier space followed by transformation back to real space. The formulas describe the comparison after any phase flipping; for `isonet2-n2n`, comparisons are made in both cross-half directions and can additionally use `mw_weight`.
+
+| Mode | Training comparison | Meaning of the network output |
+| --- | --- | --- |
+| `"None"` | `loss(P, T)`; no explicit CTF phase or amplitude filtering | Learns from the supplied data with their existing CTF/preprocessing. Select this when no additional CTF treatment is intended, including data already processed to the desired phase and amplitude convention. Missing-wedge correction and denoising still operate. |
+| `"phase_only"` | Optional phase flipping, then `loss(P, T)` | Learns in the phase-corrected intensity convention when phase flipping is enabled or was already performed. There is no explicit amplitude deconvolution; the CTF amplitude envelope remains in the training target. |
+| `"network"` | `loss(C × P, T)` | Learns an output whose CTF-filtered version matches the observations. The CTF is applied to the **prediction before the loss**, rather than to the network input. This trains the network to compensate for attenuation; it does not explicitly divide the data by the CTF. |
+| `"wiener"` | `loss(P, W × T)` | Learns to match a Wiener-filtered target. The amplitude correction is prescribed by a regularized inverse filter, rather than learned through a forward CTF comparison. |
+
+For `network`, frequencies close to a CTF zero provide little direct training constraint on the unfiltered prediction; compensation there depends on information learned from the data. For `wiener`, the filter has the form `W = C / (C² + 1/SNR)`, using an assumed frequency-dependent SNR. The regularizing term limits direct inverse amplification near CTF zeros. Neither approach guarantees recovery of information absent from the observations.
+
+**Phase-flip flags.** `isCTFflipped` describes the data supplied to the command; `do_phaseflip_input` controls whether IsoNet performs a phase flip. For any active CTF mode:
+
+| Input/settings | Training behavior |
+| --- | --- |
+| `isCTFflipped=True` | Treats inputs as already phase flipped, skips another sign correction, and uses `abs(C)` and `abs(W)` where those filters are needed. |
+| `isCTFflipped=False`, `do_phaseflip_input=True` (defaults) | Multiplies the training volumes by `sign(C)` in Fourier space, then uses filter magnitudes. |
+| Both flags `False` | Leaves input signs unchanged and retains signed filters. In `phase_only`, this applies no CTF correction. |
+
+With `CTF_mode="None"`, neither flag triggers CTF phase correction. Set `isCTFflipped` from the actual preprocessing history of the input files; phase flipping is distinct from amplitude deconvolution.
+
+**Refine's missing-wedge filling step.** For both `network` and `wiener`, preliminary network predictions are multiplied by the CTF before being used to fill the missing wedge. This keeps the filled training volumes in observation space. The subsequent training comparison still follows the table above: filter the new prediction in `network`, or filter the target in `wiener`.
+
+**Related controls and metadata.** The current implementation builds a radial 3D CTF from one defocus value per STAR row, with phase shift fixed to zero. It uses `rlnPixelSize` (Å/pixel), `rlnDefocus` (Å), `rlnVoltage` (kV), `rlnSphericalAberration` (mm), and `rlnAmplitudeContrast`. This is a per-tomogram model; it does not model defocus variation across individual tilts or locations.
+
+- `clip_first_peak_mode` modifies the low-frequency forward CTF in `network` mode only. See [First-peak shaping](#first-peak-shaping-clip_first_peak_mode) below for the four rules, their effect on training, and their interaction with the B-factor envelope.
+- `bfactor` modifies the modeled forward CTF envelope. A positive value damps the modeled high-frequency response, so matching the observations in `network` mode asks the network to compensate more at those frequencies. It is not a separate sharpening filter applied during prediction. The Wiener target filter is constructed with B-factor zero.
+- `snrfalloff`, `deconvstrength`, and `highpassnyquist` define the Wiener filter's assumed SNR falloff, inverse strength, and very-low-frequency suppression. **Current implementation limitation:** the main `denoise`/`refine` training path does not forward these CLI values to the dataset. Wiener training targets therefore use dataset defaults **0**, **1**, and **0.02**, respectively. Changing those arguments currently does not tune the training target filter. The separate `deconv` command has its own parameter handling.
+
+**Prediction and checkpoints.** `predict` reads `CTF_mode` and `do_phaseflip_input` from the checkpoint. For an active mode, it phase flips prediction inputs only when the saved flag is true and the prediction command's `isCTFflipped` is false. It then returns the direct network output; there is no final CTF multiplication or Wiener amplitude filter. Supply prediction inputs with preprocessing consistent with training. The prediction input's phase-flip status must be specified again with `isCTFflipped`.
+
+For example, for inputs that have not already been phase flipped:
+
+```bash
+isonet.py refine tomograms.star --CTF_mode phase_only --isCTFflipped False --do_phaseflip_input True
+isonet.py refine tomograms.star --CTF_mode network --isCTFflipped False --do_phaseflip_input True
+isonet.py refine tomograms.star --CTF_mode wiener --isCTFflipped False --do_phaseflip_input True
+```
+
+#### First-peak shaping (`clip_first_peak_mode`)
+
+This parameter changes the **low-frequency part of the modeled forward CTF** in `CTF_mode="network"`. It is available in the GUI when `network` is selected. The default is **1**. Other CTF modes ignore this setting and construct their CTF with first-peak shaping disabled.
+
+In network mode, training compares `C × prediction` with the target. A small modeled CTF value asks the network for a larger output to match the same target. Raising the modeled response before its first peak reduces the compensation requested in that low-frequency range. These settings therefore affect broad contrast and intensity gradients through training; they are not filters applied to the final prediction.
+
+**Definitions.** The implementation samples a signed radial CTF and locates its first local maximum after the initial B-factor envelope is applied. Let `p` be that peak's sample index, `A = C(p)` its value, and `u = i/p` the relative position of a sample before it (`0 <= i < p`). Peak position depends on the microscope parameters, pixel size, B-factor, and sampling; it is not a manually selected resolution cutoff or the first CTF zero.
+
+| Mode | Rule before the first peak | Effect on the modeled low-frequency response |
+| --- | --- | --- |
+| **0 — no shaping** | Keep `C(i)`. | Retains the original low-frequency curve, including small values that can ask for strong compensation. B-factor envelope handling still applies. |
+| **1 — constant fill (default)** | Set `C(i) = A`. | With B-factor zero, creates a flat response from zero frequency up to the first peak. Raises the weak pre-peak response to the peak value and reduces the requested compensation there. |
+| **2 — sine-based lower bound** | Set `C(i) = max(C(i), A × (1 - sin(pi × u / 2)))`. | The lower bound starts at `A` and falls toward zero at the peak. The original CTF is retained wherever it is larger than the bound; the whole first lobe is not replaced by a sine curve. |
+| **3 — cosine-based lower bound** | Set `C(i) = max(C(i), A × cos(pi × u / 2))`. | Also starts at `A` and falls toward zero. For a positive peak, this bound is at least as high as the mode-2 bound throughout the pre-peak interval, so it can raise the modeled response over a broader frequency range. |
+
+For example, halfway to a positive peak (`u=0.5`), mode 1 uses `A`, mode 2 has a lower bound of approximately `0.293 × A`, and mode 3 has a lower bound of approximately `0.707 × A`. Modes 2 and 3 keep the original CTF instead if it exceeds the respective bound. These numbers describe filter construction, not fixed changes in output contrast.
+
+The shaping step changes only samples **before** the detected peak; the peak sample and subsequent oscillations are retained. In the current implementation, the B-factor envelope is applied **before peak selection and again after shaping**. The table therefore describes the intermediate shaping step; with a nonzero B-factor, even mode 1 is not a perfectly flat final filter. When B-factor is zero, both envelope multiplications are unity.
+
+Mode 0 retains the unmodified first lobe. Mode 1 uses a constant fill, while modes 2 and 3 preserve the original response wherever it exceeds their bounds. Compare results with the same data and training settings when changing modes: no option guarantees better contrast or reconstruction, and changing this parameter does not change the microscope's physical CTF.
+
+```bash
+isonet.py refine tomograms.star --CTF_mode network --clip_first_peak_mode 1
+isonet.py refine tomograms.star --CTF_mode network --clip_first_peak_mode 2
+isonet.py refine tomograms.star --CTF_mode network --clip_first_peak_mode 3
+```
+
+### Loss functions (`loss_func`)
+
+The loss measures the difference between a network prediction and its training target; training minimizes it. Both `refine` and `denoise` accept the case-sensitive names `L2`, `L1`, `Huber`, and `FSC`. The default is `L2`. All four are also available in the GUI's Loss Function menu.
+
+For the voxel-based losses below, let `e = prediction - target`. The mean is taken over all voxels, channels, and samples in the training batch.
+
+| Value | Definition | What it measures |
+| --- | --- | --- |
+| `L2` (default) | `mean(e²)`, mean squared error | Penalizes large voxel errors quadratically. Large residuals contribute more strongly than with L1. Sensitive to intensity differences, including large outliers. |
+| `L1` | `mean(abs(e))`, mean absolute error | Penalizes voxel errors linearly, reducing the relative influence of large residuals compared with L2. Still measures absolute intensity differences. |
+| `Huber` | Mean of `0.5 × e²` when `abs(e) < 1`, otherwise `abs(e) - 0.5` | Uses a quadratic penalty near zero and a linear penalty for larger errors. The implementation fixes the transition parameter `delta=1.0`; this threshold is in the intensity units used during training, after preprocessing and normalization. |
+| `FSC` | `1 - mean(FSC over frequency shells)`, averaged over volumes/channels | Measures normalized correlation between prediction and target in Fourier space, rather than absolute voxel error. Shells receive equal weight regardless of how many Fourier coefficients they contain. |
+
+**How FSC is computed.** For each volume/channel, the implementation takes the 3D Fourier transforms `P` and `T` of the prediction and target in float32. For each radial shell `s`, it computes:
+
+```text
+FSC(s) = Re(sum(P(k) × conjugate(T(k))))
+         / sqrt(sum(abs(P(k))²) × sum(abs(T(k))²) + 1e-6)
+```
+
+The sums run over Fourier coefficients in that shell. Shell indices are integer distances from the Fourier origin; populated shells from 1 through half the smallest volume dimension are included. The zero-frequency (DC) shell is excluded, and each shell correlation is clamped to [-1, 1]. The loss is one minus the mean shell correlation, followed by an average over volumes/channels. A value near 0 indicates strong positive correlation; 1 corresponds to mean correlation near 0, and 2 to mean correlation near -1. If either volume has zero power in a shell, that shell contributes correlation 0.
+
+FSC does not directly constrain the mean intensity because it excludes DC, and its normalization makes it largely insensitive to positive intensity rescaling except at very low power, where the stabilizing constant matters. It also gives individual high-frequency shells the same weight as low-frequency shells. An FSC training loss is a fit to the training target; it is not an independent half-map resolution measurement or a guarantee of reconstruction quality.
+
+**Targets used during training.** In `isonet2`, the target is a rotated training volume whose missing wedge has been filled using the current network prediction; the input has a missing wedge reapplied. The selected loss compares the new prediction with that target. In `isonet2-n2n`, each half-volume prediction is compared with the opposite half's rotated, filled target, and the two losses are averaged. In `denoise`, a prediction from one noisy half is compared with the other noisy half. These are self-supervised targets, not clean ground-truth volumes. When CTF filtering is enabled, `CTF_mode=network` filters the prediction before comparison, while `CTF_mode=wiener` filters the target.
+
+**Missing-wedge weighting.** For `isonet2-n2n` with `mw_weight > 0`, the unmasked objective is replaced by `n2n_loss + mw_weight × mw_loss`. Both prediction and target are Fourier-masked and transformed back to real space before the selected loss is evaluated. With `M` the original observed-frequency mask and `R` its rotated version, `n2n_loss` uses `R × M`, and `mw_loss` uses `R × (1 - M)`: frequencies in the reapplied missing wedge that are supported by the rotated observations. Each component is averaged over the two cross-half comparisons. With `mw_weight <= 0` (default **-1**), training uses the mean unmasked cross-half loss. In the current implementation, `mw_weight` does not alter the `isonet2` objective; its masked components are calculated for reporting.
+
+Loss values have different scales and meanings across these choices. Compare training curves within the same loss and preprocessing settings, and assess output quality separately. Changing `loss_func` does not change the architecture or guarantee an improvement.
+
+```bash
+isonet.py refine tomograms.star --loss_func Huber
+isonet.py refine tomograms.star --loss_func FSC
+```
+
+### Training settings and workflow
+
+These notes apply to `refine` and, where indicated, `denoise`. They describe the current implementation, including settings whose behavior differs from their names.
+
+#### GPU selection, batch size, and cube size
+
+`gpuID` selects the GPUs used by the command. If omitted, IsoNet uses all visible CUDA GPUs, respecting `CUDA_VISIBLE_DEVICES`. For example, with `CUDA_VISIBLE_DEVICES=2,3`, `--gpuID 0,1` selects both visible devices using local indices.
+
+`batch_size` is the **total** requested batch size across GPUs. Its default is `"auto"` in both commands: 4 for one GPU, or twice the GPU count for multiple GPUs.
+
+| Selected GPUs | Automatic total batch size | Samples per GPU |
+| --- | --- | --- |
+| 1 | 4 | 4 |
+| 2 | 4 | 2 |
+| 4 | 8 | 2 |
+
+The training loop calculates per-GPU batch size using integer division. Choose a positive multiple of the selected GPU count, with at least one sample per GPU. For example, `batch_size=5` on two GPUs gives two samples per GPU, effectively four per step; a total smaller than the GPU count produces a zero per-GPU batch size.
+
+Each GPU holds a model replica and its local batch; GPU memory is not pooled. Reducing batch size reduces activation memory. Increasing `cube_size` increases the spatial context and memory demand: doubling the side length makes each input cube contain eight times as many voxels, although total memory use also depends on the architecture. U-Net requires a multiple of 16; SCUNet requires a multiple of 48 or 64. See [Neural network architectures](#neural-network-architectures-arch) for the architecture details.
+
+#### Noise augmentation (`noise_level`, `noise_mode`)
+
+Artificial noise addition is implemented for single-map `method=isonet2`. Keep `noise_level=0` for `isonet2-n2n`; that method learns from paired noisy halves and does not use this artificial-noise addition. The separate `denoise` command also uses paired halves and has no noise-augmentation arguments.
+
+For a positive `noise_level`, the single-map input is augmented as follows, after the training volume's normalization and missing-wedge reapplication:
+
+```text
+augmented_input = input + noise_level × (noise - mean(noise)) / std(noise)
+```
+
+The noise tensor is normalized to zero mean and unit population standard deviation. Thus, `noise_level=0.1` adds noise with standard deviation 0.1 **in normalized training intensity units**. It does not mean 10% of the raw tomogram intensity or a specified SNR. The single-map training volume is percentile-normalized using its 4th and 96th percentiles; the target does not receive this added noise.
+
+`noise_mode` controls filtering during simulated-noise reconstruction:
+
+| Value | Noise generation |
+| --- | --- |
+| `nofilter` (default) | Backprojection without a reconstruction filter. |
+| `ramp` | Backprojection with a ramp filter. |
+| `hamming` | Backprojection with a Hamming filter. |
+
+These choices change the noise's spatial/frequency structure; they do not select the loss or CTF mode. The current generator uses simulated tilt angles from -60° to +60° in 3° steps. A positive single-map noise level generates 1,000 noise cubes under `output_dir/noise_volumes`, adding startup computation, memory use, and disk storage. With `noise_level=0`, this generation and noise addition are skipped.
+
+#### Rotations (`random_rot_weight`)
+
+`random_rot_weight` is a probability between 0 and 1, evaluated per training batch in `isonet2` and `isonet2-n2n`. The default **0.2 means 20%**, rather than 0.2%.
+
+With that probability, training samples an arbitrary axis and an angle from 0 to 2π and rotates the volumes and Fourier mask using grid sampling. The current implementation uses nearest-neighbor sampling with reflection padding. Otherwise, it chooses from the predefined list of combinations of 90° rotations, implemented with `torch.rot90`.
+
+A value of 0 uses only predefined right-angle rotations; 1 uses arbitrary rotations for every batch. Increasing the value changes augmentation diversity and resampling behavior; it does not increase the number of samples per epoch. This setting is not exposed by the paired-half `denoise` command.
+
+#### Epochs, checkpoints, and previews
+
+`epochs` requests the number of training epochs. An epoch traverses the training loader built from the STAR's sampled subvolumes; it is not a prediction pass over every full tomogram.
+
+With `with_preview=True` (default), both commands train in blocks of `save_interval` epochs and predict the tomograms selected by `prev_tomo_idx` after each block. Full-volume prediction adds runtime and output files; limiting the preview indices reduces that work.
+
+**Current block behavior:** only complete blocks run. For `epochs=55` and `save_interval=10`, training runs 50 epochs and generates previews at 10, 20, 30, 40, and 50. With `epochs=5` and `save_interval=10`, no training block runs. Use positive integer values and make `epochs` a multiple of `save_interval` when previews are enabled.
+
+With `with_preview=False`, one training call runs all requested epochs without preview prediction. The main checkpoint is overwritten after each epoch, and numbered checkpoint copies are written at `save_interval` multiples. The interval therefore does not mean that weights are saved only once every several epochs.
+
+Each preview block invokes a new training call. Model weights and loss history carry forward, while the optimizer, learning-rate scheduler, and mixed-precision scaler are recreated. Preview blocks therefore affect optimization as well as output frequency.
+
+#### Learning rate (`learning_rate`, `learning_rate_min`)
+
+Training creates an AdamW optimizer at `learning_rate` and a cosine-annealing scheduler whose minimum is `learning_rate_min`. Both defaults are **3e-4**, so the default learning rate remains constant. A lower minimum enables a varying learning rate; for example, `learning_rate=3e-4` and `learning_rate_min=3e-5` define a tenfold range.
+
+The scheduler's `T_max` is `save_interval`, not the total `epochs`. With previews enabled, each block starts a fresh optimizer and cosine schedule. Without previews, the scheduler continues through the whole training call: it reaches its minimum after `save_interval` epochs and can increase again if training continues beyond that point. Changing `save_interval` can therefore change the learning-rate trajectory even when previews are disabled.
+
+#### Continuing from a checkpoint (`pretrained_model`)
+
+`pretrained_model` starts from saved network weights and loss history. The model loader also reads the saved method, architecture, cube size, CTF mode, and input phase-flip setting (with compatibility defaults for older checkpoints).
+
+The checkpoint contains **no optimizer, scheduler, or mixed-precision scaler state**. Those are initialized afresh, and `epochs` specifies additional requested training under the current command's block behavior. Numbered epoch labels are not continued from a stored global epoch counter; reusing an output directory can overwrite earlier checkpoint copies.
+
+Keep the command's `method`, `arch`, `cube_size`, `CTF_mode`, and phase-flip settings consistent with the original training. The model object loads its configuration from the checkpoint, but the training dataset, filtering, and checkpoint metadata are still constructed from command arguments; those arguments are not all synchronized automatically with the loaded model.
+
+Settings such as the B-factor, first-peak mode, noise augmentation, and rotation probability are not stored in the checkpoint and must be supplied again if the previous configuration is intended. Verify the input files' phase-flip status separately with `isCTFflipped`.
+
+#### Training and preview masking
+
+Missing-wedge masking is part of the `isonet2` and `isonet2-n2n` training algorithms. They mask the observed input contribution and reapply the wedge to rotated, filled volumes to build training examples. The separate `denoise` command trains directly on paired halves without refine's wedge-filling and reapplication steps. Neither training command accepts `apply_mw_x1`; the unused option and the Refine GUI switch have been removed.
+
+**Preview masking** happens during the automatic prediction after each training block when `with_preview=True`. Both training commands call `predict` with its default `apply_mw_x1=True`. The prediction inputs are divided into cubes and filtered in Fourier space using the missing wedge defined by the STAR tilt limits. The network then predicts from those filtered inputs. This removes frequencies in the missing wedge from the prediction inputs; it does not mask a spatial region or apply a missing-wedge filter to the final output.
+
+`apply_mw_x1` remains available in the `predict` command and the Predict GUI. To control it explicitly, run prediction separately with `--apply_mw_x1 True` or `--apply_mw_x1 False`. Automatic training previews keep the enabled default. Phase flipping remains controlled separately by the checkpoint's CTF settings and the input's `isCTFflipped` status.
+
 ### Practical notes
 
-> _Choose arch, cube_size, and batch_size to fit your GPU memory; larger architectures and cubes improve fidelity but increase resource needs. Enable mixed_precision to save VRAM and speed up training if your GPU and drivers support it._
+> _Choose arch, cube_size, and batch_size to fit your GPU memory. Larger architectures and cubes increase resource needs; assess reconstruction quality on your data. Enable mixed_precision to reduce VRAM use._
 
 ## predict
 
@@ -560,7 +771,7 @@ Apply a trained IsoNet model to tomograms to produce denoised or missing-wedge�
 - `apply_mw_x1` — If True (default), build and apply the missing-wedge mask to cubic inputs before prediction. Default: `True`.
 - `gpuID` — GPU IDs string (e.g., "0" or "0,1"); use multiple GPUs when available for speed. Default: `None`.
 - `input_column` — STAR column used for input tomogram paths. This is only relevant if the network model is using method _IsoNet2_. Default: `"rlnDeconvTomoName"`.
-- `isCTFflipped` — Declare if input tomograms are already phase-flipped; affects CTF handling. Default: `False`.
+- `isCTFflipped` — Whether prediction inputs are already phase flipped. Otherwise the checkpoint's CTF mode and `do_phaseflip_input` determine whether to phase flip before inference. Default: `False`.
 - `output_dir` — Folder to save predicted tomograms; outputs are recorded in the STAR as rlnCorrectedTomoName or rlnDenoisedTomoName depending on method. Default: `"./corrected_tomos"`.
 - `output_prefix` — Prefix to append to predicted MRC files. Default: `""` (empty string).
 - `padding_factor` — Cubic padding factor used during tiling to reduce edge effects; larger padding reduces seams but increases computation. Default: **1.5**.
@@ -613,7 +824,7 @@ You can regenerate the mask using less strict (higher values) `density_percentag
 
 ## Q: Which CTF_mode should I use (Network or Wiener) during refine?
 
-`CTF_mode network` with `clip_first_peak_mode 1` generally provides higher resolution detail. Modes 2, 3, and 0 may yield higher contrast in the low-resolution regime for specific datasets—try them out for your specific needs. `CTF_mode wiener` also works well; we recommend `snrfalloff` between 0 and 1, and `deconvstrength` between 1 and 5. However, Wiener mode requires more hyperparameter tuning than network-based CTF correction. Both approaches should outperform the **_deconv_** module.
+`network` trains against observations after applying the forward CTF to the prediction; `wiener` trains against an explicitly Wiener-filtered target. `phase_only` corrects signs without amplitude compensation, and `None` leaves CTF treatment to the input preprocessing. See [CTF handling](#ctf-handling-ctf_mode) for the phase-flip settings, prediction behavior, and the current limitation that Wiener training uses dataset defaults rather than the CLI filter-tuning values. Reconstruction quality depends on the data and settings; no mode guarantees higher resolution or better results than the separate `deconv` command.
 
 ## Q: What value should I use for mw_weight?
 
