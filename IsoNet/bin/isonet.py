@@ -508,7 +508,7 @@ class ISONET:
                    learning_rate_min:float=3e-4,
                    mixed_precision: bool=True,
 
-                   CTF_mode: str="None",
+                   CTF_mode: str="network",
                    isCTFflipped: bool=False,
                    do_phaseflip_input: bool=True,
                    bfactor: float=0,
@@ -542,14 +542,17 @@ class ISONET:
             batch_size: Total batch across GPUs; use a positive multiple of GPU count or "auto".
             loss_func: Objective - L2 (squared error), L1 (absolute error),
                 Huber (quadratic/linear error), or FSC (1 minus shell correlation).
+                In network mode, recommended pairings are L2 with clip_first_peak_mode=1;
+                FSC with clip_first_peak_mode=0. Set clip mode 0 explicitly for FSC.
                 Names are case-sensitive; see the documentation for details.
             save_interval: Epochs per preview block and checkpoint-copy interval; also scheduler T_max.
             learning_rate: Initial AdamW learning rate.
             learning_rate_min: Cosine minimum; equal to learning_rate keeps the rate constant.
             mixed_precision: Use mixed precision to reduce GPU memory use.
             CTF_mode: "None" - no explicit CTF correction; "phase_only" - sign correction.
-                "network" compares CTF-filtered predictions with targets;
-                "wiener" learns Wiener-filtered targets. See phase-flip flags below.
+                "network" is strongly recommended for CTF correction; compares
+                CTF-filtered predictions with targets. "wiener" learns Wiener-filtered
+                targets. See phase-flip flags below.
             isCTFflipped: True if input tomograms are already phase flipped; prevents another flip.
             do_phaseflip_input: Phase flip uncorrected inputs in active CTF modes.
                 Saved in the checkpoint and reused for prediction.
@@ -645,7 +648,7 @@ class ISONET:
                    mw_weight: float=-1,
                    mixed_precision: bool=True,
 
-                   CTF_mode: str="None",
+                   CTF_mode: str="network",
                    clip_first_peak_mode: int=1,
                    bfactor: float=0,
 
@@ -689,6 +692,8 @@ class ISONET:
             batch_size: Total batch across GPUs; use a positive multiple of GPU count or "auto".
             loss_func: Objective - L2 (squared error), L1 (absolute error),
                 Huber (quadratic/linear error), or FSC (1 minus shell correlation).
+                In network mode, recommended pairings are L2 with clip_first_peak_mode=1;
+                FSC with clip_first_peak_mode=0. Set clip mode 0 explicitly for FSC.
                 Names are case-sensitive; see the documentation for details.
             learning_rate: Initial AdamW learning rate.
             save_interval: Epochs per preview block and checkpoint-copy interval; also scheduler T_max.
@@ -697,8 +702,9 @@ class ISONET:
                 Values <= 0 use unmasked loss. Does not alter the isonet2 objective.
             mixed_precision: Use mixed precision to reduce GPU memory use.
             CTF_mode: "None" - no explicit CTF correction; "phase_only" - sign correction.
-                "network" compares CTF-filtered predictions with targets;
-                "wiener" learns Wiener-filtered targets. See phase-flip flags below.
+                "network" is strongly recommended for CTF correction; compares
+                CTF-filtered predictions with targets. "wiener" learns Wiener-filtered
+                targets. See phase-flip flags below.
             clip_first_peak_mode: Low-frequency CTF shaping in network mode only.
                 0 - unchanged; 1 - constant fill; 2 - sine lower bound;
                 3 - cosine lower bound. Ignored in other CTF modes.

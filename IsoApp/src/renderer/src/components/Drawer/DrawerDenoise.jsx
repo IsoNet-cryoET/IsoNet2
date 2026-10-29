@@ -37,7 +37,7 @@ const DrawerDenoise = ({ open, onClose, onSubmit }) => {
             learning_rate: 3e-4,
             learning_rate_min: 3e-4,
             mixed_precision: true,
-            CTF_mode: "None",
+            CTF_mode: "network",
             isCTFflipped: false,
             do_phaseflip_input: true,
             bfactor: 0,

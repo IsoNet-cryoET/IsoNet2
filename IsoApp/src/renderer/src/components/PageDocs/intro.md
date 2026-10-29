@@ -417,7 +417,7 @@ Entry point for _IsoNet2_ training. Use denoise for quicker noise-to-noise (n2n)
 - `batch_size` — Total batch size across GPUs; automatic sizing gives 4 on one GPU or 2 × GPU count on multiple GPUs. Choose a positive multiple of the GPU count. See [Training settings and workflow](#training-settings-and-workflow). Default: `"auto"`.
 - `bfactor` — B-factor of the modeled forward CTF envelope. Positive values damp that envelope, asking `network` mode to learn more high-frequency compensation. Not a final prediction filter; see [CTF handling](#ctf-handling-ctf_mode). Default: **0**.
 - `clip_first_peak_mode` — Low-frequency shaping of the forward CTF in `network` mode only: **0** keeps the original curve, **1** fills to the first-peak value, **2** uses a sine-based lower bound, and **3** uses a cosine-based lower bound. See [First-peak shaping](#first-peak-shaping-clip_first_peak_mode) for formulas and B-factor behavior. Default: **1**.
-- `CTF_mode` — CTF treatment: `"None"` (no explicit correction), `"phase_only"` (sign correction), `"network"` (forward-filter the prediction for the loss), or `"wiener"` (filter the training target). See [CTF handling](#ctf-handling-ctf_mode) for phase flags and prediction behavior. Default: `"None"`.
+- `CTF_mode` — CTF treatment: `"None"` (no explicit correction), `"phase_only"` (sign correction), `"network"` (forward-filter the prediction for the loss), or `"wiener"` (filter the training target). **We strongly recommend `"network"` for CTF correction.** See [CTF handling](#ctf-handling-ctf_mode) for phase flags and prediction behavior. Default: `"network"`.
 - `cube_size` — Training cube side in voxels. U-Net requires a multiple of 16; SCUNet requires a multiple of 48 or 64. Larger cubes increase context and memory demand; see [Training settings and workflow](#training-settings-and-workflow). Default: **96**.
 - `deconvstrength` — Wiener inverse-strength parameter. Current training uses dataset default 1 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **1.0**.
 - `do_phaseflip_input` — For active CTF modes and inputs not already phase flipped, apply `sign(CTF)` before training. Saved in the checkpoint and reused for prediction. Ignored in `None` mode. Default: `True`.
@@ -499,7 +499,7 @@ Use refine for _IsoNet2_ missing-wedge correction (isonet2) or isonet2-n2n combi
 - `batch_size` — Total batch size across GPUs; automatic sizing gives 4 on one GPU or 2 × GPU count on multiple GPUs. Choose a positive multiple of the GPU count. See [Training settings and workflow](#training-settings-and-workflow). Default: `"auto"`.
 - `bfactor` — B-factor of the modeled forward CTF envelope. Positive values damp that envelope, asking `network` mode to learn more high-frequency compensation. Not a final prediction filter; see [CTF handling](#ctf-handling-ctf_mode). Default: **0**.
 - `clip_first_peak_mode` — Low-frequency shaping of the forward CTF in `network` mode only: **0** keeps the original curve, **1** fills to the first-peak value, **2** uses a sine-based lower bound, and **3** uses a cosine-based lower bound. See [First-peak shaping](#first-peak-shaping-clip_first_peak_mode) for formulas and B-factor behavior. Default: **1**.
-- `CTF_mode` — CTF treatment: `"None"` (no explicit correction), `"phase_only"` (sign correction), `"network"` (forward-filter the prediction for the loss), or `"wiener"` (filter the training target). See [CTF handling](#ctf-handling-ctf_mode) for phase flags and prediction behavior. Default: `"None"`.
+- `CTF_mode` — CTF treatment: `"None"` (no explicit correction), `"phase_only"` (sign correction), `"network"` (forward-filter the prediction for the loss), or `"wiener"` (filter the training target). **We strongly recommend `"network"` for CTF correction.** See [CTF handling](#ctf-handling-ctf_mode) for phase flags and prediction behavior. Default: `"network"`.
 - `cube_size` — Training cube side in voxels. U-Net requires a multiple of 16; SCUNet requires a multiple of 48 or 64. Larger cubes increase context and memory demand; see [Training settings and workflow](#training-settings-and-workflow). Default: **96**.
 - `deconvstrength` — Wiener inverse-strength parameter. Current training uses dataset default 1 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **1.0**.
 - `do_phaseflip_input` — For active CTF modes and inputs not already phase flipped, apply `sign(CTF)` before training. Saved in the checkpoint and reused for prediction. Ignored in `None` mode. Default: `True`.
@@ -567,7 +567,9 @@ isonet.py refine tomograms.star --arch scunet-fast --cube_size 96
 
 `CTF_mode` specifies how training handles the microscope contrast transfer function (CTF), independently of the network architecture and missing-wedge correction. The CTF can reverse the sign of some spatial frequencies and attenuate their amplitudes. **Phase flipping** corrects the sign reversals; **amplitude compensation** addresses attenuation. Phase flipping alone does not restore amplitudes.
 
-Both `denoise` and `refine` accept the case-sensitive values `"None"` (default), `"phase_only"`, `"network"`, and `"wiener"`. All four are available in the GUI.
+Both `denoise` and `refine` accept the case-sensitive values `"None"`, `"phase_only"`, `"network"` (default), and `"wiener"`. All four are available in the GUI, where `network` is also selected by default.
+
+**We strongly recommend `CTF_mode="network"` for CTF correction in both `refine` and `denoise`, over `phase_only` or `wiener`.** This mode trains the network to compensate for CTF attenuation by applying the forward CTF to its prediction before comparison with the observations. `network` is the default. Use `--CTF_mode None` when no explicit CTF correction is intended.
 
 In the table below, `P` is the network prediction, `T` is the training target, `C` is the modeled CTF, `W` is the Wiener filter, and `loss` is the selected `loss_func`. Products such as `C × P` mean multiplication in Fourier space followed by transformation back to real space. The formulas describe the comparison after any phase flipping; for `isonet2-n2n`, comparisons are made in both cross-half directions and can additionally use `mw_weight`.
 
@@ -575,7 +577,7 @@ In the table below, `P` is the network prediction, `T` is the training target, `
 | --- | --- | --- |
 | `"None"` | `loss(P, T)`; no explicit CTF phase or amplitude filtering | Learns from the supplied data with their existing CTF/preprocessing. Select this when no additional CTF treatment is intended, including data already processed to the desired phase and amplitude convention. Missing-wedge correction and denoising still operate. |
 | `"phase_only"` | Optional phase flipping, then `loss(P, T)` | Learns in the phase-corrected intensity convention when phase flipping is enabled or was already performed. There is no explicit amplitude deconvolution; the CTF amplitude envelope remains in the training target. |
-| `"network"` | `loss(C × P, T)` | Learns an output whose CTF-filtered version matches the observations. The CTF is applied to the **prediction before the loss**, rather than to the network input. This trains the network to compensate for attenuation; it does not explicitly divide the data by the CTF. |
+| `"network"` (default) | `loss(C × P, T)` | Learns an output whose CTF-filtered version matches the observations. The CTF is applied to the **prediction before the loss**, rather than to the network input. This trains the network to compensate for attenuation; it does not explicitly divide the data by the CTF. |
 | `"wiener"` | `loss(P, W × T)` | Learns to match a Wiener-filtered target. The amplitude correction is prescribed by a regularized inverse filter, rather than learned through a forward CTF comparison. |
 
 For `network`, frequencies close to a CTF zero provide little direct training constraint on the unfiltered prediction; compensation there depends on information learned from the data. For `wiener`, the filter has the form `W = C / (C² + 1/SNR)`, using an assumed frequency-dependent SNR. The regularizing term limits direct inverse amplification near CTF zeros. Neither approach guarantees recovery of information absent from the observations.
@@ -612,6 +614,8 @@ isonet.py refine tomograms.star --CTF_mode wiener --isCTFflipped False --do_phas
 
 This parameter changes the **low-frequency part of the modeled forward CTF** in `CTF_mode="network"`. It is available in the GUI when `network` is selected. The default is **1**. Other CTF modes ignore this setting and construct their CTF with first-peak shaping disabled.
 
+**Recommended pairings:** use mode **1** with `loss_func=L2`, or mode **0** with `loss_func=FSC`.
+
 In network mode, training compares `C × prediction` with the target. A small modeled CTF value asks the network for a larger output to match the same target. Raising the modeled response before its first peak reduces the compensation requested in that low-frequency range. These settings therefore affect broad contrast and intensity gradients through training; they are not filters applied to the final prediction.
 
 **Definitions.** The implementation samples a signed radial CTF and locates its first local maximum after the initial B-factor envelope is applied. Let `p` be that peak's sample index, `A = C(p)` its value, and `u = i/p` the relative position of a sample before it (`0 <= i < p`). Peak position depends on the microscope parameters, pixel size, B-factor, and sampling; it is not a manually selected resolution cutoff or the first CTF zero.
@@ -638,6 +642,8 @@ isonet.py refine tomograms.star --CTF_mode network --clip_first_peak_mode 3
 ### Loss functions (`loss_func`)
 
 The loss measures the difference between a network prediction and its training target; training minimizes it. Both `refine` and `denoise` accept the case-sensitive names `L2`, `L1`, `Huber`, and `FSC`. The default is `L2`. All four are also available in the GUI's Loss Function menu.
+
+**Recommended settings for `CTF_mode=network`:** use `loss_func=L2` with `clip_first_peak_mode=1`, or `loss_func=FSC` with `clip_first_peak_mode=0`. L2 with mode 1 is the default pairing. For FSC, set `clip_first_peak_mode=0` explicitly; selecting a loss does not automatically change the first-peak mode. Other CTF modes ignore `clip_first_peak_mode`.
 
 For the voxel-based losses below, let `e = prediction - target`. The mean is taken over all voxels, channels, and samples in the training batch.
 
@@ -667,7 +673,8 @@ Loss values have different scales and meanings across these choices. Compare tra
 
 ```bash
 isonet.py refine tomograms.star --loss_func Huber
-isonet.py refine tomograms.star --loss_func FSC
+isonet.py refine tomograms.star --CTF_mode network --loss_func L2 --clip_first_peak_mode 1
+isonet.py refine tomograms.star --CTF_mode network --loss_func FSC --clip_first_peak_mode 0
 ```
 
 ### Training settings and workflow

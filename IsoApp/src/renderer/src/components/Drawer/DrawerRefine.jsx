@@ -41,7 +41,7 @@ const DrawerRefine = ({ open, onClose, onSubmit }) => {
             mw_weight: 20,
             random_rot_weight: 0.2,
             mixed_precision: true,
-            CTF_mode: "None",
+            CTF_mode: "network",
             isCTFflipped: false,
             do_phaseflip_input: true,
             clip_first_peak_mode: 1,
