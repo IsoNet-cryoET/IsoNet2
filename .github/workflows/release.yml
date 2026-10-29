@@ -67,7 +67,7 @@ jobs:
         working-directory: IsoApp
         run: |
           npm run build
-          npx --no-install electron-builder --linux AppImage --x64 --publish never --config.electronDownload.mirror=https://github.com/electron/electron/releases/download/
+          npx --no-install electron-builder --linux AppImage --x64 --publish never --config.electronDist="$PWD/node_modules/electron/dist"
 
       - name: Verify AppImage and create checksum
         working-directory: IsoApp/dist
