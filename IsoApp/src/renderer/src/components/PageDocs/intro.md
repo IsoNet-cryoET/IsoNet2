@@ -112,7 +112,7 @@ After successfully installing, you can check your CUDA version using `nvidia-smi
 
 ### GUI Installation
 
-Download the _IsoNet2_ release from the release tab on the right column of our [Github](https://github.com/IsoNet-cryoET/IsoNet2) repository. This release contains the source code and the binary file for the GUI. Extract the compressed files into your desired installation folder.
+Download the source archive and `isoapp.AppImage` from the [IsoNet2 releases page](https://github.com/IsoNet-cryoET/IsoNet2/releases). Extract the source archive into your desired installation folder and place `isoapp.AppImage` in the extracted IsoNet2 directory. The GUI is provided as a separate release asset and follows the IsoNet2 release version.
 
 ### non-GUI Installation
 

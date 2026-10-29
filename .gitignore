@@ -68,3 +68,6 @@ coverage/
 # Ignore temporary files
 tmp/
 temp/
+
+# Track release automation.
+!.github/

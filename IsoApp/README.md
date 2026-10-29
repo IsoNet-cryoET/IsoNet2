@@ -32,3 +32,9 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
+
+## Release packaging
+
+The GUI follows the IsoNet2 release version in the root `pyproject.toml`; the internal package metadata uses the same version. The public Linux GUI asset is named `isoapp.AppImage`, without a separate GUI version in its filename.
+
+Pushing an `IsoNet-X.Y.Z` tag runs `.github/workflows/release.yml`, builds the GUI from that tag, uploads the AppImage and its SHA256 checksum to a draft release, then publishes it. Release notes come from the tagged `RELEASE_NOTES.md`. The workflow can also be run manually for an existing tag.

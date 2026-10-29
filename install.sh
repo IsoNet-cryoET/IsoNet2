@@ -20,8 +20,8 @@ cd ${SCRIPT_DIR}
 "${SCRIPT_DIR}/build/conda_env/bin/pip" install .
 
 # Download GUI
-curl -L "https://github.com/IsoNet-cryoET/IsoNet2/releases/download/IsoNet-2.0.0-beta/isoapp-1.0.0.AppImage" -o ${SCRIPT_DIR}/build/isoapp-1.0.0.AppImage
-chmod +x ${SCRIPT_DIR}/build/isoapp-1.0.0.AppImage
+curl --fail --location --retry 3 "https://github.com/IsoNet-cryoET/IsoNet2/releases/download/IsoNet-2.1.0/isoapp.AppImage" -o "${SCRIPT_DIR}/build/isoapp.AppImage" || exit 1
+chmod +x "${SCRIPT_DIR}/build/isoapp.AppImage"
 
 # Source bashrc file
 source "${SCRIPT_DIR}/isonet2.bashrc"

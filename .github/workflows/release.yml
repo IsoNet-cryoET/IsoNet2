@@ -1,0 +1,91 @@
+name: Publish IsoNet2 release
+
+on:
+  push:
+    tags:
+      - 'IsoNet-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing IsoNet2 release tag
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      ELECTRON_MIRROR: https://github.com/electron/electron/releases/download/
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          persist-credentials: false
+
+      - name: Validate release versions
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+
+          match = re.fullmatch(r'IsoNet-(\d+\.\d+\.\d+)', os.environ['RELEASE_TAG'])
+          assert match, 'Expected a stable release tag such as IsoNet-2.1.0'
+          version = match.group(1)
+          metadata = Path('pyproject.toml').read_text()
+          assert re.search(r'^version = "' + re.escape(version) + r'"$', metadata, re.M)
+          package = json.loads(Path('IsoApp/package.json').read_text())
+          lock = json.loads(Path('IsoApp/package-lock.json').read_text())
+          assert package['version'] == lock['version'] == lock['packages']['']['version'] == version
+          assert Path('RELEASE_NOTES.md').read_text().startswith(f'# IsoNet2 v{version}\n')
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'RELEASE_VERSION={version}\n')
+          PY
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Install GUI dependencies
+        working-directory: IsoApp
+        run: npm ci
+
+      - name: Build current GUI
+        working-directory: IsoApp
+        run: |
+          npm run build
+          npx --no-install electron-builder --linux AppImage --x64 --publish never --config.electronDownload.mirror=https://github.com/electron/electron/releases/download/
+
+      - name: Verify AppImage and create checksum
+        working-directory: IsoApp/dist
+        run: |
+          test -x isoapp.AppImage
+          ./isoapp.AppImage --appimage-version
+          sha256sum isoapp.AppImage > isoapp.AppImage.sha256
+          sha256sum -c isoapp.AppImage.sha256
+
+      - name: Upload assets and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > /tmp/isonet-release-draft; then
+            test "$(cat /tmp/isonet-release-draft)" = true || { echo 'Release is already published; refusing to replace its assets.'; exit 1; }
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "IsoNet2 v${RELEASE_VERSION}" --notes-file RELEASE_NOTES.md
+          fi
+          gh release upload "$RELEASE_TAG" IsoApp/dist/isoapp.AppImage IsoApp/dist/isoapp.AppImage.sha256 --clobber
+          gh release edit "$RELEASE_TAG" --title "IsoNet2 v${RELEASE_VERSION}" --notes-file RELEASE_NOTES.md --draft=false --latest

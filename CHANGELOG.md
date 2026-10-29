@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.1.0 — 2026-10-29
+
+- Make `CTF_mode=network` the default for refine and denoise in both the CLI and GUI.
+- Recommend L2 loss with `clip_first_peak_mode=1`, or FSC loss with `clip_first_peak_mode=0`, for network CTF correction.
+- Add FSC loss and expand documentation for architectures, loss functions, CTF handling, and training settings.
+- Batch paired-half inputs in the same forward pass during refinement for consistent BatchNorm statistics.
+- Add augmentation noise before CTF filtering when filling the missing wedge during paired-half refinement.
+- Remove the unused `apply_mw_x1` option from refine and denoise; retain it in predict.
+- Make the averaged-tomogram output directory configurable and correct the tutorial checkpoint cube size.
+- Improve GPU ID handling, DDP lifecycle management, MRC voxel-size preservation, and STAR loading.
+- Remove unused model implementations and expose SCUNet as experimental CLI-only architectures.
+- Ship the current integrated GUI as `isoapp.AppImage`, with a SHA256 checksum. The GUI follows the IsoNet2 release and has no separate public version.
+- Add a tag-triggered workflow to build and publish release assets from the tagged source.
+
 ## Changes since 2025-12-12
 
 ### GUI Integration and packaging
