@@ -227,15 +227,15 @@ class Net:
                                                      voxel_size=pixel_size)
         return outData
 
-    def predict(self, data, tmp_data_path, F_mask=None, idx=None):
+    def predict(self, data, tmp_data_path, F_mask=None, idx=None, output_crop=None):
         data = data[:,np.newaxis,:,:].astype(np.float32)
         data = torch.from_numpy(data)
         # logging.info('data_shape',data.shape)
         if self.world_size > 1:
             mp.spawn(ddp_predict, args=(self.world_size, self.port_number, self.model, data, tmp_data_path,\
-                                     F_mask,idx), nprocs=self.world_size)
+                                     F_mask,idx,output_crop), nprocs=self.world_size)
         else:
-            ddp_predict(0, self.world_size, self.port_number, self.model, data, tmp_data_path, F_mask, idx)
+            ddp_predict(0, self.world_size, self.port_number, self.model, data, tmp_data_path, F_mask, idx, output_crop)
 
         all_outputs = []
         for r in range(self.world_size):
@@ -254,11 +254,14 @@ class Net:
     def predict_map(self, data, output_dir, cube_size = 64, crop_size=96, F_mask=None, idx=None):
         # change edge width from 7 to 5 to reduce computing
         reform_ins = reform3D(data,cube_size,crop_size,5)
+        start = (crop_size - cube_size) // 2 - reform_ins.edge_depth
+        end = start + cube_size + 2 * reform_ins.edge_depth
         data = reform_ins.pad_and_crop()        
         tmp_data_path = f"{output_dir}/tmp.npy"
-        outData = self.predict(data, tmp_data_path=tmp_data_path, F_mask=F_mask,idx=idx)
+        outData = self.predict(data, tmp_data_path=tmp_data_path, F_mask=F_mask,
+                               idx=idx, output_crop=(start, end))
         outData = outData.squeeze()
-        outData=reform_ins.restore(outData)
+        outData=reform_ins.restore(outData, already_cropped=True)
         return outData
     
 

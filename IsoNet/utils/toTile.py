@@ -70,11 +70,12 @@ class reform3D:
         return out[:x_len,:y_len,:z_len].astype(np.float32)
 
 
-    def restore(self,cubes):
+    def restore(self,cubes, already_cropped=False):
 
-        start = (self.cropsize-self.cubesize)//2-self.edge_depth
-        end = (self.cropsize-self.cubesize)//2+self.cubesize+self.edge_depth
-        cubes = cubes[:,start:end,start:end,start:end]
+        if not already_cropped:
+            start = (self.cropsize-self.cubesize)//2-self.edge_depth
+            end = (self.cropsize-self.cubesize)//2+self.cubesize+self.edge_depth
+            cubes = cubes[:,start:end,start:end,start:end]
 
         restored = np.zeros((self._sidelen[0]*self.cubesize+self.edge_depth*2,
                         self._sidelen[1]*self.cubesize+self.edge_depth*2,

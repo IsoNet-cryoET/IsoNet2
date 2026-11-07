@@ -412,7 +412,7 @@ def ddp_train(rank, world_size, port_number, model, train_dataset, training_para
         dist.destroy_process_group()
 
 
-def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mask,idx=None):
+def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mask,idx=None, output_crop=None):
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = str(port_number)
@@ -444,7 +444,14 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
                 if F_mask is not None:
                     F_m = torch.from_numpy(F_mask[np.newaxis,np.newaxis,:,:,:]).to(rank)
                     batch_input = apply_F_filter_torch(batch_input, F_m)
-                batch_output = model(batch_input).cpu()  # Move output to CPU immediately
+                batch_output = model(batch_input)
+                if output_crop is not None:
+                    start_crop, end_crop = output_crop
+                    # Transfer only the region used by tomogram reconstruction.
+                    batch_output = batch_output[
+                        :, :, start_crop:end_crop, start_crop:end_crop, start_crop:end_crop
+                    ]
+                batch_output = batch_output.cpu()
                 # if rank == 0:
                 #     write_mrc('testIN.mrc', batch_input[0][0].cpu().numpy().astype(np.float32))
                 #     write_mrc('testOUT.mrc', batch_output[0][0].numpy().astype(np.float32))
@@ -456,7 +463,14 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
                 output[i - start] = batch_output[0].numpy()
 
         if output is None:
-            output = np.empty((0, *data.shape[1:]), dtype=np.float32)
+            output_shape = tuple(data.shape[1:])
+            if output_crop is not None:
+                # Match Python slicing, including bounds outside the input shape.
+                spatial_shape = tuple(
+                    len(range(size)[slice(*output_crop)]) for size in data.shape[2:]
+                )
+                output_shape = (data.shape[1], *spatial_shape)
+            output = np.empty((0, *output_shape), dtype=np.float32)
         rank_output_path = f"{tmp_data_path}_rank_{rank}.npy"
         np.save(rank_output_path, output)
 
