@@ -432,10 +432,12 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
         num_data_points = data.shape[0]
         steps_per_rank = (num_data_points + world_size - 1) // world_size
 
-        outputs = []
+        start = rank * steps_per_rank
+        stop = min((rank + 1) * steps_per_rank, num_data_points)
+        output = None
         with torch.no_grad():
             for i in tqdm(
-                range(rank * steps_per_rank, min((rank + 1) * steps_per_rank, num_data_points)),
+                range(start, stop),
                 disable=(rank != 0), desc=f'Predicting Tomogram{f" {idx}" if idx is not None else ""}: '
             ):
                 batch_input = data[i:i + 1].to(rank)
@@ -446,9 +448,15 @@ def ddp_predict(rank, world_size, port_number, model, data, tmp_data_path, F_mas
                 # if rank == 0:
                 #     write_mrc('testIN.mrc', batch_input[0][0].cpu().numpy().astype(np.float32))
                 #     write_mrc('testOUT.mrc', batch_output[0][0].numpy().astype(np.float32))
-                outputs.append(batch_output)
+                if output is None:
+                    # Allocate once instead of keeping and concatenating every batch.
+                    output = np.empty(
+                        (stop - start, *batch_output.shape[1:]), dtype=np.float32
+                    )
+                output[i - start] = batch_output[0].numpy()
 
-        output = torch.cat(outputs, dim=0).cpu().numpy().astype(np.float32)
+        if output is None:
+            output = np.empty((0, *data.shape[1:]), dtype=np.float32)
         rank_output_path = f"{tmp_data_path}_rank_{rank}.npy"
         np.save(rank_output_path, output)
 
