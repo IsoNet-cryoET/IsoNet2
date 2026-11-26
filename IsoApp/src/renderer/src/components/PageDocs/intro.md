@@ -435,6 +435,7 @@ Entry point for _IsoNet2_ training. Use denoise for quicker noise-to-noise (n2n)
 - `pretrained_model` — Checkpoint weights and model configuration to load. Optimizer/scheduler state is initialized afresh; repeat consistent training settings as explained in [Training settings and workflow](#training-settings-and-workflow). Default: `None`.
 - `save_interval` — Epochs per preview block, interval for numbered checkpoint copies, and cosine-scheduler `T_max`; the main checkpoint is saved each epoch. See [Training settings and workflow](#training-settings-and-workflow). Default: **10**.
 - `snrfalloff` — Wiener SNR-falloff parameter. Current training uses dataset default 0 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **0**.
+- `starting_epoch` — Epochs already trained into the starting weights; numbered checkpoint copies and previews continue from this count. Omit it to use the epoch count stored in `pretrained_model`'s loss history (0 without a pretrained model). See [Continuing from a checkpoint](#continuing-from-a-checkpoint-pretrained_model). Default: `None`.
 - `with_preview` — Predict selected tomograms after each complete `save_interval` training block; optimizer/scheduler state resets between blocks. See [Training settings and workflow](#training-settings-and-workflow). Default: `True`.
 
 ![](./IsoNet/tutorial_figures/CTF_b_factor.png)
@@ -523,6 +524,7 @@ Use refine for _IsoNet2_ missing-wedge correction (isonet2) or isonet2-n2n combi
 - `random_rot_weight` — Probability of arbitrary-axis rotation per batch, from 0 to 1; otherwise a predefined right-angle rotation is selected. **0.2 means 20%**. See [Training settings and workflow](#training-settings-and-workflow). Default: **0.2**.
 - `save_interval` — Epochs per preview block, interval for numbered checkpoint copies, and cosine-scheduler `T_max`; the main checkpoint is saved each epoch. See [Training settings and workflow](#training-settings-and-workflow). Default: **10**.
 - `snrfalloff` — Wiener SNR-falloff parameter. Current training uses dataset default 0 rather than this CLI value; see [CTF handling](#ctf-handling-ctf_mode). Default: **0**.
+- `starting_epoch` — Epochs already trained into the starting weights; numbered checkpoint copies and previews continue from this count. Omit it to use the epoch count stored in `pretrained_model`'s loss history (0 without a pretrained model). See [Continuing from a checkpoint](#continuing-from-a-checkpoint-pretrained_model). Default: `None`.
 - `with_preview` — Predict selected tomograms after each complete `save_interval` training block; optimizer/scheduler state resets between blocks. See [Training settings and workflow](#training-settings-and-workflow). Default: `True`.
 
 ![](./IsoNet/tutorial_figures/CTF_b_factor.png)
@@ -749,7 +751,7 @@ The scheduler's `T_max` is `save_interval`, not the total `epochs`. With preview
 
 `pretrained_model` starts from saved network weights and loss history. The model loader also reads the saved method, architecture, cube size, CTF mode, and input phase-flip setting (with compatibility defaults for older checkpoints).
 
-The checkpoint contains **no optimizer, scheduler, or mixed-precision scaler state**. Those are initialized afresh, and `epochs` specifies additional requested training under the current command's block behavior. Numbered epoch labels are not continued from a stored global epoch counter; reusing an output directory can overwrite earlier checkpoint copies.
+The checkpoint contains **no optimizer, scheduler, or mixed-precision scaler state**. Those are initialized afresh, and `epochs` specifies additional requested training under the current command's block behavior. Numbered checkpoint copies and previews continue from the total epoch count: by default, the number of epochs in the checkpoint's saved loss history, or the value given with `starting_epoch`. For example, resuming from a 30-epoch checkpoint with `epochs=20` writes `..._epoch40_full.pt`, `..._epoch50_full.pt`, `corrected_epochs40_*`, and `corrected_epochs50_*`. Training refuses to start if it would overwrite an existing numbered checkpoint or preview in `output_dir`. If `pretrained_model` is the main checkpoint in `output_dir`, which training rewrites every epoch, it is first copied to `..._epoch<starting_epoch>_full.pt` unless that file exists.
 
 Keep the command's `method`, `arch`, `cube_size`, `CTF_mode`, and phase-flip settings consistent with the original training. The model object loads its configuration from the checkpoint, but the training dataset, filtering, and checkpoint metadata are still constructed from command arguments; those arguments are not all synchronized automatically with the loaded model.
 

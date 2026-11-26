@@ -28,6 +28,57 @@ import textwrap
 from pathlib import Path
 from IsoNet.utils.plot_metrics import save_slices_and_spectrum
 
+
+def resolve_starting_epoch(network, starting_epoch=None):
+    """Return the number of epochs already trained into the network's weights.
+
+    Training appends one loss entry per epoch to the checkpoint metrics, and
+    pretrained_model carries that history forward, so its length is the total
+    epoch count. A new network has an empty history and starts at 0.
+    """
+    if starting_epoch in [None, "None", ""]:
+        starting_epoch = len(network.metrics.get("average_loss", []))
+    starting_epoch = int(starting_epoch)
+    if starting_epoch < 0:
+        raise ValueError(f"starting_epoch must be >= 0, got {starting_epoch}")
+    return starting_epoch
+
+
+def protect_epoch_outputs(output_dir, model_prefix, starting_epoch, epochs, save_interval,
+                          pretrained_model=None, with_preview=True):
+    """Refuse to start a run that would overwrite numbered checkpoints or previews.
+
+    Numbered copies (and previews) are written at starting_epoch + k * save_interval.
+    If pretrained_model is the main checkpoint, which training rewrites every epoch,
+    keep a copy of it as {model_prefix}_epoch{starting_epoch}_full.pt first.
+    """
+    existing = []
+    for total in range(starting_epoch + save_interval, starting_epoch + epochs + 1, save_interval):
+        epoch_file = f"{output_dir}/{model_prefix}_epoch{total}_full.pt"
+        if os.path.exists(epoch_file):
+            existing.append(epoch_file)
+        if with_preview:
+            existing += [str(p) for p in sorted(Path(output_dir).glob(f"corrected_epochs{total}_*"))]
+    if existing:
+        lines = [f"Training would overwrite earlier outputs in {output_dir}:"]
+        lines += [f"  {p}" for p in existing[:10]]
+        if len(existing) > 10:
+            lines.append(f"  ... and {len(existing) - 10} more")
+        lines.append(f"Epoch numbering continues from starting_epoch={starting_epoch}. Use a new output_dir, "
+                     "move these files, or set starting_epoch to the number of epochs already trained.")
+        raise FileExistsError("\n".join(lines))
+
+    model_file = f"{output_dir}/{model_prefix}_full.pt"
+    if pretrained_model not in [None, "None", ""] and os.path.exists(model_file) \
+            and os.path.samefile(pretrained_model, model_file):
+        kept_file = f"{output_dir}/{model_prefix}_epoch{starting_epoch}_full.pt"
+        if os.path.exists(kept_file):
+            logging.warning(f"Training will overwrite pretrained_model {model_file}; {kept_file} already exists")
+        else:
+            shutil.copy(model_file, kept_file)
+            logging.info(f"Copied pretrained_model to {kept_file} because training overwrites {model_file}")
+
+
 class ISONET:
     """
     ISONET: Train on tomograms to simultaneously perform missing wedge correction, CTF correction, and denoising.
@@ -497,6 +548,7 @@ class ISONET:
 
                    arch: str='unet-medium',
                    pretrained_model: str=None,
+                   starting_epoch: int=None,
 
                    cube_size: int=96,
                    epochs: int=50,
@@ -536,6 +588,9 @@ class ISONET:
                 not available in the GUI. scunet-large is not configured.
             pretrained_model: Load checkpoint weights/configuration; optimizer and scheduler start afresh.
                 Keep training settings consistent with the original run; see the full guide.
+            starting_epoch: Epochs already trained; numbered checkpoints and previews continue from it.
+                Defaults to the epoch count in pretrained_model's loss history, or 0.
+                Training refuses to start if it would overwrite existing numbered outputs.
             cube_size: Training cube side in voxels. U-Net requires a multiple of 16;
                 SCUNet requires a multiple of 48 or 64 (e.g., 64, 96, 128).
             epochs: Requested epochs; previews run only complete save_interval blocks.
@@ -608,15 +663,21 @@ class ISONET:
         training_params['split'] = "full"
         from IsoNet.models.network import Net
         network = Net(method='n2n', arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
+        starting_epoch = resolve_starting_epoch(network, starting_epoch)
+        training_params["starting_epoch"] = starting_epoch
+        model_prefix = f"network_n2n_{arch}_{cube_size}"
+        protect_epoch_outputs(output_dir, model_prefix, starting_epoch, epochs, save_interval,
+                              pretrained_model=pretrained_model, with_preview=with_preview)
         network.prepare_train_dataset(training_params)
         if with_preview:
             new_epochs = save_interval
             training_params["epochs"] = new_epochs
-            for step in range(save_interval, epochs+1, save_interval):
+            for step in range(starting_epoch+save_interval, starting_epoch+epochs+1, save_interval):
                 logging.info(f"Training for {step-save_interval} to {step} epochs")
+                training_params["starting_epoch"] = step - save_interval
                 network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
-                model_file = f"{output_dir}/network_n2n_{arch}_{cube_size}_full.pt"
-                shutil.copy(model_file, f"{output_dir}/network_n2n_{arch}_{cube_size}_epoch{step}_full.pt")
+                model_file = f"{output_dir}/{model_prefix}_full.pt"
+                shutil.copy(model_file, f"{output_dir}/{model_prefix}_epoch{step}_full.pt")
                 all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
                             isCTFflipped=isCTFflipped, tomo_idx=prev_tomo_idx,output_prefix=f"corrected_epochs{step}") 
                 save_slices_and_spectrum(all_tomo_paths[0],output_dir,step)
@@ -635,6 +696,7 @@ class ISONET:
                    method: str="auto",
                    arch: str='unet-medium',
                    pretrained_model: str=None,
+                   starting_epoch: int=None,
 
                    cube_size: int=96,
                    epochs: int=50,
@@ -685,6 +747,9 @@ class ISONET:
                 not available in the GUI. scunet-large is not configured.
             pretrained_model: Load checkpoint weights/configuration; optimizer and scheduler start afresh.
                 Keep training settings consistent with the original run; see the full guide.
+            starting_epoch: Epochs already trained; numbered checkpoints and previews continue from it.
+                Defaults to the epoch count in pretrained_model's loss history, or 0.
+                Training refuses to start if it would overwrite existing numbered outputs.
             cube_size: Training cube side in voxels. U-Net requires a multiple of 16;
                 SCUNet requires a multiple of 48 or 64 (e.g., 64, 96, 128).
             epochs: Requested epochs; previews run only complete save_interval blocks.
@@ -816,16 +881,22 @@ class ISONET:
         training_params['split'] = "full"
         from IsoNet.models.network import Net
         network = Net(method=method, arch=arch, cube_size=cube_size, pretrained_model=pretrained_model,state='train')
+        starting_epoch = resolve_starting_epoch(network, starting_epoch)
+        training_params["starting_epoch"] = starting_epoch
+        model_prefix = f"network_{method}_{arch}_{cube_size}"
+        protect_epoch_outputs(output_dir, model_prefix, starting_epoch, epochs, save_interval,
+                              pretrained_model=pretrained_model, with_preview=with_preview)
         network.prepare_train_dataset(training_params)
         if with_preview:
             new_epochs = save_interval
             training_params["epochs"] = new_epochs
-            for step in range(save_interval, epochs+1, save_interval):
+            for step in range(starting_epoch+save_interval, starting_epoch+epochs+1, save_interval):
                 logging.info(f"Training for {step-save_interval} to {step} epochs")
+                training_params["starting_epoch"] = step - save_interval
                 network.train(training_params) #train based on init model and save new one as model_iter{num_iter}.h5
-                model_file = f"{output_dir}/network_{method}_{arch}_{cube_size}_full.pt"
-                shutil.copy(model_file, f"{output_dir}/network_{method}_{arch}_{cube_size}_epoch{step}_full.pt")
-                if mask_update_interval == step // save_interval:
+                model_file = f"{output_dir}/{model_prefix}_full.pt"
+                shutil.copy(model_file, f"{output_dir}/{model_prefix}_epoch{step}_full.pt")
+                if mask_update_interval == (step - starting_epoch) // save_interval:
                     all_tomo_paths = self.predict(star_file=star_file, model=model_file, output_dir=output_dir, gpuID=gpuID, \
                                 isCTFflipped=isCTFflipped, tomo_idx=None,output_prefix=f"corrected_epochs{step}",save_slices=False, input_column=input_column)
                     logging.info(f"Updating masks based on the corrected tomograms at epoch {step}")
