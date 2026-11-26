@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Continue numbered checkpoint copies and previews from the total epoch count when training resumes from `pretrained_model` in `refine` and `denoise`. Add a `starting_epoch` option to override the count read from the checkpoint's loss history.
+- Refuse to start training if it would overwrite existing numbered checkpoints or previews, and keep a copy of `pretrained_model` when it is the main checkpoint that training rewrites.
+- Fix the per-block checkpoint copy in preview mode: `..._epoch<save_interval>_full.pt` was overwritten after every block and ended up holding the final weights.
+
 ## v2.1.0 — 2026-10-29
 
 - Make `CTF_mode=network` the default for refine and denoise in both the CLI and GUI.
